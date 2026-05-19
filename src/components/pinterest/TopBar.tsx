@@ -10,7 +10,7 @@ export function TopBar() {
           </svg>
         </a>
         <div className="flex-1 relative">
-          <div className="flex items-center gap-2 h-12 rounded-full bg-input px-4 focus-within:ring-2 focus-within:ring-ring transition">
+          <div className="flex items-center gap-2 h-12 rounded-[16px] bg-input px-4 focus-within:ring-2 focus-within:ring-ring transition">
             <Search className="h-5 w-5 text-muted-foreground shrink-0" strokeWidth={2.2} />
             <input
               type="text"
