@@ -1,26 +1,25 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Sidebar } from "@/components/pinterest/Sidebar";
+import { TopBar } from "@/components/pinterest/TopBar";
+import { PinGrid } from "@/components/pinterest/PinGrid";
+import { MobileNav } from "@/components/pinterest/MobileNav";
 
 export const Route = createFileRoute("/")({
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. For sites with multiple pages (About, Services, Contact, etc.),
-// create separate route files (about.tsx, services.tsx, contact.tsx) — don't put all pages in this file.
-function PlaceholderIndex() {
+function Index() {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+    <div className="min-h-screen bg-background">
+      <Sidebar />
+      <div className="md:pl-[72px] pb-16 md:pb-0">
+        <TopBar />
+        <main>
+          <h1 className="sr-only">Pinterest — Discover ideas you'll love</h1>
+          <PinGrid />
+        </main>
+      </div>
+      <MobileNav />
     </div>
   );
-}
-
-function Index() {
-  return <PlaceholderIndex />;
 }
