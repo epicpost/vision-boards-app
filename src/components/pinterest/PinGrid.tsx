@@ -38,20 +38,11 @@ const pins: Pin[] = seeds.map((p, i) => ({
 export function PinGrid() {
   return (
     <div className="px-3 md:px-6 pb-10">
-      <div
-        className="[column-fill:_balance]"
-        style={{
-          columnGap: "0.75rem",
-          columnCount: "var(--cols, 2)",
-        }}
-      >
+      <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 xl:columns-6 2xl:columns-7 gap-3 [column-fill:_balance]">
         {pins.map((pin) => (
           <PinCard key={pin.id} pin={pin} />
         ))}
       </div>
-      <style>{`
-        @media (min-width: 500px) { .pin-cols { } }
-      `}</style>
     </div>
   );
 }
