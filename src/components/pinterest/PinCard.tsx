@@ -21,7 +21,7 @@ export function PinCard({ pin }: { pin: Pin }) {
           loading="lazy"
           className="h-full w-full object-cover transition"
         />
-        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition rounded-2xl">
+        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition rounded-[16px]">
           <div className="absolute top-3 right-3">
             <button className="bg-primary text-primary-foreground font-bold text-sm px-4 py-2.5 rounded-full hover:brightness-90 transition">
               Save
