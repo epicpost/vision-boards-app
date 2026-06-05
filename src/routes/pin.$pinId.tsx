@@ -154,11 +154,11 @@ function PinDetail() {
             </aside>
           </div>
 
-          {/* More to explore */}
-          <div className="mt-10">
-            <h2 className="text-xl font-bold text-foreground text-center mb-4">More to explore</h2>
+          {/* More pins */}
+          <div className="mt-3">
             <PinGrid />
           </div>
+
         </main>
       </div>
       <MobileNav />
