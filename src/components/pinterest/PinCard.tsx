@@ -1,4 +1,5 @@
 import { MoreHorizontal, Upload } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 
 export interface Pin {
   id: string;
@@ -11,8 +12,10 @@ export interface Pin {
 export function PinCard({ pin }: { pin: Pin }) {
   return (
     <div className="mb-3 break-inside-avoid group">
-      <div
-        className="relative w-full overflow-hidden rounded-[16px] bg-secondary cursor-zoom-in"
+      <Link
+        to="/pin/$pinId"
+        params={{ pinId: pin.id }}
+        className="relative block w-full overflow-hidden rounded-[16px] bg-secondary cursor-zoom-in"
         style={{ aspectRatio: `1 / ${pin.height / 250}` }}
       >
         <img
