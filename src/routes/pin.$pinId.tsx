@@ -143,10 +143,18 @@ function PinDetail() {
                 </div>
               </div>
             </div>
-          </article>
+            </article>
+            <aside className="hidden xl:block xl:w-1/5 2xl:w-2/6">
+              <div className="columns-1 2xl:columns-2 gap-3 [column-fill:_balance]">
+                {pins.slice(5, 13).map((p) => (
+                  <PinCard key={`side-${p.id}`} pin={p} />
+                ))}
+              </div>
+            </aside>
+          </div>
 
           {/* More to explore */}
-          <div className="mx-auto max-w-[1400px] mt-10">
+          <div className="mt-10">
             <h2 className="text-xl font-bold text-foreground text-center mb-4">More to explore</h2>
             <PinGrid />
           </div>
