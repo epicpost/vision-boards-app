@@ -10,8 +10,6 @@ function templateToPin(template: PostTemplate, index: number) {
     mediaType: media.type,
     height: 460 + (index % 4) * 40,
     title: template.title,
-    author: template.tags[0],
-    likesCount: template.likes_count,
   };
 }
 
@@ -23,7 +21,6 @@ function PinSkeleton({ index }: { index: number }) {
         style={{ aspectRatio: `1 / ${(460 + (index % 4) * 40) / 250}` }}
       />
       <div className="mx-2 mt-2 h-4 w-3/4 animate-pulse rounded bg-secondary" />
-      <div className="mx-2 mt-2 h-3 w-1/2 animate-pulse rounded bg-secondary" />
     </div>
   );
 }

@@ -7,8 +7,6 @@ export interface Pin {
   height: number;
   mediaType?: "image" | "video" | null;
   title?: string;
-  author?: string;
-  likesCount?: number;
 }
 
 export function PinCard({ pin }: { pin: Pin }) {
@@ -74,15 +72,6 @@ export function PinCard({ pin }: { pin: Pin }) {
         <p className="px-2 pt-2 text-[13px] font-semibold text-foreground line-clamp-2">
           {pin.title}
         </p>
-      )}
-      {pin.author && (
-        <div className="px-2 pt-1 flex items-center gap-2">
-          <div className="h-5 w-5 rounded-full bg-gradient-to-br from-rose-300 to-amber-200" />
-          <span className="text-xs text-muted-foreground">{pin.author}</span>
-        </div>
-      )}
-      {typeof pin.likesCount === "number" && (
-        <p className="px-2 pt-1 text-xs text-muted-foreground">{pin.likesCount} likes</p>
       )}
     </div>
   );

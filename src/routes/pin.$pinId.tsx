@@ -38,8 +38,6 @@ function templateToPin(template: PostTemplate, index: number) {
     mediaType: media.type,
     height: 460 + (index % 4) * 40,
     title: template.title,
-    author: template.tags[0],
-    likesCount: template.likes_count,
   };
 }
 
@@ -75,7 +73,7 @@ function PinDetail() {
         <main className="px-3 md:px-6 pb-10">
           <div className="flex gap-3 items-start">
             <div className="w-full xl:w-4/5 2xl:w-4/6">
-              <article className="rounded-[32px] border border-border bg-background overflow-hidden">
+              <article className="rounded-[16px] border border-border bg-background overflow-hidden">
                 <div className="grid grid-cols-1 md:grid-cols-2">
                   {/* Image side */}
                   <div className="relative bg-secondary">
