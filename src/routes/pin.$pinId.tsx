@@ -3,6 +3,7 @@ import { ArrowLeft, Heart, MessageCircle, Upload, MoreHorizontal, ChevronRight, 
 import { Sidebar } from "@/components/pinterest/Sidebar";
 import { TopBar } from "@/components/pinterest/TopBar";
 import { PinGrid } from "@/components/pinterest/PinGrid";
+import { PinCard } from "@/components/pinterest/PinCard";
 import { MobileNav } from "@/components/pinterest/MobileNav";
 import { getPinById, pins } from "@/components/pinterest/pins-data";
 
@@ -22,7 +23,8 @@ function PinDetail() {
       <div className="md:pl-[72px] pb-16 md:pb-0">
         <TopBar showTabs={false} />
         <main className="px-3 md:px-6 pb-10">
-          <article className="mx-auto max-w-[1100px] rounded-[32px] border border-border bg-background overflow-hidden">
+          <div className="flex gap-3 items-start">
+            <article className="w-full xl:w-4/5 2xl:w-4/6 rounded-[32px] border border-border bg-background overflow-hidden">
             <div className="grid grid-cols-1 md:grid-cols-2">
               {/* Image side */}
               <div className="relative bg-secondary">
@@ -142,10 +144,18 @@ function PinDetail() {
                 </div>
               </div>
             </div>
-          </article>
+            </article>
+            <aside className="hidden xl:block xl:w-1/5 2xl:w-2/6">
+              <div className="columns-1 2xl:columns-2 gap-3 [column-fill:_balance]">
+                {pins.slice(5, 13).map((p) => (
+                  <PinCard key={`side-${p.id}`} pin={p} />
+                ))}
+              </div>
+            </aside>
+          </div>
 
           {/* More to explore */}
-          <div className="mx-auto max-w-[1400px] mt-10">
+          <div className="mt-10">
             <h2 className="text-xl font-bold text-foreground text-center mb-4">More to explore</h2>
             <PinGrid />
           </div>
