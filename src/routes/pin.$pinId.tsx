@@ -22,7 +22,8 @@ function PinDetail() {
       <div className="md:pl-[72px] pb-16 md:pb-0">
         <TopBar showTabs={false} />
         <main className="px-3 md:px-6 pb-10">
-          <article className="mx-auto max-w-[1100px] rounded-[32px] border border-border bg-background overflow-hidden">
+          <div className="flex gap-3 items-start">
+            <article className="w-full xl:w-4/5 2xl:w-4/6 rounded-[32px] border border-border bg-background overflow-hidden">
             <div className="grid grid-cols-1 md:grid-cols-2">
               {/* Image side */}
               <div className="relative bg-secondary">
