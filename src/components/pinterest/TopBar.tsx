@@ -14,12 +14,10 @@ export function TopBar({
       <div className="flex items-center gap-3 px-3 md:px-6 py-3">
         <a
           href="/"
-          aria-label="Pinterest"
+          aria-label="EpicPost"
           className="md:hidden flex h-10 w-10 shrink-0 items-center justify-center"
         >
-          <svg viewBox="0 0 24 24" className="h-7 w-7" style={{ fill: "oklch(0.55 0.22 27)" }}>
-            <path d="M12 0C5.4 0 0 5.4 0 12c0 5 3.1 9.3 7.5 11-.1-.9-.2-2.4 0-3.4.2-.9 1.4-5.6 1.4-5.6s-.4-.7-.4-1.8c0-1.7 1-3 2.2-3 1 0 1.5.8 1.5 1.7 0 1-.7 2.6-1 4 .2 1 .9 1.9 2.1 1.9 2.6 0 4.5-2.7 4.5-6.6 0-3.5-2.5-5.9-6-5.9-4.1 0-6.5 3.1-6.5 6.2 0 1.2.5 2.5 1.1 3.2.1.1.1.2.1.3-.1.5-.4 1.6-.4 1.8-.1.3-.2.3-.5.2-1.8-.8-2.9-3.5-2.9-5.6 0-4.5 3.3-8.7 9.5-8.7 5 0 8.9 3.6 8.9 8.3 0 5-3.1 9-7.5 9-1.5 0-2.9-.8-3.3-1.7l-.9 3.4c-.3 1.2-1.2 2.8-1.8 3.7C9.6 23.8 10.8 24 12 24c6.6 0 12-5.4 12-12S18.6 0 12 0z" />
-          </svg>
+          <img src="/transpared-logo2.png" alt="" className="h-8 w-8 object-contain" />
         </a>
         <div className="flex-1 relative">
           <div className="flex items-center gap-2 h-12 rounded-[16px] bg-input px-4 focus-within:ring-2 focus-within:ring-ring transition">

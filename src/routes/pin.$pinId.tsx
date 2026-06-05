@@ -21,9 +21,11 @@ import {
   fetchPostTemplates,
   getTemplateMedia,
   postTemplatesQueryKey,
+  type TemplateMediaType,
   type PostTemplate,
   type PostTemplateFeedResponse,
 } from "@/lib/post-templates";
+import { useEffect, useMemo, useState } from "react";
 
 export const Route = createFileRoute("/pin/$pinId")({
   component: PinDetail,
@@ -47,10 +49,17 @@ function uniqueTemplates(templates: PostTemplate[]) {
   return Array.from(new Map(templates.map((template) => [template.id, template])).values());
 }
 
+interface PreviewMedia {
+  id: string;
+  url: string;
+  type: TemplateMediaType | null;
+}
+
 function PinDetail() {
   const { pinId } = Route.useParams();
   const queryClient = useQueryClient();
   const router = useRouter();
+  const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
   const defaultFeedQuery = useQuery({
     queryKey: postTemplatesQueryKey(),
     queryFn: () => fetchPostTemplates(),
@@ -62,12 +71,34 @@ function PinDetail() {
   const templates = uniqueTemplates([...cachedTemplates, ...(defaultFeedQuery.data?.data ?? [])]);
   const template = templates.find((item) => item.id === pinId);
   const relatedTemplates = templates.filter((item) => item.id !== pinId);
-  const media = template
-    ? getTemplateMedia(template)
-    : { url: null, type: null, width: null, height: null };
-  const thumbs = template?.assets.slice(0, 5) ?? [];
+  const previewMedia = useMemo<PreviewMedia[]>(() => {
+    if (!template) return [];
+
+    const mediaItems = template.assets
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .map((asset) => ({ id: asset.id, url: asset.url, type: asset.type }));
+
+    if (mediaItems.length > 0) return mediaItems;
+
+    const media = getTemplateMedia(template);
+    return media.url ? [{ id: `${template.id}-preview`, url: media.url, type: media.type }] : [];
+  }, [template]);
+  const selectedMedia = previewMedia[selectedMediaIndex] ?? previewMedia[0] ?? null;
+  const showMediaBullets = previewMedia.length > 1;
+  const thumbs = previewMedia.slice(0, 5);
   const sidePins = relatedTemplates.slice(0, 10);
   const belowPins = relatedTemplates.slice(10).concat(relatedTemplates.slice(0, 10));
+
+  useEffect(() => {
+    setSelectedMediaIndex(0);
+  }, [pinId]);
+
+  useEffect(() => {
+    if (selectedMediaIndex >= previewMedia.length) {
+      setSelectedMediaIndex(0);
+    }
+  }, [previewMedia.length, selectedMediaIndex]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -88,22 +119,24 @@ function PinDetail() {
                     >
                       <ArrowLeft className="h-5 w-5 text-foreground" strokeWidth={2.4} />
                     </button>
-                    {media.url && media.type === "video" ? (
+                    {selectedMedia?.type === "video" ? (
                       <video
-                        src={media.url}
+                        key={selectedMedia.id}
+                        src={selectedMedia.url}
                         aria-label={template?.title ?? "Video template"}
                         controls
                         muted
                         loop
                         playsInline
                         autoPlay
-                        className="w-full h-full object-cover max-h-[820px]"
+                        className="h-full max-h-[820px] w-full animate-[slide-preview-in_260ms_ease-out] object-cover"
                       />
-                    ) : media.url ? (
+                    ) : selectedMedia ? (
                       <img
-                        src={media.url}
+                        key={selectedMedia.id}
+                        src={selectedMedia.url}
                         alt={template?.title ?? "Template"}
-                        className="w-full h-full object-cover max-h-[820px]"
+                        className="h-full max-h-[820px] w-full animate-[slide-preview-in_260ms_ease-out] object-cover"
                       />
                     ) : (
                       <div className="flex min-h-[480px] w-full items-center justify-center px-6 text-center text-sm font-semibold text-muted-foreground">
@@ -112,9 +145,27 @@ function PinDetail() {
                           : "Template preview unavailable"}
                       </div>
                     )}
-                    <div className="absolute bottom-4 left-4 px-3 py-1.5 rounded-full bg-foreground/70 text-background text-xs font-semibold">
-                      {template?.preview_type === "video" ? "Video template" : "AI modified"}
-                    </div>
+                    {showMediaBullets && (
+                      <div
+                        className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2"
+                        aria-label="Template media"
+                      >
+                        {previewMedia.map((item, index) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            aria-label={`Show media ${index + 1}`}
+                            aria-current={index === selectedMediaIndex}
+                            onClick={() => setSelectedMediaIndex(index)}
+                            className={`h-2 rounded-full transition ${
+                              index === selectedMediaIndex
+                                ? "w-2.5 bg-white opacity-100 shadow-sm"
+                                : "w-2 bg-white/55 hover:bg-white/80"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    )}
                     <div className="absolute bottom-4 right-4 flex flex-col gap-2">
                       <button
                         aria-label="Expand"
@@ -185,7 +236,13 @@ function PinDetail() {
                       {thumbs.map((asset, i) => (
                         <button
                           key={asset.id}
-                          className={`h-14 w-14 rounded-[14px] overflow-hidden shrink-0 transition ${i === 0 ? "ring-2 ring-foreground" : "opacity-90 hover:opacity-100"}`}
+                          type="button"
+                          onClick={() => setSelectedMediaIndex(i)}
+                          className={`h-14 w-14 shrink-0 overflow-hidden rounded-[14px] transition ${
+                            i === selectedMediaIndex
+                              ? "ring-2 ring-foreground"
+                              : "opacity-90 hover:opacity-100"
+                          }`}
                         >
                           {asset.type === "video" ? (
                             <video
@@ -215,15 +272,19 @@ function PinDetail() {
                         template?.title ??
                         "This public template is not available in the current feed."}
                     </p>
-                    {template?.tags.map((tag) => (
-                      <a
-                        key={tag}
-                        href={`/?search=${encodeURIComponent(tag)}`}
-                        className="mr-2 mt-2 inline-block text-[15px] font-semibold text-[oklch(0.55_0.22_260)] hover:underline"
-                      >
-                        #{tag}
-                      </a>
-                    ))}
+                    {template?.tags.length ? (
+                      <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1">
+                        {template.tags.map((tag) => (
+                          <a
+                            key={tag}
+                            href={`/?search=${encodeURIComponent(tag)}`}
+                            className="text-[15px] font-semibold text-[oklch(0.55_0.22_260)] hover:underline"
+                          >
+                            #{tag}
+                          </a>
+                        ))}
+                      </div>
+                    ) : null}
                     <button className="self-end mt-2 text-sm font-bold text-foreground hover:underline">
                       See less
                     </button>
