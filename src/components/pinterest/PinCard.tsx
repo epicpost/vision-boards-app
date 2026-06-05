@@ -1,4 +1,5 @@
 import { MoreHorizontal, Upload } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 
 export interface Pin {
   id: string;
@@ -11,8 +12,10 @@ export interface Pin {
 export function PinCard({ pin }: { pin: Pin }) {
   return (
     <div className="mb-3 break-inside-avoid group">
-      <div
-        className="relative w-full overflow-hidden rounded-[16px] bg-secondary cursor-zoom-in"
+      <Link
+        to="/pin/$pinId"
+        params={{ pinId: pin.id }}
+        className="relative block w-full overflow-hidden rounded-[16px] bg-secondary cursor-zoom-in"
         style={{ aspectRatio: `1 / ${pin.height / 250}` }}
       >
         <img
@@ -23,22 +26,20 @@ export function PinCard({ pin }: { pin: Pin }) {
         />
         <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition rounded-[16px]">
           <div className="absolute top-3 right-3">
-            <button className="bg-primary text-primary-foreground font-bold text-sm px-4 py-2.5 rounded-full hover:brightness-90 transition">
+            <span className="inline-flex bg-primary text-primary-foreground font-bold text-sm px-4 py-2.5 rounded-full">
               Save
-            </button>
+            </span>
           </div>
           <div className="absolute bottom-3 left-3 right-3 flex justify-between items-end gap-2">
-            <div className="flex gap-2">
-              <button aria-label="More" className="h-9 w-9 rounded-full bg-white text-foreground flex items-center justify-center hover:bg-secondary">
-                <MoreHorizontal className="h-5 w-5" />
-              </button>
-            </div>
-            <button aria-label="Share" className="h-9 w-9 rounded-full bg-white text-foreground flex items-center justify-center hover:bg-secondary">
+            <span aria-label="More" className="h-9 w-9 rounded-full bg-white text-foreground flex items-center justify-center">
+              <MoreHorizontal className="h-5 w-5" />
+            </span>
+            <span aria-label="Share" className="h-9 w-9 rounded-full bg-white text-foreground flex items-center justify-center">
               <Upload className="h-4 w-4" />
-            </button>
+            </span>
           </div>
         </div>
-      </div>
+      </Link>
       {pin.title && (
         <p className="px-2 pt-2 text-[13px] font-semibold text-foreground line-clamp-2">{pin.title}</p>
       )}

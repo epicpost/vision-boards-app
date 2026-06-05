@@ -10,33 +10,43 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PinPinIdRouteImport } from './routes/pin.$pinId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PinPinIdRoute = PinPinIdRouteImport.update({
+  id: '/pin/$pinId',
+  path: '/pin/$pinId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/pin/$pinId': typeof PinPinIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/pin/$pinId': typeof PinPinIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/pin/$pinId': typeof PinPinIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/pin/$pinId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/pin/$pinId'
+  id: '__root__' | '/' | '/pin/$pinId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  PinPinIdRoute: typeof PinPinIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +58,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pin/$pinId': {
+      id: '/pin/$pinId'
+      path: '/pin/$pinId'
+      fullPath: '/pin/$pinId'
+      preLoaderRoute: typeof PinPinIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  PinPinIdRoute: PinPinIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
