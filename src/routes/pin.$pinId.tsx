@@ -3,6 +3,7 @@ import { ArrowLeft, Heart, MessageCircle, Upload, MoreHorizontal, ChevronRight, 
 import { Sidebar } from "@/components/pinterest/Sidebar";
 import { TopBar } from "@/components/pinterest/TopBar";
 import { PinGrid } from "@/components/pinterest/PinGrid";
+import { PinCard } from "@/components/pinterest/PinCard";
 import { MobileNav } from "@/components/pinterest/MobileNav";
 import { getPinById, pins } from "@/components/pinterest/pins-data";
 
