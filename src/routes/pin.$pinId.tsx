@@ -36,7 +36,9 @@ function templateToPin(template: PostTemplate, index: number) {
     id: template.id,
     src: media.url,
     mediaType: media.type,
-    height: 460 + (index % 4) * 40,
+    width: media.width,
+    height: media.height,
+    fallbackHeight: 460 + (index % 4) * 40,
     title: template.title,
   };
 }
@@ -60,7 +62,9 @@ function PinDetail() {
   const templates = uniqueTemplates([...cachedTemplates, ...(defaultFeedQuery.data?.data ?? [])]);
   const template = templates.find((item) => item.id === pinId);
   const relatedTemplates = templates.filter((item) => item.id !== pinId);
-  const media = template ? getTemplateMedia(template) : { url: null, type: null };
+  const media = template
+    ? getTemplateMedia(template)
+    : { url: null, type: null, width: null, height: null };
   const thumbs = template?.assets.slice(0, 5) ?? [];
   const sidePins = relatedTemplates.slice(0, 10);
   const belowPins = relatedTemplates.slice(10).concat(relatedTemplates.slice(0, 10));

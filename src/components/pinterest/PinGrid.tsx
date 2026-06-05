@@ -8,7 +8,9 @@ function templateToPin(template: PostTemplate, index: number) {
     id: template.id,
     src: media.url,
     mediaType: media.type,
-    height: 460 + (index % 4) * 40,
+    width: media.width,
+    height: media.height,
+    fallbackHeight: 460 + (index % 4) * 40,
     title: template.title,
   };
 }

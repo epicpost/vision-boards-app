@@ -1,22 +1,38 @@
 import { MoreHorizontal, Upload, Video } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { useState } from "react";
 
 export interface Pin {
   id: string;
   src: string | null;
-  height: number;
+  width: number | null;
+  height: number | null;
+  fallbackHeight: number;
   mediaType?: "image" | "video" | null;
   title?: string;
 }
 
+function isValidDimension(value: number | null | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
 export function PinCard({ pin }: { pin: Pin }) {
+  const [detectedSize, setDetectedSize] = useState<{ width: number; height: number } | null>(null);
+  const width = isValidDimension(pin.width) ? pin.width : detectedSize?.width;
+  const height = isValidDimension(pin.height) ? pin.height : detectedSize?.height;
+  const aspectRatio =
+    isValidDimension(width) && isValidDimension(height)
+      ? `${width} / ${height}`
+      : `250 / ${pin.fallbackHeight}`;
+  const shouldDetectSize = !isValidDimension(pin.width) || !isValidDimension(pin.height);
+
   return (
     <div className="mb-3 break-inside-avoid group">
       <Link
         to="/pin/$pinId"
         params={{ pinId: pin.id }}
         className="relative block w-full overflow-hidden rounded-[16px] bg-secondary cursor-zoom-in"
-        style={{ aspectRatio: `1 / ${pin.height / 250}` }}
+        style={{ aspectRatio }}
       >
         {pin.src && pin.mediaType === "video" ? (
           <video
@@ -27,14 +43,30 @@ export function PinCard({ pin }: { pin: Pin }) {
             playsInline
             autoPlay
             preload="metadata"
-            className="h-full w-full object-cover transition"
+            onLoadedMetadata={(event) => {
+              if (!shouldDetectSize) return;
+
+              const video = event.currentTarget;
+              if (video.videoWidth > 0 && video.videoHeight > 0) {
+                setDetectedSize({ width: video.videoWidth, height: video.videoHeight });
+              }
+            }}
+            className="h-full w-full object-contain transition"
           />
         ) : pin.src ? (
           <img
             src={pin.src}
             alt={pin.title ?? "Pin"}
             loading="lazy"
-            className="h-full w-full object-cover transition"
+            onLoad={(event) => {
+              if (!shouldDetectSize) return;
+
+              const image = event.currentTarget;
+              if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+                setDetectedSize({ width: image.naturalWidth, height: image.naturalHeight });
+              }
+            }}
+            className="h-full w-full object-contain transition"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center px-4 text-center text-sm font-semibold text-muted-foreground">

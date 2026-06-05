@@ -7,6 +7,8 @@ export interface TemplateAsset {
   url: string;
   type: TemplateMediaType;
   order: number;
+  width: number | null;
+  height: number | null;
 }
 
 export interface TemplateComment {
@@ -23,6 +25,8 @@ export interface PostTemplate {
   title: string;
   preview: string | null;
   preview_type: TemplateMediaType | null;
+  preview_width: number | null;
+  preview_height: number | null;
   likes_count: number;
   is_saved: boolean;
   is_remixed: boolean;
@@ -51,13 +55,27 @@ export const postTemplatesQueryKey = (search?: string) =>
 export function getTemplateMedia(template: PostTemplate): {
   url: string | null;
   type: TemplateMediaType | null;
+  width: number | null;
+  height: number | null;
 } {
   if (template.preview) {
-    return { url: template.preview, type: template.preview_type };
+    return {
+      url: template.preview,
+      type: template.preview_type,
+      width: template.preview_width,
+      height: template.preview_height,
+    };
   }
 
   const firstAsset = [...template.assets].sort((a, b) => a.order - b.order)[0];
-  return firstAsset ? { url: firstAsset.url, type: firstAsset.type } : { url: null, type: null };
+  return firstAsset
+    ? {
+        url: firstAsset.url,
+        type: firstAsset.type,
+        width: firstAsset.width,
+        height: firstAsset.height,
+      }
+    : { url: null, type: null, width: null, height: null };
 }
 
 export async function fetchPostTemplates(search?: string): Promise<PostTemplateFeedResponse> {
