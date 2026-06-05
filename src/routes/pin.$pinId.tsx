@@ -20,7 +20,7 @@ function PinDetail() {
     <div className="min-h-screen bg-background">
       <Sidebar />
       <div className="md:pl-[72px] pb-16 md:pb-0">
-        <TopBarSimple />
+        <TopBar showTabs={false} />
         <main className="px-3 md:px-6 pb-10">
           <article className="mx-auto max-w-[1100px] rounded-[32px] border border-border bg-background overflow-hidden">
             <div className="grid grid-cols-1 md:grid-cols-2">

@@ -1,8 +1,9 @@
 import { Search, Camera, Mic, ChevronDown } from "lucide-react";
 
-export function TopBar() {
+export function TopBar({ showTabs = true }: { showTabs?: boolean } = {}) {
   return (
     <header className="sticky top-0 z-30 bg-background">
+
       <div className="flex items-center gap-3 px-3 md:px-6 py-3">
         <a href="/" aria-label="Pinterest" className="md:hidden flex h-10 w-10 shrink-0 items-center justify-center">
           <svg viewBox="0 0 24 24" className="h-7 w-7" style={{ fill: "oklch(0.55 0.22 27)" }}>
@@ -32,16 +33,18 @@ export function TopBar() {
           </button>
         </div>
       </div>
-      <nav className="flex items-center gap-1 px-3 md:px-6 pb-3 overflow-x-auto no-scrollbar">
-        {["All", "Visit.today", "VibeKoding", "Путешествия", "Bitcoin, Crypto, Blockchain", "Osint", "Temu", "House", "Travel", "Food"].map((tab, i) => (
-          <button
-            key={tab}
-            className={`shrink-0 px-3 py-2 text-[15px] font-semibold rounded-full transition ${i === 0 ? "text-foreground border-b-[3px] border-foreground rounded-none" : "text-foreground hover:bg-secondary"}`}
-          >
-            {tab}
-          </button>
-        ))}
-      </nav>
+      {showTabs && (
+        <nav className="flex items-center gap-1 px-3 md:px-6 pb-3 overflow-x-auto no-scrollbar">
+          {["All", "Visit.today", "VibeKoding", "Путешествия", "Bitcoin, Crypto, Blockchain", "Osint", "Temu", "House", "Travel", "Food"].map((tab, i) => (
+            <button
+              key={tab}
+              className={`shrink-0 px-3 py-2 text-[15px] font-semibold rounded-full transition ${i === 0 ? "text-foreground border-b-[3px] border-foreground rounded-none" : "text-foreground hover:bg-secondary"}`}
+            >
+              {tab}
+            </button>
+          ))}
+        </nav>
+      )}
     </header>
   );
 }
