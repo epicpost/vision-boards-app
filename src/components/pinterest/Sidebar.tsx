@@ -50,9 +50,30 @@ export function Sidebar() {
         >
           <img src="/transpared-logo2.png" alt="" className="h-9 w-9 object-contain" />
         </a>
-        {items.map((it) => (
-          <NavButton key={it.label} icon={it.icon} label={it.label} active={it.active} />
-        ))}
+        {items.map((it) =>
+          it.label === "Notifications" ? (
+            <Popover key={it.label}>
+              <PopoverTrigger asChild>
+                <button
+                  aria-label={it.label}
+                  className="flex h-12 w-12 items-center justify-center rounded-[16px] hover:bg-secondary text-foreground transition"
+                >
+                  <it.icon className="h-6 w-6" strokeWidth={2.2} />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                side="right"
+                align="start"
+                sideOffset={12}
+                className="w-auto p-0 border-none bg-transparent shadow-[0_8px_30px_rgba(0,0,0,0.18)] rounded-[16px]"
+              >
+                <UpdatesPanel />
+              </PopoverContent>
+            </Popover>
+          ) : (
+            <NavButton key={it.label} icon={it.icon} label={it.label} active={it.active} />
+          ),
+        )}
       </div>
       <NavButton icon={Settings} label="Settings" />
     </aside>
