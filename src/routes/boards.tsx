@@ -107,9 +107,8 @@ function BoardCard({ board }: { board: Board }) {
 }
 
 const TABS = [
-  { key: "pins", label: "Pins" },
+  { key: "remixes", label: "Remixes" },
   { key: "boards", label: "Boards" },
-  { key: "collages", label: "Collages" },
 ] as const;
 
 function BoardsPage() {
