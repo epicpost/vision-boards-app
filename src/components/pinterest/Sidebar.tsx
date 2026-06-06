@@ -1,4 +1,6 @@
 import { Home, LayoutGrid, Plus, Bell, MessageCircle, Settings } from "lucide-react";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { UpdatesPanel } from "./UpdatesPopover";
 
 const items = [
   { icon: Home, label: "Home", active: true },
