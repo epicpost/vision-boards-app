@@ -1,4 +1,6 @@
 import { Search, Camera, Mic, ChevronDown } from "lucide-react";
+import { useState } from "react";
+import { SignupDialog } from "./SignupDialog";
 
 export function TopBar({
   showTabs = true,
@@ -9,6 +11,7 @@ export function TopBar({
   searchValue?: string;
   onSearchChange?: (value: string) => void;
 } = {}) {
+  const [signupOpen, setSignupOpen] = useState(false);
   return (
     <header className="sticky top-0 z-30 bg-background">
       <div className="flex items-center gap-3 px-3 md:px-6 py-3">
@@ -43,9 +46,16 @@ export function TopBar({
             </button>
           </div>
         </div>
-        <div className="hidden md:flex items-center gap-1">
+        <div className="hidden md:flex items-center gap-2">
+          <button
+            onClick={() => setSignupOpen(true)}
+            className="h-10 px-4 rounded-full bg-[#e60023] hover:bg-[#ad081b] transition text-white text-[15px] font-semibold"
+          >
+            Sign up
+          </button>
           <button
             aria-label="Profile"
+            onClick={() => setSignupOpen(true)}
             className="h-10 w-10 rounded-full bg-gradient-to-br from-pink-300 via-rose-300 to-amber-200 ring-2 ring-background"
           />
           <button
@@ -56,6 +66,7 @@ export function TopBar({
           </button>
         </div>
       </div>
+      <SignupDialog open={signupOpen} onOpenChange={setSignupOpen} />
       {showTabs && (
         <nav className="flex items-center gap-1 px-3 md:px-6 pb-3 overflow-x-auto no-scrollbar">
           {[
