@@ -175,26 +175,29 @@ export function SignupDialog({
         </div>
 
         <div className="flex flex-col gap-3">
-          <div className="relative h-12">
-            <button
-              type="button"
-              onClick={() => {
-                if (!googleConfigured) handleProvider("Google");
-              }}
-              disabled={isGoogleLoading}
-              aria-hidden={googleConfigured}
-              className="h-12 w-full rounded-full bg-secondary hover:bg-accent transition flex items-center justify-center gap-3 text-[15px] font-semibold text-foreground disabled:opacity-70"
-            >
-              <GoogleIcon />
-              {isGoogleLoading ? "Signing in" : "Continue with Google"}
-            </button>
-            {googleConfigured ? (
+          {googleConfigured ? (
+            <div className="relative h-12">
               <div
                 ref={googleButtonRef}
-                className="absolute inset-0 z-10 flex items-center justify-center overflow-hidden rounded-full opacity-[0.001]"
+                className="flex h-12 items-center justify-center [color-scheme:light]"
               />
-            ) : null}
-          </div>
+              {isGoogleLoading ? (
+                <div className="absolute inset-0 flex items-center justify-center gap-3 rounded-full bg-secondary text-[15px] font-semibold text-foreground">
+                  <GoogleIcon />
+                  Signing in
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => handleProvider("Google")}
+              className="h-12 w-full rounded-full bg-secondary hover:bg-accent transition flex items-center justify-center gap-3 text-[15px] font-semibold text-foreground"
+            >
+              <GoogleIcon />
+              Continue with Google
+            </button>
+          )}
           <button
             onClick={() => handleProvider("Apple")}
             className="h-12 rounded-full bg-foreground hover:bg-foreground/90 transition flex items-center justify-center gap-3 text-[15px] font-semibold text-background"
