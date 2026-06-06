@@ -82,11 +82,11 @@ function BoardCard({ board }: { board: Board }) {
   return (
     <Link to="/" className="group block">
       <div className="relative overflow-hidden rounded-[20px] bg-secondary aspect-[4/3]">
-        <div className="flex h-full w-full gap-1">
+        <div className="flex h-full w-full gap-px">
           <div className="relative h-full w-2/3">
             <img src={main} alt="" className="h-full w-full object-cover" />
           </div>
-          <div className="flex h-full w-1/3 flex-col gap-1">
+          <div className="flex h-full w-1/3 flex-col gap-px">
             {rest.map((src, i) => (
               <img key={i} src={src} alt="" className="h-1/2 w-full object-cover" />
             ))}
