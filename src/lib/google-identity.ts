@@ -54,7 +54,9 @@ export function loadGoogleIdentity(): Promise<void> {
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${GSI_SRC}"]`);
     if (existing) {
       existing.addEventListener("load", () => resolve());
-      existing.addEventListener("error", () => reject(new Error("Failed to load Google Identity.")));
+      existing.addEventListener("error", () =>
+        reject(new Error("Failed to load Google Identity.")),
+      );
       return;
     }
 

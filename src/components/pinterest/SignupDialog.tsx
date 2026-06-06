@@ -49,6 +49,7 @@ export function SignupDialog({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [googleButtonReady, setGoogleButtonReady] = useState(false);
   const [googleButtonFailed, setGoogleButtonFailed] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement>(null);
   const normalizedEmail = email.trim();
@@ -75,10 +76,18 @@ export function SignupDialog({
   }
 
   useEffect(() => {
-    if (!open || !GOOGLE_CLIENT_ID) return;
+    if (!open) {
+      setGoogleButtonReady(false);
+      setGoogleButtonFailed(false);
+      return;
+    }
+
+    if (!GOOGLE_CLIENT_ID) return;
     const container = googleButtonRef.current;
     if (!container) return;
 
+    let cancelled = false;
+    setGoogleButtonReady(false);
     setGoogleButtonFailed(false);
     container.replaceChildren();
     void renderGoogleButton(
@@ -89,9 +98,18 @@ export function SignupDialog({
       (renderError) => {
         // Fall back to the styled button + One Tap prompt instead of an empty gap.
         console.error("[google-sso]", renderError.message);
+        setGoogleButtonReady(false);
         setGoogleButtonFailed(true);
       },
-    );
+    ).then(() => {
+      if (!cancelled && container.childElementCount > 0) {
+        setGoogleButtonReady(true);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -194,12 +212,21 @@ export function SignupDialog({
         <div className="flex flex-col gap-3">
           {googleConfigured ? (
             <div className="relative h-12">
+              {googleButtonReady && !googleButtonFailed ? (
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 flex items-center justify-center gap-3 rounded-full bg-secondary text-[15px] font-semibold text-foreground"
+                >
+                  <GoogleIcon />
+                  Continue with Google
+                </div>
+              ) : null}
               <div
                 ref={googleButtonRef}
-                className="flex h-12 items-center justify-center [color-scheme:light]"
-                hidden={googleButtonFailed}
+                className="absolute inset-0 flex items-center justify-center opacity-0 [color-scheme:light]"
+                hidden={!googleButtonReady || googleButtonFailed || isGoogleLoading}
               />
-              {googleButtonFailed ? (
+              {!googleButtonReady || googleButtonFailed ? (
                 <button
                   type="button"
                   onClick={handleGoogleFallbackClick}
