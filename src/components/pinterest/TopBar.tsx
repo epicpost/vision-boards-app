@@ -27,6 +27,7 @@ export function TopBar({
   const [signupOpen, setSignupOpen] = useState(false);
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [authUser, setAuthUser] = useState<ReturnType<typeof getAuthUser>>(null);
+  const [isMobileBrandHidden, setIsMobileBrandHidden] = useState(false);
 
   useEffect(() => {
     const updateAuthState = () => {
@@ -44,6 +45,41 @@ export function TopBar({
     };
   }, []);
 
+  useEffect(() => {
+    let lastScrollY = window.scrollY;
+    let ticking = false;
+
+    const updateBrandVisibility = () => {
+      const currentScrollY = window.scrollY;
+      const isMobile = window.matchMedia("(max-width: 767px)").matches;
+
+      if (!isMobile || currentScrollY < 24) {
+        setIsMobileBrandHidden(false);
+      } else if (currentScrollY > lastScrollY + 8) {
+        setIsMobileBrandHidden(true);
+      } else if (currentScrollY < lastScrollY - 8) {
+        setIsMobileBrandHidden(false);
+      }
+
+      lastScrollY = currentScrollY;
+      ticking = false;
+    };
+
+    const handleScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(updateBrandVisibility);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", updateBrandVisibility);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", updateBrandVisibility);
+    };
+  }, []);
+
   const displayName =
     [authUser?.first_name, authUser?.last_name].filter(Boolean).join(" ") ||
     authUser?.username ||
@@ -52,14 +88,23 @@ export function TopBar({
 
   return (
     <header className="sticky top-0 z-30 bg-background">
-      <div className="flex items-center gap-3 px-3 md:px-6 py-3">
-        <a
-          href="/"
-          aria-label="EpicPost"
-          className="md:hidden flex h-10 w-10 shrink-0 items-center justify-center"
-        >
-          <img src="/transparent-logo.png" alt="" className="h-8 w-8 object-contain" />
-        </a>
+      <div
+        className={`md:hidden overflow-hidden transition-[max-height,opacity,transform] duration-300 ease-out ${
+          isMobileBrandHidden
+            ? "max-h-0 -translate-y-3 opacity-0"
+            : "max-h-20 translate-y-0 opacity-100"
+        }`}
+      >
+        <div className="flex items-center px-5 pb-3 pt-4">
+          <a href="/" aria-label="EpicPost" className="flex min-w-0 items-center gap-2.5">
+            <img src="/transparent-logo.png" alt="" className="h-10 w-10 shrink-0 object-contain" />
+            <span className="truncate text-[32px] font-bold leading-none tracking-normal text-foreground">
+              EpicPost
+            </span>
+          </a>
+        </div>
+      </div>
+      <div className="hidden items-center gap-3 px-6 py-3 md:flex">
         <div className="flex-1 relative">
           <div className="flex items-center gap-2 h-12 rounded-[16px] bg-input px-4 focus-within:ring-2 focus-within:ring-ring transition">
             <Search className="h-5 w-5 text-muted-foreground shrink-0" strokeWidth={2.2} />
