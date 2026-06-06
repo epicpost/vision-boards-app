@@ -1,4 +1,6 @@
 import { Search, Camera, Mic, ChevronDown } from "lucide-react";
+import { useState } from "react";
+import { SignupDialog } from "./SignupDialog";
 
 export function TopBar({
   showTabs = true,
