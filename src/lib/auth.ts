@@ -94,6 +94,25 @@ export async function confirmMagicLink(token: string, email: string): Promise<Au
   return payload;
 }
 
+export async function googleLogin(idToken: string): Promise<AuthSessionResponse> {
+  const response = await fetch(new URL("/api/v1/auth/google", API_BASE_URL), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ id_token: idToken }),
+  });
+
+  const payload = (await response.json().catch(() => ({}))) as AuthSessionResponse &
+    ApiErrorResponse;
+
+  if (!response.ok) {
+    throw new Error(getErrorMessage(payload) ?? `Google login failed with ${response.status}`);
+  }
+
+  return payload;
+}
+
 export function saveAuthSession(session: AuthSession) {
   window.localStorage.setItem(ACCESS_TOKEN_KEY, session.access_token);
   window.localStorage.setItem(REFRESH_TOKEN_KEY, session.refresh_token);

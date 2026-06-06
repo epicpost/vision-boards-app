@@ -110,3 +110,10 @@ export function markAllNotificationsSeen() {
     { method: "PATCH" },
   );
 }
+
+export function deleteNotification(notificationId: string) {
+  return notificationRequest<{ success: boolean; message?: string | null }>(
+    `/api/v1/me/notifications/${notificationId}`,
+    { method: "DELETE" },
+  );
+}

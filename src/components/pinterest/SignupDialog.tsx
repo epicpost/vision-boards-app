@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { isValidEmail, requestMagicLink } from "@/lib/auth";
+import { googleLogin, isValidEmail, requestMagicLink, saveAuthSession } from "@/lib/auth";
+import { GOOGLE_CLIENT_ID, renderGoogleButton } from "@/lib/google-identity";
 
 function GoogleIcon() {
   return (
@@ -41,12 +43,53 @@ export function SignupDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const googleButtonRef = useRef<HTMLDivElement>(null);
   const normalizedEmail = email.trim();
   const canSubmit = isValidEmail(normalizedEmail) && !isSubmitting;
+
+  async function handleGoogleCredential(idToken: string) {
+    setIsGoogleLoading(true);
+    setError(null);
+
+    try {
+      const response = await googleLogin(idToken);
+      saveAuthSession(response.data);
+      toast.success("You're signed in.");
+      onOpenChange(false);
+      void navigate({ to: "/", replace: true });
+    } catch (loginError) {
+      const message =
+        loginError instanceof Error ? loginError.message : "Unable to sign in with Google.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!open || !GOOGLE_CLIENT_ID) return;
+    const container = googleButtonRef.current;
+    if (!container) return;
+
+    container.replaceChildren();
+    void renderGoogleButton(
+      container,
+      (idToken) => {
+        void handleGoogleCredential(idToken);
+      },
+      (renderError) => {
+        toast.error(renderError.message);
+      },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault();
@@ -79,6 +122,8 @@ export function SignupDialog({
   function handleProvider(name: string) {
     toast(`Continue with ${name}`, { description: "Demo only" });
   }
+
+  const googleConfigured = Boolean(GOOGLE_CLIENT_ID);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -130,13 +175,26 @@ export function SignupDialog({
         </div>
 
         <div className="flex flex-col gap-3">
-          <button
-            onClick={() => handleProvider("Google")}
-            className="h-12 rounded-full bg-secondary hover:bg-accent transition flex items-center justify-center gap-3 text-[15px] font-semibold text-foreground"
-          >
-            <GoogleIcon />
-            Continue with Google
-          </button>
+          <div className="relative h-12">
+            <button
+              type="button"
+              onClick={() => {
+                if (!googleConfigured) handleProvider("Google");
+              }}
+              disabled={isGoogleLoading}
+              aria-hidden={googleConfigured}
+              className="h-12 w-full rounded-full bg-secondary hover:bg-accent transition flex items-center justify-center gap-3 text-[15px] font-semibold text-foreground disabled:opacity-70"
+            >
+              <GoogleIcon />
+              {isGoogleLoading ? "Signing in" : "Continue with Google"}
+            </button>
+            {googleConfigured ? (
+              <div
+                ref={googleButtonRef}
+                className="absolute inset-0 z-10 flex items-center justify-center overflow-hidden rounded-full opacity-[0.001]"
+              />
+            ) : null}
+          </div>
           <button
             onClick={() => handleProvider("Apple")}
             className="h-12 rounded-full bg-foreground hover:bg-foreground/90 transition flex items-center justify-center gap-3 text-[15px] font-semibold text-background"

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, MoreHorizontal, RefreshCw, Search } from "lucide-react";
+import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -8,6 +9,7 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import {
+  deleteNotification,
   fetchNotifications,
   markAllNotificationsSeen,
   markNotificationSeen,
@@ -68,9 +70,13 @@ function NotificationIcon({ notification }: { notification: Notification }) {
 
 function UpdateRow({
   notification,
+  isDeleting,
+  onDelete,
   onMarkSeen,
 }: {
   notification: Notification;
+  isDeleting: boolean;
+  onDelete: (id: string) => void;
   onMarkSeen: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -104,6 +110,13 @@ function UpdateRow({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-[220px] rounded-[16px] p-2 shadow-lg">
+            <DropdownMenuItem
+              onSelect={() => onDelete(notification.id)}
+              disabled={isDeleting}
+              className="cursor-pointer rounded-[10px] px-3 py-2 text-[15px] font-medium text-destructive focus:text-destructive disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isDeleting ? "Deleting..." : "Delete update"}
+            </DropdownMenuItem>
             {!notification.is_seen ? (
               <DropdownMenuItem
                 onSelect={() => onMarkSeen(notification.id)}
@@ -125,10 +138,14 @@ function UpdateRow({
 function UpdatesSection({
   title,
   notifications,
+  deletingId,
+  onDelete,
   onMarkSeen,
 }: {
   title: string;
   notifications: Notification[];
+  deletingId: string | null;
+  onDelete: (id: string) => void;
   onMarkSeen: (id: string) => void;
 }) {
   if (notifications.length === 0) return null;
@@ -138,7 +155,13 @@ function UpdatesSection({
       <h3 className="mb-2 px-2 text-xl font-bold text-foreground">{title}</h3>
       <div className="flex flex-col gap-1">
         {notifications.map((notification) => (
-          <UpdateRow key={notification.id} notification={notification} onMarkSeen={onMarkSeen} />
+          <UpdateRow
+            key={notification.id}
+            notification={notification}
+            isDeleting={deletingId === notification.id}
+            onDelete={onDelete}
+            onMarkSeen={onMarkSeen}
+          />
         ))}
       </div>
     </section>
@@ -147,6 +170,7 @@ function UpdatesSection({
 
 export function UpdatesPanel() {
   const queryClient = useQueryClient();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const notificationsQuery = useQuery({
     queryKey: notificationsQueryKey,
     queryFn: fetchNotifications,
@@ -164,6 +188,22 @@ export function UpdatesPanel() {
   const markAllSeenMutation = useMutation({
     mutationFn: markAllNotificationsSeen,
     onSuccess: refreshNotifications,
+  });
+  const deleteMutation = useMutation({
+    mutationFn: deleteNotification,
+    onMutate: (notificationId) => {
+      setDeletingId(notificationId);
+    },
+    onSuccess: () => {
+      refreshNotifications();
+      toast.success("Update deleted.");
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+    onSettled: () => {
+      setDeletingId(null);
+    },
   });
 
   const notifications = notificationsQuery.data?.data ?? [];
@@ -215,11 +255,15 @@ export function UpdatesPanel() {
           <UpdatesSection
             title="New"
             notifications={unread}
+            deletingId={deletingId}
+            onDelete={(id) => deleteMutation.mutate(id)}
             onMarkSeen={(id) => markSeenMutation.mutate(id)}
           />
           <UpdatesSection
             title="Seen"
             notifications={seen}
+            deletingId={deletingId}
+            onDelete={(id) => deleteMutation.mutate(id)}
             onMarkSeen={(id) => markSeenMutation.mutate(id)}
           />
         </div>
