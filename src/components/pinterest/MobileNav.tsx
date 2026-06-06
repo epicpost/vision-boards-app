@@ -19,18 +19,18 @@ export function MobileNav() {
   };
 
   return (
-    <nav className="fixed bottom-5 left-1/2 z-40 flex h-16 -translate-x-1/2 items-center justify-center gap-4 rounded-[24px] bg-background/95 px-4 shadow-[0_10px_36px_rgba(0,0,0,0.18)] backdrop-blur md:hidden">
+    <nav className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center justify-center gap-5 md:hidden">
       {items.map(({ icon: Icon, label, active }) => (
         <button
           key={label}
           aria-label={label}
           onClick={() => handleButtonClick(label)}
-          className={`flex h-14 w-14 items-center justify-center rounded-[18px] bg-background transition-transform duration-200 active:scale-90 ${
+          className={`flex h-[68px] w-[68px] items-center justify-center rounded-[20px] bg-background shadow-[0_12px_34px_rgba(0,0,0,0.18)] transition-transform duration-200 active:scale-90 ${
             bouncingItem === label ? "animate-[mobile-nav-bounce_360ms_ease-out]" : ""
           }`}
         >
           <Icon
-            className={`h-8 w-8 ${active ? "text-foreground" : "text-muted-foreground"}`}
+            className={`h-9 w-9 ${active ? "text-foreground" : "text-muted-foreground"}`}
             strokeWidth={2.5}
           />
         </button>
