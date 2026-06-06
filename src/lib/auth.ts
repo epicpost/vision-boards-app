@@ -105,3 +105,25 @@ export function hasAuthSession() {
 
   return Boolean(window.localStorage.getItem(ACCESS_TOKEN_KEY));
 }
+
+export function getAuthUser(): UserProfile | null {
+  if (typeof window === "undefined") return null;
+
+  const storedUser = window.localStorage.getItem(USER_KEY);
+  if (!storedUser) return null;
+
+  try {
+    return JSON.parse(storedUser) as UserProfile;
+  } catch {
+    return null;
+  }
+}
+
+export function clearAuthSession() {
+  if (typeof window === "undefined") return;
+
+  window.localStorage.removeItem(ACCESS_TOKEN_KEY);
+  window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+  window.localStorage.removeItem(USER_KEY);
+  window.dispatchEvent(new Event(AUTH_SESSION_CHANGED_EVENT));
+}
