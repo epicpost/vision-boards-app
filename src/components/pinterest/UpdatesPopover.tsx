@@ -17,15 +17,15 @@ type Update = {
 };
 
 const updates: Update[] = [
-  { id: "1", title: <><b>Barcelona Travel</b></>, time: "11h", thumb: pins[5]?.src },
-  { id: "2", title: <><b>Instagram Story Design</b> ideas</>, time: "11h", thumb: pins[3]?.src },
-  { id: "3", title: <>Feels like your vibe</>, time: "18h", thumb: pins[21]?.src },
-  { id: "4", title: <>Love this for you</>, time: "21h", thumb: pins[9]?.src },
+  { id: "1", title: <><b>Barcelona Travel</b></>, time: "11h", thumb: pins[5]?.src ?? undefined },
+  { id: "2", title: <><b>Instagram Story Design</b> ideas</>, time: "11h", thumb: pins[3]?.src ?? undefined },
+  { id: "3", title: <>Feels like your vibe</>, time: "18h", thumb: pins[21]?.src ?? undefined },
+  { id: "4", title: <>Love this for you</>, time: "21h", thumb: pins[9]?.src ?? undefined },
   { id: "5", title: <>Still searching? Explore ideas related to <b>Business Card</b></>, time: "23h", icon: "search" },
-  { id: "6", title: <><b>Instagram Story Templates</b> for you</>, time: "2d", thumb: pins[12]?.src },
-  { id: "7", title: <><b>Lviv Travel</b> for you</>, time: "2d", thumb: pins[17]?.src },
-  { id: "8", title: <>Feels like your vibe</>, time: "3d", thumb: pins[8]?.src },
-  { id: "9", title: <><b>Lviv Travel</b></>, time: "3d", thumb: pins[16]?.src },
+  { id: "6", title: <><b>Instagram Story Templates</b> for you</>, time: "2d", thumb: pins[12]?.src ?? undefined },
+  { id: "7", title: <><b>Lviv Travel</b> for you</>, time: "2d", thumb: pins[17]?.src ?? undefined },
+  { id: "8", title: <>Feels like your vibe</>, time: "3d", thumb: pins[8]?.src ?? undefined },
+  { id: "9", title: <><b>Lviv Travel</b></>, time: "3d", thumb: pins[16]?.src ?? undefined },
 ];
 
 function UpdateRow({ u }: { u: Update }) {
