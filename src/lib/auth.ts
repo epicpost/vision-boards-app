@@ -1,5 +1,10 @@
 import { API_BASE_URL } from "@/lib/post-templates";
 
+export const AUTH_SESSION_CHANGED_EVENT = "epicpost-auth-session-changed";
+const ACCESS_TOKEN_KEY = "epicpost_access_token";
+const REFRESH_TOKEN_KEY = "epicpost_refresh_token";
+const USER_KEY = "epicpost_user";
+
 interface SuccessResponse {
   success?: boolean;
   message?: string | null;
@@ -89,7 +94,14 @@ export async function confirmMagicLink(token: string, email: string): Promise<Au
 }
 
 export function saveAuthSession(session: AuthSession) {
-  window.localStorage.setItem("epicpost_access_token", session.access_token);
-  window.localStorage.setItem("epicpost_refresh_token", session.refresh_token);
-  window.localStorage.setItem("epicpost_user", JSON.stringify(session.user));
+  window.localStorage.setItem(ACCESS_TOKEN_KEY, session.access_token);
+  window.localStorage.setItem(REFRESH_TOKEN_KEY, session.refresh_token);
+  window.localStorage.setItem(USER_KEY, JSON.stringify(session.user));
+  window.dispatchEvent(new Event(AUTH_SESSION_CHANGED_EVENT));
+}
+
+export function hasAuthSession() {
+  if (typeof window === "undefined") return false;
+
+  return Boolean(window.localStorage.getItem(ACCESS_TOKEN_KEY));
 }

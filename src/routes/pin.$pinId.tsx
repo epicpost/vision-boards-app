@@ -11,6 +11,9 @@ import {
   Smile,
   Sticker,
   Image as ImageIcon,
+  Search,
+  Lock,
+  Plus,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Sidebar } from "@/components/pinterest/Sidebar";
@@ -18,6 +21,8 @@ import { TopBar } from "@/components/pinterest/TopBar";
 import { PinCard } from "@/components/pinterest/PinCard";
 import { MobileNav } from "@/components/pinterest/MobileNav";
 import { SignupDialog } from "@/components/pinterest/SignupDialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { pins } from "@/components/pinterest/pins-data";
 import {
   fetchPostTemplates,
   getTemplateMedia,
@@ -56,6 +61,18 @@ interface PreviewMedia {
   type: TemplateMediaType | null;
 }
 
+const saveBoards = [
+  { id: "mono", name: "mono", thumbIndex: 0, locked: true },
+  { id: "travel-app", name: "travel app", thumbIndex: 3, locked: true },
+  { id: "apartment", name: "2 floor apartment desi...", thumbIndex: 12, locked: true },
+  { id: "printers", name: "3d printers", thumbIndex: 20, locked: true },
+  { id: "palms", name: "palms", thumbIndex: 6, locked: false },
+];
+
+function getBoardThumb(index: number) {
+  return pins[index % pins.length]?.src ?? "";
+}
+
 function PinDetail() {
   const { pinId } = Route.useParams();
   const queryClient = useQueryClient();
@@ -88,6 +105,7 @@ function PinDetail() {
   }, [template]);
   const selectedMedia = previewMedia[selectedMediaIndex] ?? previewMedia[0] ?? null;
   const showMediaBullets = previewMedia.length > 1;
+  const showMediaPreviews = previewMedia.length > 1;
   const thumbs = previewMedia.slice(0, 5);
   const sidePins = relatedTemplates.slice(0, 10);
   const belowPins = relatedTemplates.slice(10).concat(relatedTemplates.slice(0, 10));
@@ -214,10 +232,95 @@ function PinDetail() {
                         </button>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button className="flex items-center gap-1 h-10 px-3 rounded-full hover:bg-secondary transition text-sm font-semibold text-foreground">
-                          {template?.tags[0] ?? "templates"}
-                          <ChevronRight className="h-4 w-4 rotate-90" />
-                        </button>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button className="flex items-center gap-1 h-10 px-3 rounded-full hover:bg-secondary transition text-sm font-semibold text-foreground">
+                              palms
+                              <ChevronRight className="h-4 w-4 rotate-90" />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            align="end"
+                            sideOffset={10}
+                            className="w-[min(calc(100vw-24px),360px)] overflow-hidden rounded-[24px] border-0 bg-background p-0 text-foreground shadow-[0_8px_32px_rgba(0,0,0,0.18)]"
+                          >
+                            <div className="max-h-[min(72vh,560px)] overflow-y-auto px-5 pb-24 pt-5">
+                              <h3 className="mb-5 text-center text-xl font-bold">Save</h3>
+                              <label className="mb-5 flex h-13 items-center gap-2 rounded-[22px] border-[3px] border-[oklch(0.58_0.22_265)] px-4">
+                                <Search className="h-5 w-5 shrink-0 text-foreground" />
+                                <input
+                                  type="search"
+                                  placeholder="Search"
+                                  className="min-w-0 flex-1 bg-transparent text-lg font-semibold outline-none placeholder:text-muted-foreground"
+                                />
+                              </label>
+
+                              <p className="mb-3 text-sm font-medium text-foreground">
+                                Top choices
+                              </p>
+                              <div className="space-y-2">
+                                {saveBoards.slice(0, 2).map((board) => (
+                                  <button
+                                    key={board.id}
+                                    type="button"
+                                    onClick={() => setIsAuthOpen(true)}
+                                    className="flex h-16 w-full items-center gap-3 rounded-[12px] text-left transition hover:bg-secondary"
+                                  >
+                                    <img
+                                      src={getBoardThumb(board.thumbIndex)}
+                                      alt=""
+                                      className="h-12 w-12 shrink-0 rounded-[10px] object-cover"
+                                    />
+                                    <span className="min-w-0 flex-1 truncate text-lg font-bold">
+                                      {board.name}
+                                    </span>
+                                    {board.locked && (
+                                      <Lock className="h-5 w-5 shrink-0 text-foreground" />
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+
+                              <p className="mb-3 mt-5 text-sm font-medium text-foreground">
+                                All boards
+                              </p>
+                              <div className="space-y-2">
+                                {saveBoards.slice(2).map((board) => (
+                                  <button
+                                    key={board.id}
+                                    type="button"
+                                    onClick={() => setIsAuthOpen(true)}
+                                    className="flex h-16 w-full items-center gap-3 rounded-[12px] text-left transition hover:bg-secondary"
+                                  >
+                                    <img
+                                      src={getBoardThumb(board.thumbIndex)}
+                                      alt=""
+                                      className="h-12 w-12 shrink-0 rounded-[10px] object-cover"
+                                    />
+                                    <span className="min-w-0 flex-1 truncate text-lg font-bold">
+                                      {board.name}
+                                    </span>
+                                    {board.locked && (
+                                      <Lock className="h-5 w-5 shrink-0 text-foreground" />
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="absolute inset-x-0 bottom-0 bg-background/95 px-5 py-4 shadow-[0_-8px_22px_rgba(0,0,0,0.08)] backdrop-blur">
+                              <button
+                                type="button"
+                                onClick={() => setIsAuthOpen(true)}
+                                className="flex h-16 w-full items-center gap-3 rounded-[12px] text-left font-bold hover:bg-secondary"
+                              >
+                                <span className="flex h-12 w-12 items-center justify-center rounded-[10px] bg-secondary">
+                                  <Plus className="h-7 w-7 text-foreground" />
+                                </span>
+                                <span className="text-xl">Create board</span>
+                              </button>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
                         <button
                           type="button"
                           onClick={() => setIsAuthOpen(true)}
@@ -238,35 +341,37 @@ function PinDetail() {
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2 mb-5">
-                      {thumbs.map((asset, i) => (
-                        <button
-                          key={asset.id}
-                          type="button"
-                          onClick={() => setSelectedMediaIndex(i)}
-                          className={`h-14 w-14 shrink-0 overflow-hidden rounded-[14px] transition ${
-                            i === selectedMediaIndex
-                              ? "ring-2 ring-foreground"
-                              : "opacity-90 hover:opacity-100"
-                          }`}
-                        >
-                          {asset.type === "video" ? (
-                            <video
-                              src={asset.url}
-                              muted
-                              playsInline
-                              preload="metadata"
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <img src={asset.url} alt="" className="h-full w-full object-cover" />
-                          )}
+                    {showMediaPreviews && (
+                      <div className="flex items-center gap-2 mb-5">
+                        {thumbs.map((asset, i) => (
+                          <button
+                            key={asset.id}
+                            type="button"
+                            onClick={() => setSelectedMediaIndex(i)}
+                            className={`h-14 w-14 shrink-0 overflow-hidden rounded-[14px] transition ${
+                              i === selectedMediaIndex
+                                ? "ring-2 ring-foreground"
+                                : "opacity-90 hover:opacity-100"
+                            }`}
+                          >
+                            {asset.type === "video" ? (
+                              <video
+                                src={asset.url}
+                                muted
+                                playsInline
+                                preload="metadata"
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <img src={asset.url} alt="" className="h-full w-full object-cover" />
+                            )}
+                          </button>
+                        ))}
+                        <button className="h-10 w-10 ml-auto rounded-full hover:bg-secondary flex items-center justify-center">
+                          <ChevronRight className="h-5 w-5 text-foreground" />
                         </button>
-                      ))}
-                      <button className="h-10 w-10 ml-auto rounded-full hover:bg-secondary flex items-center justify-center">
-                        <ChevronRight className="h-5 w-5 text-foreground" />
-                      </button>
-                    </div>
+                      </div>
+                    )}
 
                     <button className="w-full h-12 rounded-[16px] bg-secondary text-foreground font-semibold text-base hover:brightness-95 transition mb-6">
                       Visit site

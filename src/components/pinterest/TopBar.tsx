@@ -1,5 +1,6 @@
 import { Search, Camera, Mic, ChevronDown } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { AUTH_SESSION_CHANGED_EVENT, hasAuthSession } from "@/lib/auth";
 import { SignupDialog } from "./SignupDialog";
 
 export function TopBar({
@@ -12,6 +13,21 @@ export function TopBar({
   onSearchChange?: (value: string) => void;
 } = {}) {
   const [signupOpen, setSignupOpen] = useState(false);
+  const [isSignedIn, setIsSignedIn] = useState(false);
+
+  useEffect(() => {
+    const updateAuthState = () => setIsSignedIn(hasAuthSession());
+
+    updateAuthState();
+    window.addEventListener(AUTH_SESSION_CHANGED_EVENT, updateAuthState);
+    window.addEventListener("storage", updateAuthState);
+
+    return () => {
+      window.removeEventListener(AUTH_SESSION_CHANGED_EVENT, updateAuthState);
+      window.removeEventListener("storage", updateAuthState);
+    };
+  }, []);
+
   return (
     <header className="sticky top-0 z-30 bg-background">
       <div className="flex items-center gap-3 px-3 md:px-6 py-3">
@@ -47,15 +63,19 @@ export function TopBar({
           </div>
         </div>
         <div className="hidden md:flex items-center gap-2">
-          <button
-            onClick={() => setSignupOpen(true)}
-            className="h-10 px-4 rounded-full bg-[#e60023] hover:bg-[#ad081b] transition text-white text-[15px] font-semibold"
-          >
-            Sign up
-          </button>
+          {!isSignedIn ? (
+            <button
+              onClick={() => setSignupOpen(true)}
+              className="h-10 px-4 rounded-full bg-[#e60023] hover:bg-[#ad081b] transition text-white text-[15px] font-semibold"
+            >
+              Sign up
+            </button>
+          ) : null}
           <button
             aria-label="Profile"
-            onClick={() => setSignupOpen(true)}
+            onClick={() => {
+              if (!isSignedIn) setSignupOpen(true);
+            }}
             className="h-10 w-10 rounded-full bg-gradient-to-br from-pink-300 via-rose-300 to-amber-200 ring-2 ring-background"
           />
           <button

@@ -31,7 +31,7 @@ export function PinCard({ pin }: { pin: Pin }) {
       <Link
         to="/pin/$pinId"
         params={{ pinId: pin.id }}
-        className="relative block w-full overflow-hidden rounded-[16px] bg-secondary cursor-zoom-in"
+        className="relative block w-full overflow-hidden rounded-[16px] bg-secondary cursor-pointer"
         style={{ aspectRatio }}
       >
         {pin.src && pin.mediaType === "video" ? (
