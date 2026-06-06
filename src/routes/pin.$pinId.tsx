@@ -373,10 +373,6 @@ function PinDetail() {
                       </div>
                     )}
 
-                    <button className="w-full h-12 rounded-[16px] bg-secondary text-foreground font-semibold text-base hover:brightness-95 transition mb-6">
-                      Visit site
-                    </button>
-
                     <h2 className="text-lg font-bold text-foreground mb-2">Description</h2>
                     <p className="text-[15px] text-foreground leading-relaxed">
                       {template?.description ??

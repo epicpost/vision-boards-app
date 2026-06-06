@@ -1,6 +1,10 @@
 import { Home, LayoutGrid, Plus, Bell, MessageCircle, Settings } from "lucide-react";
 import { Link, useRouterState } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { AUTH_SESSION_CHANGED_EVENT, hasAuthSession } from "@/lib/auth";
+import { fetchUnreadNotificationCount, unreadNotificationsQueryKey } from "@/lib/notifications";
 import { UpdatesPanel } from "./UpdatesPopover";
 
 const items = [
@@ -42,6 +46,28 @@ function NavButton({
 
 export function Sidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const [isSignedIn, setIsSignedIn] = useState(false);
+  const unreadCountQuery = useQuery({
+    queryKey: unreadNotificationsQueryKey,
+    queryFn: fetchUnreadNotificationCount,
+    enabled: isSignedIn,
+    refetchOnWindowFocus: false,
+  });
+  const unreadCount = unreadCountQuery.data?.data.count ?? 0;
+
+  useEffect(() => {
+    const updateAuthState = () => setIsSignedIn(hasAuthSession());
+
+    updateAuthState();
+    window.addEventListener(AUTH_SESSION_CHANGED_EVENT, updateAuthState);
+    window.addEventListener("storage", updateAuthState);
+
+    return () => {
+      window.removeEventListener(AUTH_SESSION_CHANGED_EVENT, updateAuthState);
+      window.removeEventListener("storage", updateAuthState);
+    };
+  }, []);
+
   return (
     <aside className="hidden md:flex fixed left-0 top-0 h-screen w-[72px] flex-col items-center justify-between py-4 bg-background border-r border-border z-40">
       <div className="flex flex-col items-center gap-2">
@@ -50,7 +76,7 @@ export function Sidebar() {
           aria-label="EpicPost home"
           className="flex h-12 w-12 items-center justify-center rounded-full hover:bg-secondary transition"
         >
-          <img src="/transpared-logo2.png" alt="" className="h-9 w-9 object-contain" />
+          <img src="/transparent-logo.png" alt="" className="h-9 w-9 object-contain" />
         </a>
         {items.map((it) =>
           it.label === "Notifications" ? (
@@ -58,9 +84,14 @@ export function Sidebar() {
               <PopoverTrigger asChild>
                 <button
                   aria-label={it.label}
-                  className="flex h-12 w-12 items-center justify-center rounded-[16px] hover:bg-secondary text-foreground transition"
+                  className="relative flex h-12 w-12 items-center justify-center rounded-[16px] text-foreground transition hover:bg-secondary"
                 >
                   <it.icon className="h-6 w-6" strokeWidth={2.2} />
+                  {unreadCount > 0 ? (
+                    <span className="absolute right-2 top-2 min-w-4 rounded-full bg-[#e60023] px-1 text-center text-[10px] font-bold leading-4 text-white">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  ) : null}
                 </button>
               </PopoverTrigger>
               <PopoverContent

@@ -84,12 +84,8 @@ export function SignupDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[460px] rounded-[28px] p-10 border-none shadow-2xl">
         <div className="flex flex-col items-center text-center">
-          <div className="h-12 w-12 rounded-full bg-[#e60023] flex items-center justify-center mb-4">
-            <img
-              src="/transpared-logo2.png"
-              alt=""
-              className="h-8 w-8 object-contain invert brightness-0"
-            />
+          <div className="mb-4 flex h-16 w-16 items-center justify-center">
+            <img src="/transparent-logo.png" alt="" className="h-16 w-16 object-contain" />
           </div>
           <h2 className="text-[28px] font-bold text-foreground leading-tight mb-6">
             Welcome to EpicPost

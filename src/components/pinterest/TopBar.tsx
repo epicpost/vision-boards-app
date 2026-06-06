@@ -58,7 +58,7 @@ export function TopBar({
           aria-label="EpicPost"
           className="md:hidden flex h-10 w-10 shrink-0 items-center justify-center"
         >
-          <img src="/transpared-logo2.png" alt="" className="h-8 w-8 object-contain" />
+          <img src="/transparent-logo.png" alt="" className="h-8 w-8 object-contain" />
         </a>
         <div className="flex-1 relative">
           <div className="flex items-center gap-2 h-12 rounded-[16px] bg-input px-4 focus-within:ring-2 focus-within:ring-ring transition">

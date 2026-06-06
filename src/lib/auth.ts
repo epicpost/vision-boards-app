@@ -106,6 +106,12 @@ export function hasAuthSession() {
   return Boolean(window.localStorage.getItem(ACCESS_TOKEN_KEY));
 }
 
+export function getAccessToken() {
+  if (typeof window === "undefined") return null;
+
+  return window.localStorage.getItem(ACCESS_TOKEN_KEY);
+}
+
 export function getAuthUser(): UserProfile | null {
   if (typeof window === "undefined") return null;
 
