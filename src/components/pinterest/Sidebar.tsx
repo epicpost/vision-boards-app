@@ -1,10 +1,11 @@
 import { Home, LayoutGrid, Plus, Bell, MessageCircle, Settings } from "lucide-react";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { UpdatesPanel } from "./UpdatesPopover";
 
 const items = [
-  { icon: Home, label: "Home", active: true },
-  { icon: LayoutGrid, label: "Saved" },
+  { icon: Home, label: "Home", to: "/" as const },
+  { icon: LayoutGrid, label: "Saved", to: "/boards" as const },
   { icon: Plus, label: "Create" },
   { icon: Bell, label: "Notifications" },
   { icon: MessageCircle, label: "Messages" },
