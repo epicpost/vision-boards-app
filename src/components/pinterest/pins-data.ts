@@ -30,9 +30,10 @@ const seeds = [
 export const pins: Pin[] = seeds.map((p, i) => ({
   id: String(i),
   src: `https://picsum.photos/seed/${p.s}/600/${p.h}`,
+  width: 600,
   height: p.h,
+  fallbackHeight: p.h,
   title: p.t,
-  author: p.a,
 }));
 
 export function getPinById(id: string) {

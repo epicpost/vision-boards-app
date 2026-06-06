@@ -1,8 +1,11 @@
 import { Home, LayoutGrid, Plus, Bell, MessageCircle, Settings } from "lucide-react";
+import { Link, useRouterState } from "@tanstack/react-router";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { UpdatesPanel } from "./UpdatesPopover";
 
 const items = [
-  { icon: Home, label: "Home", active: true },
-  { icon: LayoutGrid, label: "Saved" },
+  { icon: Home, label: "Home", to: "/" as const },
+  { icon: LayoutGrid, label: "Saved", to: "/boards" as const },
   { icon: Plus, label: "Create" },
   { icon: Bell, label: "Notifications" },
   { icon: MessageCircle, label: "Messages" },
@@ -38,6 +41,7 @@ function NavButton({
 }
 
 export function Sidebar() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   return (
     <aside className="hidden md:flex fixed left-0 top-0 h-screen w-[72px] flex-col items-center justify-between py-4 bg-background border-r border-border z-40">
       <div className="flex flex-col items-center gap-2">
@@ -48,9 +52,49 @@ export function Sidebar() {
         >
           <img src="/transpared-logo2.png" alt="" className="h-9 w-9 object-contain" />
         </a>
-        {items.map((it) => (
-          <NavButton key={it.label} icon={it.icon} label={it.label} active={it.active} />
-        ))}
+        {items.map((it) =>
+          it.label === "Notifications" ? (
+            <Popover key={it.label}>
+              <PopoverTrigger asChild>
+                <button
+                  aria-label={it.label}
+                  className="flex h-12 w-12 items-center justify-center rounded-[16px] hover:bg-secondary text-foreground transition"
+                >
+                  <it.icon className="h-6 w-6" strokeWidth={2.2} />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                side="right"
+                align="start"
+                sideOffset={12}
+                className="w-auto p-0 border-none bg-transparent shadow-[0_8px_30px_rgba(0,0,0,0.18)] rounded-[16px]"
+              >
+                <UpdatesPanel />
+              </PopoverContent>
+            </Popover>
+          ) : "to" in it && it.to ? (
+            <Link key={it.label} to={it.to} className="group relative">
+              <div
+                aria-label={it.label}
+                className={`flex h-12 w-12 items-center justify-center rounded-[16px] transition ${
+                  pathname === it.to
+                    ? "bg-foreground text-background"
+                    : "hover:bg-secondary text-foreground"
+                }`}
+              >
+                <it.icon className="h-6 w-6" strokeWidth={2.2} />
+              </div>
+              <span
+                role="tooltip"
+                className="pointer-events-none absolute left-full top-1/2 ml-3 -translate-y-1/2 whitespace-nowrap rounded-[12px] bg-foreground text-background text-sm font-semibold px-3 py-2 opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition origin-left z-50 shadow-md"
+              >
+                {it.label}
+              </span>
+            </Link>
+          ) : (
+            <NavButton key={it.label} icon={it.icon} label={it.label} />
+          ),
+        )}
       </div>
       <NavButton icon={Settings} label="Settings" />
     </aside>
