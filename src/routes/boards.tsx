@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { Lock, SlidersHorizontal } from "lucide-react";
 import { Sidebar } from "@/components/pinterest/Sidebar";
 import { TopBar } from "@/components/pinterest/TopBar";
 import { MobileNav } from "@/components/pinterest/MobileNav";
 import { pins } from "@/components/pinterest/pins-data";
+import { boardsQueryKey, fetchBoards, type Board } from "@/lib/boards";
 
 export const Route = createFileRoute("/boards")({
   head: () => ({
@@ -15,61 +17,6 @@ export const Route = createFileRoute("/boards")({
   component: BoardsPage,
 });
 
-type Board = {
-  id: string;
-  name: string;
-  pinCount: number;
-  updated: string;
-  secret?: boolean;
-  thumbs: string[];
-};
-
-const boards: Board[] = [
-  { id: "mono", name: "mono", pinCount: 313, updated: "4d", secret: true, thumbs: take(0, 3) },
-  {
-    id: "travel-app",
-    name: "travel app",
-    pinCount: 392,
-    updated: "1w",
-    secret: true,
-    thumbs: take(3, 3),
-  },
-  {
-    id: "visit-lviv",
-    name: "Visit Lviv Today",
-    pinCount: 11,
-    updated: "1w",
-    secret: true,
-    thumbs: take(6, 3),
-  },
-  {
-    id: "visit-today",
-    name: "Visit.today",
-    pinCount: 45,
-    updated: "1w",
-    secret: true,
-    thumbs: take(9, 3),
-  },
-  { id: "gpties", name: "GPTies", pinCount: 252, updated: "3w", secret: true, thumbs: take(12, 3) },
-  { id: "mars", name: "mars", pinCount: 4, updated: "1mo", secret: true, thumbs: take(15, 3) },
-  {
-    id: "vibekoding",
-    name: "VibeKoding",
-    pinCount: 72,
-    updated: "2mo",
-    secret: true,
-    thumbs: take(18, 3),
-  },
-  {
-    id: "monobook",
-    name: "monobook.ing",
-    pinCount: 32,
-    updated: "3mo",
-    secret: true,
-    thumbs: take(21, 3),
-  },
-];
-
 function take(start: number, count: number) {
   return Array.from({ length: count }, (_, i) => {
     const pin = pins[(start + i) % pins.length];
@@ -77,8 +24,32 @@ function take(start: number, count: number) {
   });
 }
 
+function formatUpdatedAt(updatedAt: string | null) {
+  if (!updatedAt) return "";
+
+  const updated = new Date(updatedAt).getTime();
+  if (Number.isNaN(updated)) return "";
+
+  const diffMs = Date.now() - updated;
+  const diffMinutes = Math.max(1, Math.floor(diffMs / 60_000));
+  if (diffMinutes < 60) return `${diffMinutes}m`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}d`;
+  if (diffDays < 31) return `${Math.floor(diffDays / 7)}w`;
+
+  return `${Math.floor(diffDays / 30)}mo`;
+}
+
 function BoardCard({ board }: { board: Board }) {
-  const [main, ...rest] = board.thumbs;
+  const thumbs = board.preview_assets.map((asset) => asset.url);
+  const fallbackThumbs = take(board.id.length % pins.length, 3);
+  const [main, ...rest] = [...thumbs, ...fallbackThumbs].slice(0, 3);
+  const updated = formatUpdatedAt(board.updated_at);
+
   return (
     <Link to="/" className="group block">
       <div className="relative overflow-hidden rounded-[20px] bg-secondary aspect-[4/3]">
@@ -92,7 +63,7 @@ function BoardCard({ board }: { board: Board }) {
             ))}
           </div>
         </div>
-        {board.secret && (
+        {board.is_secret && (
           <span className="absolute left-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-background/95 shadow">
             <Lock className="h-4 w-4 text-foreground" strokeWidth={2.5} />
           </span>
@@ -100,9 +71,19 @@ function BoardCard({ board }: { board: Board }) {
       </div>
       <h3 className="mt-3 px-1 text-[17px] font-bold text-foreground truncate">{board.name}</h3>
       <p className="px-1 text-sm text-muted-foreground">
-        {board.pinCount} Pins · {board.updated}
+        {board.pin_count} Pins{updated ? ` · ${updated}` : ""}
       </p>
     </Link>
+  );
+}
+
+function BoardCardSkeleton() {
+  return (
+    <div className="block">
+      <div className="aspect-[4/3] rounded-[20px] bg-secondary animate-pulse" />
+      <div className="mt-3 mx-1 h-5 w-2/3 rounded bg-secondary animate-pulse" />
+      <div className="mt-2 mx-1 h-4 w-1/3 rounded bg-secondary animate-pulse" />
+    </div>
   );
 }
 
@@ -112,6 +93,12 @@ const TABS = [
 ] as const;
 
 function BoardsPage() {
+  const boardsQuery = useQuery({
+    queryKey: boardsQueryKey,
+    queryFn: fetchBoards,
+  });
+  const boards = boardsQuery.data?.data ?? [];
+
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
@@ -171,11 +158,39 @@ function BoardsPage() {
             </button>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8">
-            {boards.map((b) => (
-              <BoardCard key={b.id} board={b} />
-            ))}
-          </div>
+          {boardsQuery.isLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8">
+              {Array.from({ length: 8 }, (_, index) => (
+                <BoardCardSkeleton key={index} />
+              ))}
+            </div>
+          ) : boardsQuery.isError ? (
+            <div className="flex min-h-[260px] flex-col items-center justify-center text-center">
+              <h2 className="text-xl font-semibold text-foreground">Boards did not load</h2>
+              <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+                {boardsQuery.error.message}
+              </p>
+              <button
+                onClick={() => void boardsQuery.refetch()}
+                className="mt-5 rounded-full bg-foreground px-5 py-2 text-sm font-semibold text-background transition hover:bg-foreground/90"
+              >
+                Try again
+              </button>
+            </div>
+          ) : boards.length ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8">
+              {boards.map((b) => (
+                <BoardCard key={b.id} board={b} />
+              ))}
+            </div>
+          ) : (
+            <div className="flex min-h-[260px] flex-col items-center justify-center text-center">
+              <h2 className="text-xl font-semibold text-foreground">No boards yet</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Create a board to start organizing saved ideas.
+              </p>
+            </div>
+          )}
         </main>
       </div>
       <MobileNav />
