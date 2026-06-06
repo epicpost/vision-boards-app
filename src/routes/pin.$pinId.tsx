@@ -17,6 +17,7 @@ import { Sidebar } from "@/components/pinterest/Sidebar";
 import { TopBar } from "@/components/pinterest/TopBar";
 import { PinCard } from "@/components/pinterest/PinCard";
 import { MobileNav } from "@/components/pinterest/MobileNav";
+import { AuthDialog } from "@/components/pinterest/AuthDialog";
 import {
   fetchPostTemplates,
   getTemplateMedia,
@@ -60,6 +61,7 @@ function PinDetail() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const defaultFeedQuery = useQuery({
     queryKey: postTemplatesQueryKey(),
     queryFn: () => fetchPostTemplates(),
@@ -216,7 +218,11 @@ function PinDetail() {
                           {template?.tags[0] ?? "templates"}
                           <ChevronRight className="h-4 w-4 rotate-90" />
                         </button>
-                        <button className="h-11 px-5 rounded-full bg-primary text-primary-foreground font-bold text-base hover:brightness-90 transition">
+                        <button
+                          type="button"
+                          onClick={() => setIsAuthOpen(true)}
+                          className="h-11 px-5 rounded-full bg-primary text-primary-foreground font-bold text-base hover:brightness-90 transition"
+                        >
                           Save
                         </button>
                       </div>
@@ -362,6 +368,7 @@ function PinDetail() {
         </main>
       </div>
       <MobileNav />
+      <AuthDialog open={isAuthOpen} onOpenChange={setIsAuthOpen} />
     </div>
   );
 }

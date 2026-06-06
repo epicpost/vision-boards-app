@@ -7,6 +7,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { Toaster } from "@/components/ui/sonner";
 
 import appCss from "../styles.css?url";
 
@@ -73,9 +74,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Pinterest — Discover ideas you'll love" },
-      { name: "description", content: "Discover recipes, home ideas, style inspiration and other ideas to try." },
+      {
+        name: "description",
+        content: "Discover recipes, home ideas, style inspiration and other ideas to try.",
+      },
       { property: "og:title", content: "Pinterest — Discover ideas you'll love" },
-      { property: "og:description", content: "Discover recipes, home ideas, style inspiration and other ideas to try." },
+      {
+        property: "og:description",
+        content: "Discover recipes, home ideas, style inspiration and other ideas to try.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -112,6 +119,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
+      <Toaster richColors position="top-center" />
     </QueryClientProvider>
   );
 }
