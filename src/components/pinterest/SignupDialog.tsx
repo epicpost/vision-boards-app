@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { googleLogin, isValidEmail, requestMagicLink, saveAuthSession } from "@/lib/auth";
-import { GOOGLE_CLIENT_ID, renderGoogleButton } from "@/lib/google-identity";
+import { GOOGLE_CLIENT_ID, promptGoogleOneTap, renderGoogleButton } from "@/lib/google-identity";
 
 function GoogleIcon() {
   return (
@@ -49,6 +49,7 @@ export function SignupDialog({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [googleButtonFailed, setGoogleButtonFailed] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement>(null);
   const normalizedEmail = email.trim();
   const canSubmit = isValidEmail(normalizedEmail) && !isSubmitting;
@@ -78,6 +79,7 @@ export function SignupDialog({
     const container = googleButtonRef.current;
     if (!container) return;
 
+    setGoogleButtonFailed(false);
     container.replaceChildren();
     void renderGoogleButton(
       container,
@@ -85,11 +87,26 @@ export function SignupDialog({
         void handleGoogleCredential(idToken);
       },
       (renderError) => {
-        toast.error(renderError.message);
+        // Fall back to the styled button + One Tap prompt instead of an empty gap.
+        console.error("[google-sso]", renderError.message);
+        setGoogleButtonFailed(true);
       },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  function handleGoogleFallbackClick() {
+    setIsGoogleLoading(true);
+    void promptGoogleOneTap(
+      (idToken) => {
+        void handleGoogleCredential(idToken);
+      },
+      (promptError) => {
+        setIsGoogleLoading(false);
+        toast.error(promptError.message);
+      },
+    );
+  }
 
   async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault();
@@ -180,8 +197,20 @@ export function SignupDialog({
               <div
                 ref={googleButtonRef}
                 className="flex h-12 items-center justify-center [color-scheme:light]"
+                hidden={googleButtonFailed}
               />
-              {isGoogleLoading ? (
+              {googleButtonFailed ? (
+                <button
+                  type="button"
+                  onClick={handleGoogleFallbackClick}
+                  disabled={isGoogleLoading}
+                  className="h-12 w-full rounded-full bg-secondary hover:bg-accent transition flex items-center justify-center gap-3 text-[15px] font-semibold text-foreground disabled:opacity-70"
+                >
+                  <GoogleIcon />
+                  {isGoogleLoading ? "Signing in" : "Continue with Google"}
+                </button>
+              ) : null}
+              {isGoogleLoading && !googleButtonFailed ? (
                 <div className="absolute inset-0 flex items-center justify-center gap-3 rounded-full bg-secondary text-[15px] font-semibold text-foreground">
                   <GoogleIcon />
                   Signing in

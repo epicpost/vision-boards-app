@@ -73,6 +73,43 @@ export function loadGoogleIdentity(): Promise<void> {
   return scriptPromise;
 }
 
+export async function promptGoogleOneTap(
+  onCredential: (idToken: string) => void,
+  onError: (error: Error) => void,
+) {
+  if (!GOOGLE_CLIENT_ID) {
+    onError(new Error("Google sign-in is not configured."));
+    return;
+  }
+
+  try {
+    await loadGoogleIdentity();
+  } catch (error) {
+    onError(error instanceof Error ? error : new Error("Failed to load Google Identity."));
+    return;
+  }
+
+  const accounts = window.google?.accounts?.id;
+  if (!accounts) {
+    onError(new Error("Google Identity unavailable."));
+    return;
+  }
+
+  accounts.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: (response) => {
+      if (response.credential) {
+        onCredential(response.credential);
+      } else {
+        onError(new Error("Google sign-in was cancelled."));
+      }
+    },
+    use_fedcm_for_prompt: true,
+  });
+
+  accounts.prompt();
+}
+
 export async function renderGoogleButton(
   container: HTMLElement,
   onCredential: (idToken: string) => void,
@@ -117,4 +154,17 @@ export async function renderGoogleButton(
     width: 380,
     logo_alignment: "center",
   });
+
+  // GIS renders nothing (and only logs to console) when the client ID is wrong
+  // or the current origin isn't an authorized JavaScript origin. Detect that so
+  // the UI can fall back instead of showing an empty gap.
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  if (container.childElementCount === 0) {
+    onError(
+      new Error(
+        `Google button failed to render for origin ${window.location.origin}. ` +
+          "Check that this exact origin is an Authorized JavaScript origin and the client ID is correct.",
+      ),
+    );
+  }
 }
