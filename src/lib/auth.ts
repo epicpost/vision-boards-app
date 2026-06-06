@@ -1,6 +1,7 @@
 import { API_BASE_URL } from "@/lib/post-templates";
 
 export const AUTH_SESSION_CHANGED_EVENT = "epicpost-auth-session-changed";
+export const AUTH_REQUIRED_EVENT = "epicpost-auth-required";
 const ACCESS_TOKEN_KEY = "epicpost_access_token";
 const REFRESH_TOKEN_KEY = "epicpost_refresh_token";
 const USER_KEY = "epicpost_user";
@@ -132,4 +133,15 @@ export function clearAuthSession() {
   window.localStorage.removeItem(REFRESH_TOKEN_KEY);
   window.localStorage.removeItem(USER_KEY);
   window.dispatchEvent(new Event(AUTH_SESSION_CHANGED_EVENT));
+}
+
+export function requestAuthDialog() {
+  if (typeof window === "undefined") return;
+
+  window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
+}
+
+export function expireAuthSession() {
+  clearAuthSession();
+  requestAuthDialog();
 }

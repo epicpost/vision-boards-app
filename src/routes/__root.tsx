@@ -7,6 +7,9 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { SignupDialog } from "@/components/pinterest/SignupDialog";
+import { AUTH_REQUIRED_EVENT } from "@/lib/auth";
 import { Toaster } from "@/components/ui/sonner";
 
 import appCss from "../styles.css?url";
@@ -115,10 +118,22 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const [authOpen, setAuthOpen] = useState(false);
+
+  useEffect(() => {
+    const openAuthDialog = () => setAuthOpen(true);
+
+    window.addEventListener(AUTH_REQUIRED_EVENT, openAuthDialog);
+
+    return () => {
+      window.removeEventListener(AUTH_REQUIRED_EVENT, openAuthDialog);
+    };
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
+      <SignupDialog open={authOpen} onOpenChange={setAuthOpen} />
       <Toaster richColors position="top-center" />
     </QueryClientProvider>
   );

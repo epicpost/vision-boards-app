@@ -1,4 +1,4 @@
-import { getAccessToken } from "@/lib/auth";
+import { expireAuthSession, getAccessToken, requestAuthDialog } from "@/lib/auth";
 import { API_BASE_URL } from "@/lib/post-templates";
 
 export type NotificationType = "post_template" | "search";
@@ -29,6 +29,7 @@ export interface UnreadCountResponse {
 
 interface ApiErrorResponse {
   error?: {
+    code?: string;
     message?: string;
   };
   detail?: Array<{ msg?: string }> | string;
@@ -52,9 +53,14 @@ function getApiErrorMessage(payload: ApiErrorResponse) {
   return null;
 }
 
+function isTokenExpiredError(payload: ApiErrorResponse) {
+  return payload.error?.code === "TOKEN_EXPIRED";
+}
+
 async function notificationRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getAccessToken();
   if (!token) {
+    requestAuthDialog();
     throw new Error("Sign in to view notifications.");
   }
 
@@ -68,6 +74,10 @@ async function notificationRequest<T>(path: string, init?: RequestInit): Promise
   const payload = (await response.json().catch(() => ({}))) as T & ApiErrorResponse;
 
   if (!response.ok) {
+    if (isTokenExpiredError(payload)) {
+      expireAuthSession();
+    }
+
     throw new Error(
       getApiErrorMessage(payload) ?? `Notifications request failed with ${response.status}`,
     );
