@@ -35,6 +35,7 @@ interface RawBoard {
   previews?: RawBoardAsset[];
   thumbs?: RawBoardAsset[];
   pins?: Array<RawBoardAsset & { preview?: string | null; img_preview?: string | null }>;
+  posts_count?: number;
 }
 
 interface RawBoardAsset {
@@ -54,6 +55,11 @@ export interface BoardsResponse {
     has_more: boolean;
   };
 }
+
+type BoardsApiResponse =
+  | { data?: RawBoard[]; boards?: RawBoard[]; pagination?: BoardsResponse["pagination"] }
+  | RawBoard[]
+  | ApiErrorResponse;
 
 interface ApiErrorResponse {
   error?: {
@@ -102,7 +108,8 @@ function normalizeBoard(board: RawBoard): Board {
   return {
     id: String(board.id ?? board.name ?? board.title ?? crypto.randomUUID()),
     name: board.name ?? board.title ?? "Untitled board",
-    pin_count: board.pin_count ?? board.pins_count ?? board.post_templates_count ?? 0,
+    pin_count:
+      board.pin_count ?? board.pins_count ?? board.post_templates_count ?? board.posts_count ?? 0,
     is_secret: board.is_secret ?? board.secret ?? false,
     is_archived: board.is_archived ?? board.archived ?? false,
     updated_at: board.updated_at ?? board.created_at ?? null,
@@ -120,7 +127,7 @@ export async function fetchBoards(): Promise<BoardsResponse> {
     throw new Error("Sign in to view your boards.");
   }
 
-  const url = new URL("/api/v1/me/boards", API_BASE_URL);
+  const url = new URL("/api/v1/me/boards/short", API_BASE_URL);
   url.searchParams.set("limit", "50");
 
   const response = await fetch(url, {
@@ -128,10 +135,7 @@ export async function fetchBoards(): Promise<BoardsResponse> {
       Authorization: `Bearer ${token}`,
     },
   });
-  const payload = (await response.json().catch(() => ({}))) as
-    | { data?: RawBoard[]; pagination?: BoardsResponse["pagination"] }
-    | RawBoard[]
-    | ApiErrorResponse;
+  const payload = (await response.json().catch(() => ({}))) as BoardsApiResponse;
 
   if (!response.ok) {
     const errorPayload = payload as ApiErrorResponse;
@@ -144,7 +148,11 @@ export async function fetchBoards(): Promise<BoardsResponse> {
     );
   }
 
-  const data = Array.isArray(payload) ? payload : ((payload as { data?: RawBoard[] }).data ?? []);
+  const data = Array.isArray(payload)
+    ? payload
+    : ((payload as { data?: RawBoard[]; boards?: RawBoard[] }).data ??
+      (payload as { boards?: RawBoard[] }).boards ??
+      []);
 
   return {
     data: data.map(normalizeBoard),
