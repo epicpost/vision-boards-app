@@ -11,6 +11,7 @@ export function TopBar({
   searchValue?: string;
   onSearchChange?: (value: string) => void;
 } = {}) {
+  const [signupOpen, setSignupOpen] = useState(false);
   return (
     <header className="sticky top-0 z-30 bg-background">
       <div className="flex items-center gap-3 px-3 md:px-6 py-3">
