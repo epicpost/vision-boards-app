@@ -13,7 +13,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { feedCategories } from "./feed-categories";
 import { SignupDialog } from "./SignupDialog";
 
 export function TopBar({
@@ -21,12 +20,14 @@ export function TopBar({
   searchValue,
   onSearchChange,
   activeCategory = "All",
+  categories = ["All"],
   onCategoryChange,
 }: {
   showTabs?: boolean;
   searchValue?: string;
   onSearchChange?: (value: string) => void;
   activeCategory?: string;
+  categories?: readonly string[];
   onCategoryChange?: (category: string) => void;
 } = {}) {
   const [signupOpen, setSignupOpen] = useState(false);
@@ -214,7 +215,7 @@ export function TopBar({
       <SignupDialog open={signupOpen} onOpenChange={setSignupOpen} />
       {showTabs && (
         <nav className="flex items-center gap-1 px-3 md:px-6 pb-3 overflow-x-auto no-scrollbar">
-          {feedCategories.map((tab) => (
+          {categories.map((tab) => (
             <button
               key={tab}
               onClick={() => onCategoryChange?.(tab)}

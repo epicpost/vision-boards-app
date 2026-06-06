@@ -2,10 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { Sidebar } from "@/components/pinterest/Sidebar";
-import { feedCategories } from "@/components/pinterest/feed-categories";
 import { TopBar } from "@/components/pinterest/TopBar";
 import { PinGrid } from "@/components/pinterest/PinGrid";
 import { MobileNav } from "@/components/pinterest/MobileNav";
+import { fetchBoardFeedCategories } from "@/lib/boards";
 import { fetchPostTemplates, postTemplatesQueryKey } from "@/lib/post-templates";
 
 export const Route = createFileRoute("/")({
@@ -22,11 +22,20 @@ function Index() {
   const [searchInput, setSearchInput] = useState(search);
   const [activeCategory, setActiveCategory] = useState<string>("All");
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const boardCategoriesQuery = useQuery({
+    queryKey: ["board-feed-categories"],
+    queryFn: fetchBoardFeedCategories,
+    staleTime: 60_000,
+  });
+  const feedCategories = useMemo(
+    () => ["All", ...(boardCategoriesQuery.data ?? [])],
+    [boardCategoriesQuery.data],
+  );
   const categorySearch = activeCategory === "All" ? "" : activeCategory;
   const normalizedSearch = (search || categorySearch).trim();
   const activeCategoryIndex = useMemo(
     () => feedCategories.findIndex((category) => category === activeCategory),
-    [activeCategory],
+    [activeCategory, feedCategories],
   );
 
   const templatesQuery = useQuery({
@@ -34,6 +43,12 @@ function Index() {
     queryFn: () => fetchPostTemplates(normalizedSearch),
     placeholderData: keepPreviousData,
   });
+
+  useEffect(() => {
+    if (feedCategories.includes(activeCategory)) return;
+
+    setActiveCategory("All");
+  }, [activeCategory, feedCategories]);
 
   useEffect(() => {
     if (search.trim()) return;
@@ -52,7 +67,7 @@ function Index() {
         });
       });
     }
-  }, [activeCategoryIndex, queryClient, search]);
+  }, [activeCategoryIndex, feedCategories, queryClient, search]);
 
   useEffect(() => {
     setSearchInput(search);
@@ -115,6 +130,7 @@ function Index() {
           searchValue={searchInput}
           onSearchChange={setSearchInput}
           activeCategory={activeCategory}
+          categories={feedCategories}
           onCategoryChange={selectCategory}
         />
         <main onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>

@@ -35,10 +35,13 @@ interface RawBoard {
   previews?: RawBoardAsset[];
   thumbs?: RawBoardAsset[];
   pins?: Array<RawBoardAsset & { preview?: string | null; img_preview?: string | null }>;
-  posts_count?: number;
+  last_template_previews?: string[];
+  visibility?: "public" | "secret";
 }
 
-interface RawBoardAsset {
+type RawBoardAsset = string | RawBoardAssetObject;
+
+interface RawBoardAssetObject {
   id?: string | number;
   url?: string | null;
   preview?: string | null;
@@ -91,6 +94,15 @@ function isTokenExpiredError(payload: ApiErrorResponse) {
 }
 
 function normalizeAsset(asset: RawBoardAsset, index: number): BoardPreviewAsset | null {
+  if (typeof asset === "string") {
+    return {
+      id: `${asset}-${index}`,
+      url: asset,
+      type: "image",
+      order: index,
+    };
+  }
+
   const url = asset.url ?? asset.preview ?? asset.img_preview;
   if (!url) return null;
 
@@ -103,14 +115,19 @@ function normalizeAsset(asset: RawBoardAsset, index: number): BoardPreviewAsset 
 }
 
 function normalizeBoard(board: RawBoard): Board {
-  const rawAssets = board.preview_assets ?? board.previews ?? board.thumbs ?? board.pins ?? [];
+  const rawAssets =
+    board.preview_assets ??
+    board.previews ??
+    board.thumbs ??
+    board.pins ??
+    board.last_template_previews ??
+    [];
 
   return {
     id: String(board.id ?? board.name ?? board.title ?? crypto.randomUUID()),
     name: board.name ?? board.title ?? "Untitled board",
-    pin_count:
-      board.pin_count ?? board.pins_count ?? board.post_templates_count ?? board.posts_count ?? 0,
-    is_secret: board.is_secret ?? board.secret ?? false,
+    pin_count: board.pin_count ?? board.pins_count ?? board.post_templates_count ?? 0,
+    is_secret: board.is_secret ?? board.secret ?? board.visibility === "secret",
     is_archived: board.is_archived ?? board.archived ?? false,
     updated_at: board.updated_at ?? board.created_at ?? null,
     preview_assets: rawAssets
@@ -127,7 +144,8 @@ export async function fetchBoards(): Promise<BoardsResponse> {
     throw new Error("Sign in to view your boards.");
   }
 
-  const url = new URL("/api/v1/me/boards/short", API_BASE_URL);
+  const url = new URL("/api/v1/me/boards", API_BASE_URL);
+  url.searchParams.set("view", "short");
   url.searchParams.set("limit", "50");
 
   const response = await fetch(url, {
@@ -160,4 +178,12 @@ export async function fetchBoards(): Promise<BoardsResponse> {
       ? undefined
       : (payload as { pagination?: BoardsResponse["pagination"] }).pagination,
   };
+}
+
+export async function fetchBoardFeedCategories(): Promise<string[]> {
+  const token = getAccessToken();
+  if (!token) return [];
+
+  const response = await fetchBoards();
+  return response.data.map((board) => board.name);
 }
