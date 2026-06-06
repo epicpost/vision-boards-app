@@ -17,7 +17,7 @@ import { Sidebar } from "@/components/pinterest/Sidebar";
 import { TopBar } from "@/components/pinterest/TopBar";
 import { PinCard } from "@/components/pinterest/PinCard";
 import { MobileNav } from "@/components/pinterest/MobileNav";
-import { AuthDialog } from "@/components/pinterest/AuthDialog";
+import { SignupDialog } from "@/components/pinterest/SignupDialog";
 import {
   fetchPostTemplates,
   getTemplateMedia,
@@ -368,7 +368,7 @@ function PinDetail() {
         </main>
       </div>
       <MobileNav />
-      <AuthDialog open={isAuthOpen} onOpenChange={setIsAuthOpen} />
+      <SignupDialog open={isAuthOpen} onOpenChange={setIsAuthOpen} />
     </div>
   );
 }

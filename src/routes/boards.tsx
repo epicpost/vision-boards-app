@@ -26,13 +26,48 @@ type Board = {
 
 const boards: Board[] = [
   { id: "mono", name: "mono", pinCount: 313, updated: "4d", secret: true, thumbs: take(0, 3) },
-  { id: "travel-app", name: "travel app", pinCount: 392, updated: "1w", secret: true, thumbs: take(3, 3) },
-  { id: "visit-lviv", name: "Visit Lviv Today", pinCount: 11, updated: "1w", secret: true, thumbs: take(6, 3) },
-  { id: "visit-today", name: "Visit.today", pinCount: 45, updated: "1w", secret: true, thumbs: take(9, 3) },
+  {
+    id: "travel-app",
+    name: "travel app",
+    pinCount: 392,
+    updated: "1w",
+    secret: true,
+    thumbs: take(3, 3),
+  },
+  {
+    id: "visit-lviv",
+    name: "Visit Lviv Today",
+    pinCount: 11,
+    updated: "1w",
+    secret: true,
+    thumbs: take(6, 3),
+  },
+  {
+    id: "visit-today",
+    name: "Visit.today",
+    pinCount: 45,
+    updated: "1w",
+    secret: true,
+    thumbs: take(9, 3),
+  },
   { id: "gpties", name: "GPTies", pinCount: 252, updated: "3w", secret: true, thumbs: take(12, 3) },
   { id: "mars", name: "mars", pinCount: 4, updated: "1mo", secret: true, thumbs: take(15, 3) },
-  { id: "vibekoding", name: "VibeKoding", pinCount: 72, updated: "2mo", secret: true, thumbs: take(18, 3) },
-  { id: "monobook", name: "monobook.ing", pinCount: 32, updated: "3mo", secret: true, thumbs: take(21, 3) },
+  {
+    id: "vibekoding",
+    name: "VibeKoding",
+    pinCount: 72,
+    updated: "2mo",
+    secret: true,
+    thumbs: take(18, 3),
+  },
+  {
+    id: "monobook",
+    name: "monobook.ing",
+    pinCount: 32,
+    updated: "3mo",
+    secret: true,
+    thumbs: take(21, 3),
+  },
 ];
 
 function take(start: number, count: number) {

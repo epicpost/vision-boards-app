@@ -17,15 +17,69 @@ type Update = {
 };
 
 const updates: Update[] = [
-  { id: "1", title: <><b>Barcelona Travel</b></>, time: "11h", thumb: pins[5]?.src ?? undefined },
-  { id: "2", title: <><b>Instagram Story Design</b> ideas</>, time: "11h", thumb: pins[3]?.src ?? undefined },
+  {
+    id: "1",
+    title: (
+      <>
+        <b>Barcelona Travel</b>
+      </>
+    ),
+    time: "11h",
+    thumb: pins[5]?.src ?? undefined,
+  },
+  {
+    id: "2",
+    title: (
+      <>
+        <b>Instagram Story Design</b> ideas
+      </>
+    ),
+    time: "11h",
+    thumb: pins[3]?.src ?? undefined,
+  },
   { id: "3", title: <>Feels like your vibe</>, time: "18h", thumb: pins[21]?.src ?? undefined },
   { id: "4", title: <>Love this for you</>, time: "21h", thumb: pins[9]?.src ?? undefined },
-  { id: "5", title: <>Still searching? Explore ideas related to <b>Business Card</b></>, time: "23h", icon: "search" },
-  { id: "6", title: <><b>Instagram Story Templates</b> for you</>, time: "2d", thumb: pins[12]?.src ?? undefined },
-  { id: "7", title: <><b>Lviv Travel</b> for you</>, time: "2d", thumb: pins[17]?.src ?? undefined },
+  {
+    id: "5",
+    title: (
+      <>
+        Still searching? Explore ideas related to <b>Business Card</b>
+      </>
+    ),
+    time: "23h",
+    icon: "search",
+  },
+  {
+    id: "6",
+    title: (
+      <>
+        <b>Instagram Story Templates</b> for you
+      </>
+    ),
+    time: "2d",
+    thumb: pins[12]?.src ?? undefined,
+  },
+  {
+    id: "7",
+    title: (
+      <>
+        <b>Lviv Travel</b> for you
+      </>
+    ),
+    time: "2d",
+    thumb: pins[17]?.src ?? undefined,
+  },
   { id: "8", title: <>Feels like your vibe</>, time: "3d", thumb: pins[8]?.src ?? undefined },
-  { id: "9", title: <><b>Lviv Travel</b></>, time: "3d", thumb: pins[16]?.src ?? undefined },
+  {
+    id: "9",
+    title: (
+      <>
+        <b>Lviv Travel</b>
+      </>
+    ),
+    time: "3d",
+    thumb: pins[16]?.src ?? undefined,
+  },
 ];
 
 function UpdateRow({ u }: { u: Update }) {
@@ -41,15 +95,9 @@ function UpdateRow({ u }: { u: Update }) {
           <Search className="h-6 w-6 text-foreground" strokeWidth={2.2} />
         </div>
       ) : (
-        <img
-          src={u.thumb}
-          alt=""
-          className="h-14 w-14 shrink-0 rounded-[14px] object-cover"
-        />
+        <img src={u.thumb} alt="" className="h-14 w-14 shrink-0 rounded-[14px] object-cover" />
       )}
-      <div className="flex-1 min-w-0 text-[15px] text-foreground leading-snug">
-        {u.title}
-      </div>
+      <div className="flex-1 min-w-0 text-[15px] text-foreground leading-snug">{u.title}</div>
       <div className="flex flex-col items-end gap-1 shrink-0">
         <span className="text-xs text-muted-foreground">{u.time}</span>
         <DropdownMenu open={open} onOpenChange={setOpen}>
