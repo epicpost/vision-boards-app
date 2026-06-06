@@ -25,12 +25,12 @@ export function MobileNav() {
           key={label}
           aria-label={label}
           onClick={() => handleButtonClick(label)}
-          className={`flex h-[68px] w-[68px] items-center justify-center rounded-[20px] bg-background shadow-[0_12px_34px_rgba(0,0,0,0.18)] transition-transform duration-200 active:scale-90 ${
+          className={`flex h-[54px] w-[54px] items-center justify-center rounded-[16px] bg-background shadow-[0_10px_28px_rgba(0,0,0,0.16)] transition-transform duration-200 active:scale-90 ${
             bouncingItem === label ? "animate-[mobile-nav-bounce_360ms_ease-out]" : ""
           }`}
         >
           <Icon
-            className={`h-9 w-9 ${active ? "text-foreground" : "text-muted-foreground"}`}
+            className={`h-7 w-7 ${active ? "text-foreground" : "text-muted-foreground"}`}
             strokeWidth={2.5}
           />
         </button>

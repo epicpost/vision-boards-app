@@ -13,16 +13,21 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { feedCategories } from "./feed-categories";
 import { SignupDialog } from "./SignupDialog";
 
 export function TopBar({
   showTabs = true,
   searchValue,
   onSearchChange,
+  activeCategory = "All",
+  onCategoryChange,
 }: {
   showTabs?: boolean;
   searchValue?: string;
   onSearchChange?: (value: string) => void;
+  activeCategory?: string;
+  onCategoryChange?: (category: string) => void;
 } = {}) {
   const [signupOpen, setSignupOpen] = useState(false);
   const [isSignedIn, setIsSignedIn] = useState(false);
@@ -209,21 +214,15 @@ export function TopBar({
       <SignupDialog open={signupOpen} onOpenChange={setSignupOpen} />
       {showTabs && (
         <nav className="flex items-center gap-1 px-3 md:px-6 pb-3 overflow-x-auto no-scrollbar">
-          {[
-            "All",
-            "Visit.today",
-            "VibeKoding",
-            "Путешествия",
-            "Bitcoin, Crypto, Blockchain",
-            "Osint",
-            "Temu",
-            "House",
-            "Travel",
-            "Food",
-          ].map((tab, i) => (
+          {feedCategories.map((tab) => (
             <button
               key={tab}
-              className={`shrink-0 px-3 py-2 text-[15px] font-semibold rounded-full transition ${i === 0 ? "text-foreground border-b-[3px] border-foreground rounded-none" : "text-foreground hover:bg-secondary"}`}
+              onClick={() => onCategoryChange?.(tab)}
+              className={`shrink-0 px-3 py-2 text-[15px] font-semibold rounded-full transition ${
+                tab === activeCategory
+                  ? "text-foreground border-b-[3px] border-foreground rounded-none"
+                  : "text-foreground hover:bg-secondary"
+              }`}
             >
               {tab}
             </button>
