@@ -5,6 +5,25 @@ interface SuccessResponse {
   message?: string | null;
 }
 
+interface UserProfile {
+  id: string;
+  username: string;
+  email: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  avatar_url?: string | null;
+}
+
+interface AuthSession {
+  access_token: string;
+  refresh_token: string;
+  user: UserProfile;
+}
+
+interface AuthSessionResponse {
+  data: AuthSession;
+}
+
 interface ApiErrorResponse {
   error?: {
     message?: string;
@@ -49,4 +68,28 @@ export async function requestMagicLink(email: string): Promise<SuccessResponse> 
   }
 
   return payload;
+}
+
+export async function confirmMagicLink(token: string, email: string): Promise<AuthSessionResponse> {
+  const url = new URL("/api/v1/auth/magic-link/confirm", API_BASE_URL);
+  url.searchParams.set("token", token);
+  url.searchParams.set("email", email.trim());
+
+  const response = await fetch(url);
+  const payload = (await response.json().catch(() => ({}))) as AuthSessionResponse &
+    ApiErrorResponse;
+
+  if (!response.ok) {
+    throw new Error(
+      getErrorMessage(payload) ?? `Magic link confirmation failed with ${response.status}`,
+    );
+  }
+
+  return payload;
+}
+
+export function saveAuthSession(session: AuthSession) {
+  window.localStorage.setItem("epicpost_access_token", session.access_token);
+  window.localStorage.setItem("epicpost_refresh_token", session.refresh_token);
+  window.localStorage.setItem("epicpost_user", JSON.stringify(session.user));
 }
