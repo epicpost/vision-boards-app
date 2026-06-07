@@ -6,6 +6,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { AUTH_SESSION_CHANGED_EVENT, hasAuthSession } from "@/lib/auth";
 import { fetchUnreadNotificationCount, unreadNotificationsQueryKey } from "@/lib/notifications";
 import { UpdatesPanel } from "./UpdatesPopover";
+import { SettingsSupportMenu } from "./SettingsSupportMenu";
 
 const items = [
   { icon: Home, label: "Home", to: "/" as const },
@@ -127,7 +128,31 @@ export function Sidebar() {
           ),
         )}
       </div>
-      <NavButton icon={Settings} label="Settings" />
+      <SettingsTrigger />
     </aside>
+  );
+}
+
+function SettingsTrigger() {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          aria-label="Settings"
+          className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-secondary text-foreground transition hover:bg-accent"
+        >
+          <Settings className="h-6 w-6" strokeWidth={2.2} />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="right"
+        align="end"
+        sideOffset={12}
+        className="w-auto p-0 border-none bg-transparent shadow-none"
+      >
+        <SettingsSupportMenu onClose={() => setOpen(false)} />
+      </PopoverContent>
+    </Popover>
   );
 }
