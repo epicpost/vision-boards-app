@@ -128,7 +128,31 @@ export function Sidebar() {
           ),
         )}
       </div>
-      <NavButton icon={Settings} label="Settings" />
+      <SettingsTrigger />
     </aside>
+  );
+}
+
+function SettingsTrigger() {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          aria-label="Settings"
+          className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-secondary text-foreground transition hover:bg-accent"
+        >
+          <Settings className="h-6 w-6" strokeWidth={2.2} />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="right"
+        align="end"
+        sideOffset={12}
+        className="w-auto p-0 border-none bg-transparent shadow-none"
+      >
+        <SettingsSupportMenu onClose={() => setOpen(false)} />
+      </PopoverContent>
+    </Popover>
   );
 }
