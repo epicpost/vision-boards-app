@@ -16,6 +16,7 @@ export interface Board {
   is_archived: boolean;
   updated_at: string | null;
   preview_assets: BoardPreviewAsset[];
+  is_top_choice: boolean;
 }
 
 interface RawBoard {
@@ -29,6 +30,7 @@ interface RawBoard {
   secret?: boolean;
   is_archived?: boolean;
   archived?: boolean;
+  is_top_choice?: boolean;
   updated_at?: string | null;
   created_at?: string | null;
   preview_assets?: RawBoardAsset[];
@@ -73,7 +75,8 @@ interface ApiErrorResponse {
   message?: string;
 }
 
-export const boardsQueryKey = ["boards", { limit: 50 }] as const;
+export const boardsQueryKey = (suggestFor?: string) =>
+  ["boards", { limit: 50, suggestFor: suggestFor ?? null }] as const;
 
 function getApiErrorMessage(payload: ApiErrorResponse) {
   if (payload.error?.message) return payload.error.message;
@@ -129,6 +132,7 @@ function normalizeBoard(board: RawBoard): Board {
     pin_count: board.pin_count ?? board.pins_count ?? board.post_templates_count ?? 0,
     is_secret: board.is_secret ?? board.secret ?? board.visibility === "secret",
     is_archived: board.is_archived ?? board.archived ?? false,
+    is_top_choice: board.is_top_choice ?? false,
     updated_at: board.updated_at ?? board.created_at ?? null,
     preview_assets: rawAssets
       .map((asset, index) => normalizeAsset(asset, index))
@@ -137,7 +141,7 @@ function normalizeBoard(board: RawBoard): Board {
   };
 }
 
-export async function fetchBoards(): Promise<BoardsResponse> {
+export async function fetchBoards(suggestFor?: string): Promise<BoardsResponse> {
   const token = getAccessToken();
   if (!token) {
     requestAuthDialog();
@@ -147,6 +151,10 @@ export async function fetchBoards(): Promise<BoardsResponse> {
   const url = new URL("/api/v1/me/boards", API_BASE_URL);
   url.searchParams.set("view", "short");
   url.searchParams.set("limit", "50");
+  if (suggestFor) {
+    // Ask the API to flag boards relevant to this template as "Top choices".
+    url.searchParams.set("suggest_for", suggestFor);
+  }
 
   const response = await fetch(url, {
     headers: {

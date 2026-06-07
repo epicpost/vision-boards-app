@@ -111,8 +111,8 @@ function PinDetail() {
   const [savedBoardId, setSavedBoardId] = useState<string | null>(null);
   const isSignedIn = Boolean(getAccessToken());
   const boardsQuery = useQuery({
-    queryKey: boardsQueryKey,
-    queryFn: fetchBoards,
+    queryKey: boardsQueryKey(pinId),
+    queryFn: () => fetchBoards(pinId),
     enabled: isSignedIn && isSaveOpen,
   });
   const saveMutation = useMutation({
@@ -133,10 +133,13 @@ function PinDetail() {
     if (!query) return boards;
     return boards.filter((board) => board.name.toLowerCase().includes(query));
   }, [boards, boardSearch]);
-  // The boards API short view has no "top choices" param (only view/limit/cursor),
-  // so we surface the first boards (most recently updated) as Top choices client-side.
-  const topChoices = boardSearch ? [] : filteredBoards.slice(0, 2);
-  const otherBoards = boardSearch ? filteredBoards : filteredBoards.slice(2);
+  // The API flags boards relevant to this template (`suggest_for=pinId`) as
+  // top choices based on tag overlap; we keep them out of the "All boards" list.
+  // While searching, show a single flat list of matches instead.
+  const topChoices = boardSearch ? [] : filteredBoards.filter((board) => board.is_top_choice);
+  const otherBoards = boardSearch
+    ? filteredBoards
+    : filteredBoards.filter((board) => !board.is_top_choice);
   const selectedBoard = boards.find((board) => board.id === savedBoardId) ?? null;
   const defaultFeedQuery = useQuery({
     queryKey: postTemplatesQueryKey(),
@@ -190,7 +193,7 @@ function PinDetail() {
               <article className="rounded-[16px] border border-border bg-background overflow-hidden">
                 <div className="grid grid-cols-1 md:grid-cols-2">
                   {/* Image side */}
-                  <div className="relative bg-secondary">
+                  <div className="relative bg-white">
                     <button
                       aria-label="Back"
                       onClick={() => router.history.back()}

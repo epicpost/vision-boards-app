@@ -196,7 +196,7 @@ export function SignupDialog({
             <button
               type="submit"
               disabled={!canSubmit}
-              className="h-12 rounded-full bg-[#e60023] hover:bg-[#ad081b] transition text-white font-semibold text-[15px]"
+              className="h-12 rounded-[14px] bg-[#e60023] hover:bg-[#ad081b] transition text-white font-semibold text-[15px]"
             >
               {isSubmitting ? "Sending" : "Send magic link"}
             </button>
@@ -215,7 +215,7 @@ export function SignupDialog({
               {googleButtonReady && !googleButtonFailed ? (
                 <div
                   aria-hidden
-                  className="pointer-events-none absolute inset-0 flex items-center justify-center gap-3 rounded-full bg-secondary text-[15px] font-semibold text-foreground"
+                  className="pointer-events-none absolute inset-0 flex items-center justify-center gap-3 rounded-[14px] bg-secondary text-[15px] font-semibold text-foreground"
                 >
                   <GoogleIcon />
                   Continue with Google
@@ -231,14 +231,14 @@ export function SignupDialog({
                   type="button"
                   onClick={handleGoogleFallbackClick}
                   disabled={isGoogleLoading}
-                  className="h-12 w-full rounded-full bg-secondary hover:bg-accent transition flex items-center justify-center gap-3 text-[15px] font-semibold text-foreground disabled:opacity-70"
+                  className="h-12 w-full rounded-[14px] bg-secondary hover:bg-accent transition flex items-center justify-center gap-3 text-[15px] font-semibold text-foreground disabled:opacity-70"
                 >
                   <GoogleIcon />
                   {isGoogleLoading ? "Signing in" : "Continue with Google"}
                 </button>
               ) : null}
               {isGoogleLoading && !googleButtonFailed ? (
-                <div className="absolute inset-0 flex items-center justify-center gap-3 rounded-full bg-secondary text-[15px] font-semibold text-foreground">
+                <div className="absolute inset-0 flex items-center justify-center gap-3 rounded-[14px] bg-secondary text-[15px] font-semibold text-foreground">
                   <GoogleIcon />
                   Signing in
                 </div>
@@ -248,7 +248,7 @@ export function SignupDialog({
             <button
               type="button"
               onClick={() => handleProvider("Google")}
-              className="h-12 w-full rounded-full bg-secondary hover:bg-accent transition flex items-center justify-center gap-3 text-[15px] font-semibold text-foreground"
+              className="h-12 w-full rounded-[14px] bg-secondary hover:bg-accent transition flex items-center justify-center gap-3 text-[15px] font-semibold text-foreground"
             >
               <GoogleIcon />
               Continue with Google
@@ -256,7 +256,7 @@ export function SignupDialog({
           )}
           <button
             onClick={() => handleProvider("Apple")}
-            className="h-12 rounded-full bg-foreground hover:bg-foreground/90 transition flex items-center justify-center gap-3 text-[15px] font-semibold text-background"
+            className="h-12 rounded-[14px] bg-foreground hover:bg-foreground/90 transition flex items-center justify-center gap-3 text-[15px] font-semibold text-background"
           >
             <AppleIcon />
             Continue with Apple

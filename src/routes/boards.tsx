@@ -94,8 +94,8 @@ const TABS = [
 
 function BoardsPage() {
   const boardsQuery = useQuery({
-    queryKey: boardsQueryKey,
-    queryFn: fetchBoards,
+    queryKey: boardsQueryKey(),
+    queryFn: () => fetchBoards(),
   });
   const boards = boardsQuery.data?.data ?? [];
 
