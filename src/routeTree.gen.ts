@@ -9,11 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as BoardsRouteImport } from './routes/boards'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PinPinIdRouteImport } from './routes/pin.$pinId'
 import { Route as AuthMagicLinkConfirmRouteImport } from './routes/auth/magic-link/confirm'
 
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BoardsRoute = BoardsRouteImport.update({
   id: '/boards',
   path: '/boards',
@@ -38,12 +44,14 @@ const AuthMagicLinkConfirmRoute = AuthMagicLinkConfirmRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/boards': typeof BoardsRoute
+  '/settings': typeof SettingsRoute
   '/pin/$pinId': typeof PinPinIdRoute
   '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/boards': typeof BoardsRoute
+  '/settings': typeof SettingsRoute
   '/pin/$pinId': typeof PinPinIdRoute
   '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
 }
@@ -51,26 +59,46 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/boards': typeof BoardsRoute
+  '/settings': typeof SettingsRoute
   '/pin/$pinId': typeof PinPinIdRoute
   '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/boards' | '/pin/$pinId' | '/auth/magic-link/confirm'
+  fullPaths:
+    | '/'
+    | '/boards'
+    | '/settings'
+    | '/pin/$pinId'
+    | '/auth/magic-link/confirm'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/boards' | '/pin/$pinId' | '/auth/magic-link/confirm'
-  id: '__root__' | '/' | '/boards' | '/pin/$pinId' | '/auth/magic-link/confirm'
+  to: '/' | '/boards' | '/settings' | '/pin/$pinId' | '/auth/magic-link/confirm'
+  id:
+    | '__root__'
+    | '/'
+    | '/boards'
+    | '/settings'
+    | '/pin/$pinId'
+    | '/auth/magic-link/confirm'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BoardsRoute: typeof BoardsRoute
+  SettingsRoute: typeof SettingsRoute
   PinPinIdRoute: typeof PinPinIdRoute
   AuthMagicLinkConfirmRoute: typeof AuthMagicLinkConfirmRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/boards': {
       id: '/boards'
       path: '/boards'
@@ -105,9 +133,20 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BoardsRoute: BoardsRoute,
+  SettingsRoute: SettingsRoute,
   PinPinIdRoute: PinPinIdRoute,
   AuthMagicLinkConfirmRoute: AuthMagicLinkConfirmRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

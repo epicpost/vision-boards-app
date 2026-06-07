@@ -6,6 +6,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { AUTH_SESSION_CHANGED_EVENT, hasAuthSession } from "@/lib/auth";
 import { fetchUnreadNotificationCount, unreadNotificationsQueryKey } from "@/lib/notifications";
 import { UpdatesPanel } from "./UpdatesPopover";
+import { SettingsSupportMenu } from "./SettingsSupportMenu";
 
 const items = [
   { icon: Home, label: "Home", to: "/" as const },
