@@ -131,7 +131,12 @@ function normalizeBoard(board: RawBoard): Board {
     id: String(board.id ?? board.name ?? board.title ?? crypto.randomUUID()),
     name: board.name ?? board.title ?? "Untitled board",
     template_count:
-      board.post_templates_count ?? board.template_count ?? board.pin_count ?? board.pins_count ?? 0,
+      board.post_templates_count ??
+      board.template_count ??
+      board.pin_count ??
+      board.pins_count ??
+      board.last_template_previews?.length ??
+      0,
     is_secret: board.is_secret ?? board.secret ?? board.visibility === "secret",
     is_archived: board.is_archived ?? board.archived ?? false,
     is_top_choice: board.is_top_choice ?? false,

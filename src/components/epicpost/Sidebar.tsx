@@ -89,9 +89,7 @@ export function Sidebar() {
                 >
                   <it.icon className="h-6 w-6" strokeWidth={2.2} />
                   {unreadCount > 0 ? (
-                    <span className="absolute right-2 top-2 min-w-4 rounded-full bg-[#e60023] px-1 text-center text-[10px] font-bold leading-4 text-white">
-                      {unreadCount > 99 ? "99+" : unreadCount}
-                    </span>
+                    <span className="absolute right-2 top-2 h-3.5 w-3.5 rounded-full bg-[#e60023]" />
                   ) : null}
                 </button>
               </PopoverTrigger>
