@@ -21,6 +21,7 @@ export function TopBar({
   showTabs = true,
   searchValue,
   onSearchChange,
+  onSearchSubmit,
   activeCategory = "All",
   categories = ["All"],
   onCategoryChange,
@@ -28,6 +29,7 @@ export function TopBar({
   showTabs?: boolean;
   searchValue?: string;
   onSearchChange?: (value: string) => void;
+  onSearchSubmit?: (value: string) => void;
   activeCategory?: string;
   categories?: readonly string[];
   onCategoryChange?: (category: string) => void;
@@ -125,6 +127,16 @@ export function TopBar({
                   value={searchValue ?? ""}
                   onChange={(event) => onSearchChange?.(event.target.value)}
                   onFocus={() => setSearchOpen(true)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      const query = (searchValue ?? "").trim();
+                      if (!query) return;
+                      onSearchSubmit?.(query);
+                      setSearchOpen(false);
+                      event.currentTarget.blur();
+                    }
+                  }}
                   className="flex-1 bg-transparent outline-none text-foreground placeholder:text-muted-foreground text-base"
                 />
                 <button
@@ -150,6 +162,7 @@ export function TopBar({
               <SearchMegaMenu
                 onPick={(q) => {
                   onSearchChange?.(q);
+                  onSearchSubmit?.(q);
                   setSearchOpen(false);
                 }}
               />

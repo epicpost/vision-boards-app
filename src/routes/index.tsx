@@ -6,7 +6,12 @@ import { TopBar } from "@/components/pinterest/TopBar";
 import { PinGrid } from "@/components/pinterest/PinGrid";
 import { MobileNav } from "@/components/pinterest/MobileNav";
 import { fetchBoardFeedCategories } from "@/lib/boards";
-import { fetchPostTemplates, postTemplatesQueryKey } from "@/lib/post-templates";
+import {
+  fetchPostTemplates,
+  getTemplateMedia,
+  postTemplatesQueryKey,
+} from "@/lib/post-templates";
+import { recordSearch, searchMenuQueryKey } from "@/lib/search-menu";
 
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>): { search?: string } =>
@@ -73,22 +78,46 @@ function Index() {
     setSearchInput(search);
   }, [search]);
 
+  const submitSearch = (rawQuery: string) => {
+    const nextSearch = rawQuery.trim();
+    setSearchInput(nextSearch);
+    setActiveCategory("All");
+
+    if (nextSearch === search.trim()) return;
+
+    void navigate({
+      to: "/",
+      search: nextSearch ? { search: nextSearch } : {},
+    });
+  };
+
+  // Record the committed search in history once its results are available, so
+  // the recent-searches menu can show a representative thumbnail. The repository
+  // upserts by (user, query), so re-searching only bumps updated_at.
+  const recordedSearchRef = useRef<string | null>(null);
   useEffect(() => {
-    const nextSearch = searchInput.trim();
-    const currentSearch = search.trim();
+    const query = search.trim();
+    if (!query) return;
+    if (recordedSearchRef.current === query) return;
+    if (templatesQuery.isPending || templatesQuery.isError) return;
 
-    const timer = window.setTimeout(() => {
-      if (nextSearch === currentSearch) return;
+    recordedSearchRef.current = query;
+    const firstPreview = templatesQuery.data?.data[0]
+      ? getTemplateMedia(templatesQuery.data.data[0]).url
+      : null;
 
-      navigate({
-        to: "/",
-        search: nextSearch ? { search: nextSearch } : {},
-        replace: true,
+    recordSearch(query, firstPreview)
+      .then(() => queryClient.invalidateQueries({ queryKey: searchMenuQueryKey }))
+      .catch(() => {
+        // Recording history is best-effort; ignore failures.
       });
-    }, 350);
-
-    return () => window.clearTimeout(timer);
-  }, [navigate, search, searchInput]);
+  }, [
+    search,
+    templatesQuery.data,
+    templatesQuery.isPending,
+    templatesQuery.isError,
+    queryClient,
+  ]);
 
   const selectCategory = (category: string) => {
     setActiveCategory(category);
@@ -129,6 +158,7 @@ function Index() {
         <TopBar
           searchValue={searchInput}
           onSearchChange={setSearchInput}
+          onSearchSubmit={submitSearch}
           activeCategory={activeCategory}
           categories={feedCategories}
           onCategoryChange={selectCategory}
