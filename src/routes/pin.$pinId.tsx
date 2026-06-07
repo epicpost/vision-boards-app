@@ -307,11 +307,11 @@ function PinDetail() {
                                 ))}
                               </div>
                             </div>
-                            <div className="absolute inset-x-0 bottom-0 bg-background/95 px-4 py-3 shadow-[0_-8px_22px_rgba(0,0,0,0.08)] backdrop-blur">
+                            <div className="absolute inset-x-0 bottom-0 rounded-b-[20px] bg-background/95 px-4 py-3 shadow-[0_-8px_22px_rgba(0,0,0,0.08)] backdrop-blur transition hover:bg-secondary">
                               <button
                                 type="button"
                                 onClick={() => setIsAuthOpen(true)}
-                                className="flex h-16 w-full items-center gap-3 rounded-[16px] px-2 text-left font-semibold hover:bg-secondary"
+                                className="flex h-16 w-full items-center gap-3 px-2 text-left font-semibold"
                               >
                                 <span className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-secondary">
                                   <Plus className="h-6 w-6 text-foreground" />
