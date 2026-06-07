@@ -51,7 +51,7 @@ function BoardCard({ board }: { board: Board }) {
   const updated = formatUpdatedAt(board.updated_at);
 
   return (
-    <Link to="/" className="group block">
+    <Link to="/" search={{ board: board.id }} className="group block">
       <div className="relative overflow-hidden rounded-[20px] bg-secondary aspect-[4/3]">
         <div className="flex h-full w-full gap-px">
           <div className="relative h-full w-2/3">

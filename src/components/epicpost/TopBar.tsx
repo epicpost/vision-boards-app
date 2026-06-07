@@ -17,13 +17,18 @@ import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { SignupDialog } from "./SignupDialog";
 import { SearchMegaMenu } from "./SearchMegaMenu";
 
+export interface TopBarCategory {
+  id: string;
+  label: string;
+}
+
 export function TopBar({
   showTabs = true,
   searchValue,
   onSearchChange,
   onSearchSubmit,
-  activeCategory = "All",
-  categories = ["All"],
+  activeCategory = "all",
+  categories = [{ id: "all", label: "All" }],
   onCategoryChange,
 }: {
   showTabs?: boolean;
@@ -31,8 +36,8 @@ export function TopBar({
   onSearchChange?: (value: string) => void;
   onSearchSubmit?: (value: string) => void;
   activeCategory?: string;
-  categories?: readonly string[];
-  onCategoryChange?: (category: string) => void;
+  categories?: readonly TopBarCategory[];
+  onCategoryChange?: (categoryId: string) => void;
 } = {}) {
   const [signupOpen, setSignupOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -253,15 +258,15 @@ export function TopBar({
         <nav className="flex items-center gap-1 px-3 md:px-6 pb-3 overflow-x-auto no-scrollbar">
           {categories.map((tab) => (
             <button
-              key={tab}
-              onClick={() => onCategoryChange?.(tab)}
+              key={tab.id}
+              onClick={() => onCategoryChange?.(tab.id)}
               className={`shrink-0 px-3 py-2 text-[15px] font-semibold rounded-full transition ${
-                tab === activeCategory
+                tab.id === activeCategory
                   ? "text-foreground border-b-[3px] border-foreground rounded-none"
                   : "text-foreground hover:bg-secondary"
               }`}
             >
-              {tab}
+              {tab.label}
             </button>
           ))}
         </nav>

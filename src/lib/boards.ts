@@ -260,10 +260,15 @@ export async function unsaveTemplateFromBoard(
   }
 }
 
-export async function fetchBoardFeedCategories(): Promise<string[]> {
+export interface BoardFeedCategory {
+  id: string;
+  name: string;
+}
+
+export async function fetchBoardFeedCategories(): Promise<BoardFeedCategory[]> {
   const token = getAccessToken();
   if (!token) return [];
 
   const response = await fetchBoards();
-  return response.data.map((board) => board.name);
+  return response.data.map((board) => ({ id: board.id, name: board.name }));
 }

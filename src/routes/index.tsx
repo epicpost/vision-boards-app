@@ -10,22 +10,33 @@ import {
   fetchPostTemplates,
   getTemplateMedia,
   postTemplatesQueryKey,
+  type PostTemplateFeedParams,
 } from "@/lib/post-templates";
 import { recordSearch, searchMenuQueryKey } from "@/lib/search-menu";
 
+const ALL_CATEGORY_ID = "all";
+
 export const Route = createFileRoute("/")({
-  validateSearch: (search: Record<string, unknown>): { search?: string } =>
-    typeof search.search === "string" && search.search.trim() ? { search: search.search } : {},
+  validateSearch: (search: Record<string, unknown>): { search?: string; board?: string } => {
+    const result: { search?: string; board?: string } = {};
+    if (typeof search.search === "string" && search.search.trim()) {
+      result.search = search.search;
+    }
+    if (typeof search.board === "string" && search.board.trim()) {
+      result.board = search.board;
+    }
+    return result;
+  },
   component: Index,
 });
 
 function Index() {
   const navigate = Route.useNavigate();
   const queryClient = useQueryClient();
-  const routeSearch = Route.useSearch() as { search?: string } | undefined;
+  const routeSearch = Route.useSearch() as { search?: string; board?: string } | undefined;
   const search = routeSearch?.search ?? "";
+  const activeBoardId = routeSearch?.board ?? "";
   const [searchInput, setSearchInput] = useState(search);
-  const [activeCategory, setActiveCategory] = useState<string>("All");
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const boardCategoriesQuery = useQuery({
     queryKey: ["board-feed-categories"],
@@ -33,27 +44,37 @@ function Index() {
     staleTime: 60_000,
   });
   const feedCategories = useMemo(
-    () => ["All", ...(boardCategoriesQuery.data ?? [])],
+    () => [
+      { id: ALL_CATEGORY_ID, label: "All" },
+      ...(boardCategoriesQuery.data ?? []).map((board) => ({ id: board.id, label: board.name })),
+    ],
     [boardCategoriesQuery.data],
   );
-  const categorySearch = activeCategory === "All" ? "" : activeCategory;
-  const normalizedSearch = (search || categorySearch).trim();
+  const activeCategory = activeBoardId || ALL_CATEGORY_ID;
+
+  // While a board filter is active, search is ignored; searching clears the board.
+  const feedParams: PostTemplateFeedParams = activeBoardId
+    ? { board: activeBoardId }
+    : { search: search.trim() };
   const activeCategoryIndex = useMemo(
-    () => feedCategories.findIndex((category) => category === activeCategory),
+    () => feedCategories.findIndex((category) => category.id === activeCategory),
     [activeCategory, feedCategories],
   );
 
   const templatesQuery = useQuery({
-    queryKey: postTemplatesQueryKey(normalizedSearch),
-    queryFn: () => fetchPostTemplates(normalizedSearch),
+    queryKey: postTemplatesQueryKey(feedParams),
+    queryFn: () => fetchPostTemplates(feedParams),
     placeholderData: keepPreviousData,
   });
 
+  // If the active board disappears from the list (e.g. deleted), fall back to All.
   useEffect(() => {
-    if (feedCategories.includes(activeCategory)) return;
+    if (!activeBoardId) return;
+    if (boardCategoriesQuery.data === undefined) return;
+    if (feedCategories.some((category) => category.id === activeBoardId)) return;
 
-    setActiveCategory("All");
-  }, [activeCategory, feedCategories]);
+    void navigate({ to: "/", search: {}, replace: true });
+  }, [activeBoardId, boardCategoriesQuery.data, feedCategories, navigate]);
 
   useEffect(() => {
     if (search.trim()) return;
@@ -65,10 +86,11 @@ function Index() {
       [nextCategory, previousCategory].forEach((category) => {
         if (!category) return;
 
-        const nextSearch = category === "All" ? "" : category;
+        const nextParams: PostTemplateFeedParams =
+          category.id === ALL_CATEGORY_ID ? {} : { board: category.id };
         void queryClient.prefetchQuery({
-          queryKey: postTemplatesQueryKey(nextSearch),
-          queryFn: () => fetchPostTemplates(nextSearch),
+          queryKey: postTemplatesQueryKey(nextParams),
+          queryFn: () => fetchPostTemplates(nextParams),
         });
       });
     }
@@ -81,9 +103,8 @@ function Index() {
   const submitSearch = (rawQuery: string) => {
     const nextSearch = rawQuery.trim();
     setSearchInput(nextSearch);
-    setActiveCategory("All");
 
-    if (nextSearch === search.trim()) return;
+    if (nextSearch === search.trim() && !activeBoardId) return;
 
     void navigate({
       to: "/",
@@ -111,21 +132,16 @@ function Index() {
       .catch(() => {
         // Recording history is best-effort; ignore failures.
       });
-  }, [
-    search,
-    templatesQuery.data,
-    templatesQuery.isPending,
-    templatesQuery.isError,
-    queryClient,
-  ]);
+  }, [search, templatesQuery.data, templatesQuery.isPending, templatesQuery.isError, queryClient]);
 
-  const selectCategory = (category: string) => {
-    setActiveCategory(category);
+  const selectCategory = (categoryId: string) => {
     setSearchInput("");
 
-    if (search) {
-      void navigate({ to: "/", search: {}, replace: true });
-    }
+    void navigate({
+      to: "/",
+      search: categoryId === ALL_CATEGORY_ID ? {} : { board: categoryId },
+      replace: true,
+    });
   };
 
   const handleTouchStart = (event: TouchEvent<HTMLElement>) => {
@@ -147,7 +163,7 @@ function Index() {
     const nextIndex = deltaX > 0 ? activeCategoryIndex + 1 : activeCategoryIndex - 1;
     const nextCategory = feedCategories[nextIndex];
     if (nextCategory) {
-      selectCategory(nextCategory);
+      selectCategory(nextCategory.id);
     }
   };
 
@@ -170,7 +186,7 @@ function Index() {
             isLoading={templatesQuery.isLoading}
             isError={templatesQuery.isError}
             onRetry={() => void templatesQuery.refetch()}
-            search={normalizedSearch}
+            search={search.trim()}
           />
         </main>
       </div>

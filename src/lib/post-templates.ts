@@ -52,8 +52,16 @@ export interface PostTemplateFeedResponse {
   };
 }
 
-export const postTemplatesQueryKey = (search?: string) =>
-  ["post-templates", { limit: 20, search: search?.trim() || undefined }] as const;
+export interface PostTemplateFeedParams {
+  search?: string;
+  board?: string;
+}
+
+export const postTemplatesQueryKey = ({ search, board }: PostTemplateFeedParams = {}) =>
+  [
+    "post-templates",
+    { limit: 20, search: search?.trim() || undefined, board: board || undefined },
+  ] as const;
 
 export function getTemplateMedia(template: PostTemplate): {
   url: string | null;
@@ -81,12 +89,16 @@ export function getTemplateMedia(template: PostTemplate): {
     : { url: null, type: null, width: null, height: null };
 }
 
-export async function fetchPostTemplates(search?: string): Promise<PostTemplateFeedResponse> {
+export async function fetchPostTemplates(
+  params: PostTemplateFeedParams = {},
+): Promise<PostTemplateFeedResponse> {
   const url = new URL("/api/v1/post-templates", API_BASE_URL);
   url.searchParams.set("limit", "20");
 
-  const normalizedSearch = search?.trim();
-  if (normalizedSearch) {
+  const normalizedSearch = params.search?.trim();
+  if (params.board) {
+    url.searchParams.set("board", params.board);
+  } else if (normalizedSearch) {
     url.searchParams.set("search", normalizedSearch);
   }
 
