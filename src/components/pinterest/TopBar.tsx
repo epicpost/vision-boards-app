@@ -207,12 +207,6 @@ export function TopBar({
                   </div>
                   <Check className="h-5 w-5 shrink-0 text-foreground" strokeWidth={2.5} />
                 </div>
-                <DropdownMenuItem className="cursor-pointer rounded-xl px-2 py-2 text-base font-semibold focus:bg-secondary">
-                  Convert to business
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer rounded-xl px-2 py-2 text-base font-semibold focus:bg-secondary">
-                  Add Pinterest account
-                </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={clearAuthSession}
                   className="cursor-pointer rounded-xl px-2 py-2 text-base font-semibold focus:bg-secondary"

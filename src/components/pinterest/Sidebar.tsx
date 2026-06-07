@@ -140,7 +140,7 @@ function SettingsTrigger() {
       <PopoverTrigger asChild>
         <button
           aria-label="Settings"
-          className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-secondary text-foreground transition hover:bg-accent"
+          className="flex h-12 w-12 items-center justify-center rounded-[16px] text-foreground transition hover:bg-secondary"
         >
           <Settings className="h-6 w-6" strokeWidth={2.2} />
         </button>
