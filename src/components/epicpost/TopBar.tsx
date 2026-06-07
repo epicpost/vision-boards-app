@@ -185,7 +185,7 @@ export function TopBar({
               Sign up
             </button>
           ) : null}
-          {isSignedIn ? (
+          {isSignedIn && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -235,21 +235,6 @@ export function TopBar({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          ) : (
-            <>
-              <button
-                aria-label="Profile"
-                onClick={() => setSignupOpen(true)}
-                className="h-10 w-10 rounded-full bg-gradient-to-br from-pink-300 via-rose-300 to-amber-200 ring-2 ring-background"
-              />
-              <button
-                aria-label="Open menu"
-                onClick={() => setSignupOpen(true)}
-                className="h-10 w-6 flex items-center justify-center text-muted-foreground hover:text-foreground"
-              >
-                <ChevronDown className="h-5 w-5" strokeWidth={2.5} />
-              </button>
-            </>
           )}
         </div>
       </div>
