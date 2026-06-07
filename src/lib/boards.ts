@@ -11,7 +11,7 @@ export interface BoardPreviewAsset {
 export interface Board {
   id: string;
   name: string;
-  pin_count: number;
+  template_count: number;
   is_secret: boolean;
   is_archived: boolean;
   updated_at: string | null;
@@ -23,9 +23,10 @@ interface RawBoard {
   id?: string | number;
   name?: string;
   title?: string;
+  template_count?: number;
+  post_templates_count?: number;
   pin_count?: number;
   pins_count?: number;
-  post_templates_count?: number;
   is_secret?: boolean;
   secret?: boolean;
   is_archived?: boolean;
@@ -129,7 +130,8 @@ function normalizeBoard(board: RawBoard): Board {
   return {
     id: String(board.id ?? board.name ?? board.title ?? crypto.randomUUID()),
     name: board.name ?? board.title ?? "Untitled board",
-    pin_count: board.pin_count ?? board.pins_count ?? board.post_templates_count ?? 0,
+    template_count:
+      board.post_templates_count ?? board.template_count ?? board.pin_count ?? board.pins_count ?? 0,
     is_secret: board.is_secret ?? board.secret ?? board.visibility === "secret",
     is_archived: board.is_archived ?? board.archived ?? false,
     is_top_choice: board.is_top_choice ?? false,

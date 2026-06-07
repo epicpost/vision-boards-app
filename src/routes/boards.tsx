@@ -71,7 +71,8 @@ function BoardCard({ board }: { board: Board }) {
       </div>
       <h3 className="mt-3 px-1 text-[17px] font-bold text-foreground truncate">{board.name}</h3>
       <p className="px-1 text-sm text-muted-foreground">
-        {board.pin_count} Pins{updated ? ` · ${updated}` : ""}
+        {board.template_count} {board.template_count === 1 ? "Template" : "Templates"}
+        {updated ? ` · ${updated}` : ""}
       </p>
     </Link>
   );
@@ -106,7 +107,7 @@ function BoardsPage() {
         <TopBar showTabs={false} />
         <main className="px-4 md:px-8 pt-2 pb-12 max-w-[1600px] mx-auto">
           <div className="flex items-start justify-between gap-6 mb-6">
-            <h1 className="text-4xl md:text-5xl font-bold text-foreground tracking-tight">
+            <h1 className="text-3xl font-bold text-foreground tracking-tight">
               Your saved ideas
             </h1>
             <div className="hidden md:flex items-center gap-4">
