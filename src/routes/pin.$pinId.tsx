@@ -110,10 +110,13 @@ function PinDetail() {
   const [boardSearch, setBoardSearch] = useState("");
   const [savedBoardId, setSavedBoardId] = useState<string | null>(null);
   const isSignedIn = Boolean(getAccessToken());
+  // Prefetch and cache boards as soon as the pin detail opens so that opening
+  // the save dropdown reads from the cache instead of showing "Loading boards...".
   const boardsQuery = useQuery({
     queryKey: boardsQueryKey(pinId),
     queryFn: () => fetchBoards(pinId),
-    enabled: isSignedIn && isSaveOpen,
+    enabled: isSignedIn,
+    staleTime: 5 * 60 * 1000,
   });
   const saveMutation = useMutation({
     mutationFn: (boardId: string) => saveTemplateToBoard(pinId, boardId),
@@ -307,7 +310,10 @@ function PinDetail() {
                         >
                           <PopoverTrigger asChild>
                             <button className="flex items-center gap-1 h-10 px-3 rounded-full hover:bg-secondary transition text-sm font-semibold text-foreground">
-                              {selectedBoard?.name ?? "Save to board"}
+                              {selectedBoard?.name ??
+                                (template?.board_id && template.board_name
+                                  ? template.board_name
+                                  : "Save to board")}
                               <ChevronRight className="h-4 w-4 rotate-90" />
                             </button>
                           </PopoverTrigger>

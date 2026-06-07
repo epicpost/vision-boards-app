@@ -32,6 +32,7 @@ export interface PostTemplate {
   is_remixed: boolean;
   assets: TemplateAsset[];
   board_id: string | null;
+  board_name: string | null;
   remix_id: string | null;
   description: string | null;
   tags: string[];
