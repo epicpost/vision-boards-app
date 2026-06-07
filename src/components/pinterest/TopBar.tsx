@@ -13,7 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { SignupDialog } from "./SignupDialog";
 import { SearchMegaMenu } from "./SearchMegaMenu";
 
@@ -118,7 +118,7 @@ export function TopBar({
       <div className="hidden items-center gap-3 px-6 py-3 md:flex">
         <div className="flex-1 relative">
           <Popover open={searchOpen} onOpenChange={setSearchOpen}>
-            <PopoverTrigger asChild>
+            <PopoverAnchor asChild>
               <div
                 className={`flex items-center gap-2 h-12 rounded-[16px] bg-input px-4 transition ${searchOpen ? "ring-2 ring-ring" : "focus-within:ring-2 focus-within:ring-ring"}`}
               >
@@ -154,7 +154,7 @@ export function TopBar({
                   <Mic className="h-5 w-5 text-foreground" strokeWidth={2.2} />
                 </button>
               </div>
-            </PopoverTrigger>
+            </PopoverAnchor>
             <PopoverContent
               align="start"
               sideOffset={8}
