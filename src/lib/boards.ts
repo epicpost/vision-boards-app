@@ -219,6 +219,40 @@ export async function saveTemplateToBoard(postTemplateId: string, boardId: strin
   }
 }
 
+export async function unsaveTemplateFromBoard(
+  postTemplateId: string,
+  boardId: string,
+): Promise<void> {
+  const token = getAccessToken();
+  if (!token) {
+    requestAuthDialog();
+    throw new Error("Sign in to manage saved templates.");
+  }
+
+  const url = new URL(
+    `/api/v1/post-templates/${encodeURIComponent(postTemplateId)}/save`,
+    API_BASE_URL,
+  );
+
+  const response = await fetch(url, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ board_id: boardId }),
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as ApiErrorResponse;
+    if (isTokenExpiredError(payload)) {
+      expireAuthSession();
+    }
+
+    throw new Error(getApiErrorMessage(payload) ?? `Unsave request failed with ${response.status}`);
+  }
+}
+
 export async function fetchBoardFeedCategories(): Promise<string[]> {
   const token = getAccessToken();
   if (!token) return [];

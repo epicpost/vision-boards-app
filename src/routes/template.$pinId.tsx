@@ -31,7 +31,13 @@ import {
   type PostTemplate,
   type PostTemplateFeedResponse,
 } from "@/lib/post-templates";
-import { boardsQueryKey, fetchBoards, saveTemplateToBoard, type Board } from "@/lib/boards";
+import {
+  boardsQueryKey,
+  fetchBoards,
+  saveTemplateToBoard,
+  unsaveTemplateFromBoard,
+  type Board,
+} from "@/lib/boards";
 import { getAccessToken } from "@/lib/auth";
 import { useEffect, useMemo, useState } from "react";
 
@@ -125,13 +131,24 @@ function showSavedToast(board: Board | null, onUndo: () => void) {
             onUndo();
             toast.dismiss(id);
           }}
-          className="shrink-0 rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/90"
+          className="shrink-0 rounded-[14px] bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/90"
         >
           Undo
         </button>
       </div>
     ),
-    { duration: 5000 },
+    { duration: 5000, unstyled: true },
+  );
+}
+
+function showRemovedToast() {
+  toast.custom(
+    () => (
+      <div className="rounded-[18px] bg-[#56544e] px-5 py-4 text-[17px] font-medium text-white shadow-[0_12px_36px_rgba(0,0,0,0.28)]">
+        Removed from your board!
+      </div>
+    ),
+    { unstyled: true },
   );
 }
 
@@ -153,13 +170,23 @@ function PinDetail() {
     enabled: isSignedIn,
     staleTime: 5 * 60 * 1000,
   });
+  const unsaveMutation = useMutation({
+    mutationFn: (boardId: string) => unsaveTemplateFromBoard(pinId, boardId),
+    onSuccess: () => {
+      setSavedBoardId(null);
+      showRemovedToast();
+    },
+    onError: (error: unknown) => {
+      toast.error(error instanceof Error ? error.message : "Could not remove template.");
+    },
+  });
   const saveMutation = useMutation({
     mutationFn: (boardId: string) => saveTemplateToBoard(pinId, boardId),
     onSuccess: (_data, boardId) => {
       setSavedBoardId(boardId);
       const board = boardsQuery.data?.data.find((item) => item.id === boardId);
       showSavedToast(board ?? null, () => {
-        setSavedBoardId(null);
+        unsaveMutation.mutate(boardId);
       });
       setIsSaveOpen(false);
     },
@@ -238,7 +265,7 @@ function PinDetail() {
                     <button
                       aria-label="Back"
                       onClick={() => router.history.back()}
-                      className="absolute top-4 left-4 z-10 h-11 w-11 rounded-full bg-background shadow-md flex items-center justify-center hover:bg-secondary transition"
+                      className="absolute top-4 left-4 z-10 h-11 w-11 rounded-[14px] bg-background shadow-md flex items-center justify-center hover:bg-secondary transition"
                     >
                       <ArrowLeft className="h-5 w-5 text-foreground" strokeWidth={2.4} />
                     </button>
