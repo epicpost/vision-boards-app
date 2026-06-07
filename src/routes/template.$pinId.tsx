@@ -287,14 +287,14 @@ function PinDetail() {
                         loop
                         playsInline
                         autoPlay
-                        className="h-full max-h-[820px] w-full animate-[slide-preview-in_260ms_ease-out] object-contain"
+                        className="h-full max-h-[820px] w-full object-contain"
                       />
                     ) : selectedMedia ? (
                       <img
                         key={selectedMedia.id}
                         src={selectedMedia.url}
                         alt={template?.title ?? "Template"}
-                        className="h-full max-h-[820px] w-full animate-[slide-preview-in_260ms_ease-out] object-contain"
+                        className="h-full max-h-[820px] w-full object-contain"
                       />
                     ) : (
                       <div className="flex min-h-[480px] w-full items-center justify-center px-6 text-center text-sm font-semibold text-muted-foreground">

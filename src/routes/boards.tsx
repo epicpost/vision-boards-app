@@ -107,19 +107,7 @@ function BoardsPage() {
         <TopBar showTabs={false} />
         <main className="px-4 md:px-8 pt-2 pb-12 max-w-[1600px] mx-auto">
           <div className="flex items-start justify-between gap-6 mb-6">
-            <h1 className="text-3xl font-bold text-foreground tracking-tight">
-              Your saved ideas
-            </h1>
-            <div className="hidden md:flex items-center gap-4">
-              <div className="h-14 w-14 rounded-full bg-gradient-to-br from-pink-300 via-rose-300 to-amber-200 ring-2 ring-background shrink-0" />
-              <div className="leading-tight">
-                <p className="text-lg font-bold text-foreground">Oleg Kuprovskiy</p>
-                <p className="text-sm text-muted-foreground">20 followers · 40 following</p>
-              </div>
-              <button className="ml-2 rounded-full bg-secondary hover:bg-accent transition px-4 py-2 text-[15px] font-semibold text-foreground">
-                View profile
-              </button>
-            </div>
+            <h1 className="text-3xl font-bold text-foreground tracking-tight">Your saved ideas</h1>
           </div>
 
           <nav className="flex items-center justify-between gap-6 border-b border-transparent mb-6">
