@@ -383,10 +383,13 @@ function PinDetail() {
                         >
                           <PopoverTrigger asChild>
                             <button className="flex items-center gap-1 h-10 px-3 rounded-full hover:bg-secondary transition text-sm font-semibold text-foreground">
-                              {selectedBoard?.name ??
-                                (template?.board_id && template.board_name
-                                  ? template.board_name
-                                  : "Save to board")}
+                              <span className="md:hidden">Save</span>
+                              <span className="hidden md:inline">
+                                {selectedBoard?.name ??
+                                  (template?.board_id && template.board_name
+                                    ? template.board_name
+                                    : "Save to board")}
+                              </span>
                               <ChevronRight className="h-4 w-4 rotate-90" />
                             </button>
                           </PopoverTrigger>
