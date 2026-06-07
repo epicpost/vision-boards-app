@@ -3,34 +3,34 @@ import { pins } from "./pins-data";
 type Item = { label: string; thumb: string };
 
 const recentSearches: Item[] = [
-  { label: "travel smm", thumb: pins[1].src },
-  { label: "mountain La blanc challet", thumb: pins[9].src },
-  { label: "mountain La blanc shallet", thumb: pins[4].src },
-  { label: "business card app", thumb: pins[3].src },
-  { label: "business card", thumb: pins[20].src },
-  { label: "lviv", thumb: pins[17].src },
-  { label: "львів", thumb: pins[5].src },
-  { label: "Phone notes", thumb: pins[15].src },
-  { label: "phone map", thumb: pins[21].src },
-  { label: "phone map saved address", thumb: pins[7].src },
+  { label: "travel smm", thumb: pins[1].src ?? "" },
+  { label: "mountain La blanc challet", thumb: pins[9].src ?? "" },
+  { label: "mountain La blanc shallet", thumb: pins[4].src ?? "" },
+  { label: "business card app", thumb: pins[3].src ?? "" },
+  { label: "business card", thumb: pins[20].src ?? "" },
+  { label: "lviv", thumb: pins[17].src ?? "" },
+  { label: "львів", thumb: pins[5].src ?? "" },
+  { label: "Phone notes", thumb: pins[15].src ?? "" },
+  { label: "phone map", thumb: pins[21].src ?? "" },
+  { label: "phone map saved address", thumb: pins[7].src ?? "" },
 ];
 
 const ideasForYou: Item[] = [
-  { label: "Christchurch", thumb: pins[16].src },
-  { label: "Cadiz", thumb: pins[13].src },
-  { label: "Wellington", thumb: pins[8].src },
-  { label: "Reykjavik", thumb: pins[19].src },
-  { label: "Porto", thumb: pins[6].src },
-  { label: "Marrakech", thumb: pins[14].src },
+  { label: "Christchurch", thumb: pins[16].src ?? "" },
+  { label: "Cadiz", thumb: pins[13].src ?? "" },
+  { label: "Wellington", thumb: pins[8].src ?? "" },
+  { label: "Reykjavik", thumb: pins[19].src ?? "" },
+  { label: "Porto", thumb: pins[6].src ?? "" },
+  { label: "Marrakech", thumb: pins[14].src ?? "" },
 ];
 
 const popular: Item[] = [
-  { label: "Editorial portrait", thumb: pins[10].src },
-  { label: "Soft tailoring", thumb: pins[11].src },
-  { label: "Warm minimal interior", thumb: pins[12].src },
-  { label: "Tokyo neon", thumb: pins[22].src },
-  { label: "Studio ceramics", thumb: pins[18].src },
-  { label: "Pavlova recipe", thumb: pins[23].src },
+  { label: "Editorial portrait", thumb: pins[10].src ?? "" },
+  { label: "Soft tailoring", thumb: pins[11].src ?? "" },
+  { label: "Warm minimal interior", thumb: pins[12].src ?? "" },
+  { label: "Tokyo neon", thumb: pins[22].src ?? "" },
+  { label: "Studio ceramics", thumb: pins[18].src ?? "" },
+  { label: "Pavlova recipe", thumb: pins[23].src ?? "" },
 ];
 
 function Section({

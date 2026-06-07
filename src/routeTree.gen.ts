@@ -14,11 +14,6 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as PinPinIdRouteImport } from './routes/pin.$pinId'
 import { Route as AuthMagicLinkConfirmRouteImport } from './routes/auth/magic-link/confirm'
 
-const AuthMagicLinkConfirmRoute = AuthMagicLinkConfirmRouteImport.update({
-  id: '/auth/magic-link/confirm',
-  path: '/auth/magic-link/confirm',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const BoardsRoute = BoardsRouteImport.update({
   id: '/boards',
   path: '/boards',
@@ -34,50 +29,48 @@ const PinPinIdRoute = PinPinIdRouteImport.update({
   path: '/pin/$pinId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthMagicLinkConfirmRoute = AuthMagicLinkConfirmRouteImport.update({
+  id: '/auth/magic-link/confirm',
+  path: '/auth/magic-link/confirm',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
   '/boards': typeof BoardsRoute
   '/pin/$pinId': typeof PinPinIdRoute
+  '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
   '/boards': typeof BoardsRoute
   '/pin/$pinId': typeof PinPinIdRoute
+  '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
   '/boards': typeof BoardsRoute
   '/pin/$pinId': typeof PinPinIdRoute
+  '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth/magic-link/confirm' | '/boards' | '/pin/$pinId'
+  fullPaths: '/' | '/boards' | '/pin/$pinId' | '/auth/magic-link/confirm'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth/magic-link/confirm' | '/boards' | '/pin/$pinId'
-  id: '__root__' | '/' | '/auth/magic-link/confirm' | '/boards' | '/pin/$pinId'
+  to: '/' | '/boards' | '/pin/$pinId' | '/auth/magic-link/confirm'
+  id: '__root__' | '/' | '/boards' | '/pin/$pinId' | '/auth/magic-link/confirm'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  AuthMagicLinkConfirmRoute: typeof AuthMagicLinkConfirmRoute
   IndexRoute: typeof IndexRoute
   BoardsRoute: typeof BoardsRoute
   PinPinIdRoute: typeof PinPinIdRoute
+  AuthMagicLinkConfirmRoute: typeof AuthMagicLinkConfirmRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/auth/magic-link/confirm': {
-      id: '/auth/magic-link/confirm'
-      path: '/auth/magic-link/confirm'
-      fullPath: '/auth/magic-link/confirm'
-      preLoaderRoute: typeof AuthMagicLinkConfirmRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/boards': {
       id: '/boards'
       path: '/boards'
@@ -99,14 +92,21 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PinPinIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/magic-link/confirm': {
+      id: '/auth/magic-link/confirm'
+      path: '/auth/magic-link/confirm'
+      fullPath: '/auth/magic-link/confirm'
+      preLoaderRoute: typeof AuthMagicLinkConfirmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
-  AuthMagicLinkConfirmRoute: AuthMagicLinkConfirmRoute,
   IndexRoute: IndexRoute,
   BoardsRoute: BoardsRoute,
   PinPinIdRoute: PinPinIdRoute,
+  AuthMagicLinkConfirmRoute: AuthMagicLinkConfirmRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
