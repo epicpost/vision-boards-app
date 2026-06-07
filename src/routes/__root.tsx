@@ -159,6 +159,31 @@ function RootComponent() {
     };
   }, []);
 
+  // After a new deploy, an open tab may reference chunk hashes that no longer
+  // exist on the server (404 on dynamic import). Vite fires `vite:preloadError`
+  // in that case — reload once to pull a fresh document with the current hashes.
+  // A sessionStorage guard prevents a reload loop if the asset is truly missing.
+  useEffect(() => {
+    const RELOAD_KEY = "epicpost-chunk-reload";
+
+    const handlePreloadError = (event: Event) => {
+      event.preventDefault();
+      if (sessionStorage.getItem(RELOAD_KEY)) return;
+      sessionStorage.setItem(RELOAD_KEY, "1");
+      window.location.reload();
+    };
+
+    const clearGuard = () => sessionStorage.removeItem(RELOAD_KEY);
+
+    window.addEventListener("vite:preloadError", handlePreloadError);
+    window.addEventListener("load", clearGuard);
+
+    return () => {
+      window.removeEventListener("vite:preloadError", handlePreloadError);
+      window.removeEventListener("load", clearGuard);
+    };
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
