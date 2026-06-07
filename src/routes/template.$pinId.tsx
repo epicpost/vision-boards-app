@@ -13,6 +13,7 @@ import {
   Image as ImageIcon,
   Search,
   Lock,
+  Check,
   Plus,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -76,10 +77,12 @@ function getBoardThumb(board: Board) {
 function BoardRow({
   board,
   saving,
+  selected,
   onSelect,
 }: {
   board: Board;
   saving: boolean;
+  selected: boolean;
   onSelect: () => void;
 }) {
   const thumb = getBoardThumb(board);
@@ -89,7 +92,9 @@ function BoardRow({
       type="button"
       onClick={onSelect}
       disabled={saving}
-      className="flex h-16 w-full items-center gap-3 rounded-[16px] px-2 text-left transition hover:bg-secondary disabled:opacity-60"
+      className={`flex h-16 w-full items-center gap-3 rounded-[16px] px-2 text-left transition hover:bg-secondary disabled:opacity-60 ${
+        selected ? "bg-secondary" : ""
+      }`}
     >
       {thumb ? (
         <img src={thumb} alt="" className="h-12 w-12 shrink-0 rounded-[14px] object-cover" />
@@ -99,6 +104,8 @@ function BoardRow({
       <span className="min-w-0 flex-1 truncate text-base font-semibold">{board.name}</span>
       {saving ? (
         <span className="text-[13px] font-medium text-muted-foreground">Saving...</span>
+      ) : selected ? (
+        <Check className="h-5 w-5 shrink-0 text-foreground" strokeWidth={2.6} />
       ) : (
         board.is_secret && <Lock className="h-5 w-5 shrink-0 text-foreground" />
       )}
@@ -218,7 +225,8 @@ function PinDetail() {
   const cachedTemplates = cachedFeeds.flatMap(([, feed]) => feed?.data ?? []);
   const templates = uniqueTemplates([...cachedTemplates, ...(defaultFeedQuery.data?.data ?? [])]);
   const template = templates.find((item) => item.id === pinId);
-  const isSaved = Boolean(savedBoardId) || Boolean(template?.board_id);
+  const currentBoardId = savedBoardId ?? template?.board_id ?? null;
+  const isSaved = Boolean(currentBoardId);
   const relatedTemplates = templates.filter((item) => item.id !== pinId);
   const previewMedia = useMemo<PreviewMedia[]>(() => {
     if (!template) return [];
@@ -430,6 +438,7 @@ function PinDetail() {
                                               saveMutation.isPending &&
                                               saveMutation.variables === board.id
                                             }
+                                            selected={board.id === currentBoardId}
                                             onSelect={() => saveMutation.mutate(board.id)}
                                           />
                                         ))}
@@ -451,6 +460,7 @@ function PinDetail() {
                                               saveMutation.isPending &&
                                               saveMutation.variables === board.id
                                             }
+                                            selected={board.id === currentBoardId}
                                             onSelect={() => saveMutation.mutate(board.id)}
                                           />
                                         ))}
