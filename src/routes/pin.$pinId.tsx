@@ -264,12 +264,12 @@ function PinDetail() {
                                     key={board.id}
                                     type="button"
                                     onClick={() => setIsAuthOpen(true)}
-                                    className="flex h-16 w-full items-center gap-3 rounded-xl px-2 text-left transition hover:bg-secondary"
+                                    className="flex h-16 w-full items-center gap-3 rounded-[16px] px-2 text-left transition hover:bg-secondary"
                                   >
                                     <img
                                       src={getBoardThumb(board.thumbIndex)}
                                       alt=""
-                                      className="h-12 w-12 shrink-0 rounded-xl object-cover"
+                                      className="h-12 w-12 shrink-0 rounded-[14px] object-cover"
                                     />
                                     <span className="min-w-0 flex-1 truncate text-base font-semibold">
                                       {board.name}
@@ -290,12 +290,12 @@ function PinDetail() {
                                     key={board.id}
                                     type="button"
                                     onClick={() => setIsAuthOpen(true)}
-                                    className="flex h-16 w-full items-center gap-3 rounded-xl px-2 text-left transition hover:bg-secondary"
+                                    className="flex h-16 w-full items-center gap-3 rounded-[16px] px-2 text-left transition hover:bg-secondary"
                                   >
                                     <img
                                       src={getBoardThumb(board.thumbIndex)}
                                       alt=""
-                                      className="h-12 w-12 shrink-0 rounded-xl object-cover"
+                                      className="h-12 w-12 shrink-0 rounded-[14px] object-cover"
                                     />
                                     <span className="min-w-0 flex-1 truncate text-base font-semibold">
                                       {board.name}
@@ -311,9 +311,9 @@ function PinDetail() {
                               <button
                                 type="button"
                                 onClick={() => setIsAuthOpen(true)}
-                                className="flex h-16 w-full items-center gap-3 rounded-xl px-2 text-left font-semibold hover:bg-secondary"
+                                className="flex h-16 w-full items-center gap-3 rounded-[16px] px-2 text-left font-semibold hover:bg-secondary"
                               >
-                                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary">
+                                <span className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-secondary">
                                   <Plus className="h-6 w-6 text-foreground" />
                                 </span>
                                 <span className="text-base">Create board</span>

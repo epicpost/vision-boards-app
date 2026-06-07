@@ -50,12 +50,12 @@ function Section({
           <button
             key={item.label}
             onClick={() => onPick(item.label)}
-            className="flex items-center gap-3 rounded-2xl bg-secondary/60 p-2 text-left transition hover:bg-secondary"
+            className="flex items-center gap-3 rounded-[16px] bg-secondary/60 p-2 text-left transition hover:bg-secondary"
           >
             <img
               src={item.thumb}
               alt=""
-              className="h-14 w-14 shrink-0 rounded-xl object-cover"
+              className="h-14 w-14 shrink-0 rounded-[14px] object-cover"
             />
             <span className="truncate text-[15px] font-medium text-foreground">
               {item.label}
