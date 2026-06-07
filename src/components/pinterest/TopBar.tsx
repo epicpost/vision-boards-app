@@ -13,7 +13,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SignupDialog } from "./SignupDialog";
+import { SearchMegaMenu } from "./SearchMegaMenu";
 
 export function TopBar({
   showTabs = true,
