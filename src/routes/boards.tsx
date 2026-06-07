@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Lock, SlidersHorizontal } from "lucide-react";
+import { Lock } from "lucide-react";
 import { Sidebar } from "@/components/epicpost/Sidebar";
 import { TopBar } from "@/components/epicpost/TopBar";
 import { MobileNav } from "@/components/epicpost/MobileNav";
@@ -138,20 +138,6 @@ function BoardsPage() {
               ))}
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <button
-                aria-label="Filters"
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary hover:bg-accent transition"
-              >
-                <SlidersHorizontal className="h-5 w-5 text-foreground" strokeWidth={2.2} />
-              </button>
-              {["Group", "Secret", "Archived"].map((f) => (
-                <button
-                  key={f}
-                  className="px-4 h-10 rounded-full bg-secondary hover:bg-accent transition text-[15px] font-semibold text-foreground"
-                >
-                  {f}
-                </button>
-              ))}
               <button className="rounded-full bg-[#e60023] hover:bg-[#ad081b] transition text-white px-5 h-11 text-[15px] font-semibold">
                 Create
               </button>
