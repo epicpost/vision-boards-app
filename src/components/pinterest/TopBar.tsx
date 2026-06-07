@@ -33,6 +33,7 @@ export function TopBar({
   onCategoryChange?: (category: string) => void;
 } = {}) {
   const [signupOpen, setSignupOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [authUser, setAuthUser] = useState<ReturnType<typeof getAuthUser>>(null);
   const [isMobileBrandHidden, setIsMobileBrandHidden] = useState(false);
