@@ -15,14 +15,14 @@ import {
   Lock,
   Plus,
 } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Sidebar } from "@/components/pinterest/Sidebar";
 import { TopBar } from "@/components/pinterest/TopBar";
 import { PinCard } from "@/components/pinterest/PinCard";
 import { MobileNav } from "@/components/pinterest/MobileNav";
 import { SignupDialog } from "@/components/pinterest/SignupDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { pins } from "@/components/pinterest/pins-data";
 import {
   fetchPostTemplates,
   getTemplateMedia,
@@ -31,6 +31,8 @@ import {
   type PostTemplate,
   type PostTemplateFeedResponse,
 } from "@/lib/post-templates";
+import { boardsQueryKey, fetchBoards, saveTemplateToBoard, type Board } from "@/lib/boards";
+import { getAccessToken } from "@/lib/auth";
 import { useEffect, useMemo, useState } from "react";
 
 export const Route = createFileRoute("/pin/$pinId")({
@@ -61,16 +63,41 @@ interface PreviewMedia {
   type: TemplateMediaType | null;
 }
 
-const saveBoards = [
-  { id: "mono", name: "mono", thumbIndex: 0, locked: true },
-  { id: "travel-app", name: "travel app", thumbIndex: 3, locked: true },
-  { id: "apartment", name: "2 floor apartment desi...", thumbIndex: 12, locked: true },
-  { id: "printers", name: "3d printers", thumbIndex: 20, locked: true },
-  { id: "palms", name: "palms", thumbIndex: 6, locked: false },
-];
+function getBoardThumb(board: Board) {
+  return board.preview_assets[0]?.url ?? "";
+}
 
-function getBoardThumb(index: number) {
-  return pins[index % pins.length]?.src ?? "";
+function BoardRow({
+  board,
+  saving,
+  onSelect,
+}: {
+  board: Board;
+  saving: boolean;
+  onSelect: () => void;
+}) {
+  const thumb = getBoardThumb(board);
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      disabled={saving}
+      className="flex h-16 w-full items-center gap-3 rounded-[16px] px-2 text-left transition hover:bg-secondary disabled:opacity-60"
+    >
+      {thumb ? (
+        <img src={thumb} alt="" className="h-12 w-12 shrink-0 rounded-[14px] object-cover" />
+      ) : (
+        <span className="h-12 w-12 shrink-0 rounded-[14px] bg-secondary" />
+      )}
+      <span className="min-w-0 flex-1 truncate text-base font-semibold">{board.name}</span>
+      {saving ? (
+        <span className="text-[13px] font-medium text-muted-foreground">Saving...</span>
+      ) : (
+        board.is_secret && <Lock className="h-5 w-5 shrink-0 text-foreground" />
+      )}
+    </button>
+  );
 }
 
 function PinDetail() {
@@ -79,6 +106,38 @@ function PinDetail() {
   const router = useRouter();
   const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isSaveOpen, setIsSaveOpen] = useState(false);
+  const [boardSearch, setBoardSearch] = useState("");
+  const [savedBoardId, setSavedBoardId] = useState<string | null>(null);
+  const isSignedIn = Boolean(getAccessToken());
+  const boardsQuery = useQuery({
+    queryKey: boardsQueryKey,
+    queryFn: fetchBoards,
+    enabled: isSignedIn && isSaveOpen,
+  });
+  const saveMutation = useMutation({
+    mutationFn: (boardId: string) => saveTemplateToBoard(pinId, boardId),
+    onSuccess: (_data, boardId) => {
+      setSavedBoardId(boardId);
+      const board = boardsQuery.data?.data.find((item) => item.id === boardId);
+      toast.success(board ? `Saved to ${board.name}` : "Saved");
+      setIsSaveOpen(false);
+    },
+    onError: (error: unknown) => {
+      toast.error(error instanceof Error ? error.message : "Could not save template.");
+    },
+  });
+  const boards = useMemo(() => boardsQuery.data?.data ?? [], [boardsQuery.data]);
+  const filteredBoards = useMemo(() => {
+    const query = boardSearch.trim().toLowerCase();
+    if (!query) return boards;
+    return boards.filter((board) => board.name.toLowerCase().includes(query));
+  }, [boards, boardSearch]);
+  // The boards API short view has no "top choices" param (only view/limit/cursor),
+  // so we surface the first boards (most recently updated) as Top choices client-side.
+  const topChoices = boardSearch ? [] : filteredBoards.slice(0, 2);
+  const otherBoards = boardSearch ? filteredBoards : filteredBoards.slice(2);
+  const selectedBoard = boards.find((board) => board.id === savedBoardId) ?? null;
   const defaultFeedQuery = useQuery({
     queryKey: postTemplatesQueryKey(),
     queryFn: () => fetchPostTemplates(),
@@ -232,10 +291,20 @@ function PinDetail() {
                         </button>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Popover>
+                        <Popover
+                          open={isSaveOpen}
+                          onOpenChange={(open) => {
+                            if (open && !isSignedIn) {
+                              setIsAuthOpen(true);
+                              return;
+                            }
+                            setIsSaveOpen(open);
+                            if (!open) setBoardSearch("");
+                          }}
+                        >
                           <PopoverTrigger asChild>
                             <button className="flex items-center gap-1 h-10 px-3 rounded-full hover:bg-secondary transition text-sm font-semibold text-foreground">
-                              palms
+                              {selectedBoard?.name ?? "Save to board"}
                               <ChevronRight className="h-4 w-4 rotate-90" />
                             </button>
                           </PopoverTrigger>
@@ -251,61 +320,71 @@ function PinDetail() {
                                 <input
                                   type="search"
                                   placeholder="Search"
+                                  value={boardSearch}
+                                  onChange={(event) => setBoardSearch(event.target.value)}
                                   className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
                                 />
                               </label>
 
-                              <p className="mb-2 px-2 text-[13px] font-medium text-muted-foreground">
-                                Top choices
-                              </p>
-                              <div className="space-y-2">
-                                {saveBoards.slice(0, 2).map((board) => (
-                                  <button
-                                    key={board.id}
-                                    type="button"
-                                    onClick={() => setIsAuthOpen(true)}
-                                    className="flex h-16 w-full items-center gap-3 rounded-[16px] px-2 text-left transition hover:bg-secondary"
-                                  >
-                                    <img
-                                      src={getBoardThumb(board.thumbIndex)}
-                                      alt=""
-                                      className="h-12 w-12 shrink-0 rounded-[14px] object-cover"
-                                    />
-                                    <span className="min-w-0 flex-1 truncate text-base font-semibold">
-                                      {board.name}
-                                    </span>
-                                    {board.locked && (
-                                      <Lock className="h-5 w-5 shrink-0 text-foreground" />
-                                    )}
-                                  </button>
-                                ))}
-                              </div>
+                              {boardsQuery.isLoading ? (
+                                <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                                  Loading boards...
+                                </p>
+                              ) : boardsQuery.isError ? (
+                                <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                                  {boardsQuery.error instanceof Error
+                                    ? boardsQuery.error.message
+                                    : "Could not load boards."}
+                                </p>
+                              ) : filteredBoards.length === 0 ? (
+                                <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                                  {boardSearch ? "No boards match your search." : "No boards yet."}
+                                </p>
+                              ) : (
+                                <>
+                                  {topChoices.length > 0 && (
+                                    <>
+                                      <p className="mb-2 px-2 text-[13px] font-medium text-muted-foreground">
+                                        Top choices
+                                      </p>
+                                      <div className="space-y-2">
+                                        {topChoices.map((board) => (
+                                          <BoardRow
+                                            key={board.id}
+                                            board={board}
+                                            saving={
+                                              saveMutation.isPending &&
+                                              saveMutation.variables === board.id
+                                            }
+                                            onSelect={() => saveMutation.mutate(board.id)}
+                                          />
+                                        ))}
+                                      </div>
+                                    </>
+                                  )}
 
-                              <p className="mb-2 mt-4 px-2 text-[13px] font-medium text-muted-foreground">
-                                All boards
-                              </p>
-                              <div className="space-y-2">
-                                {saveBoards.slice(2).map((board) => (
-                                  <button
-                                    key={board.id}
-                                    type="button"
-                                    onClick={() => setIsAuthOpen(true)}
-                                    className="flex h-16 w-full items-center gap-3 rounded-[16px] px-2 text-left transition hover:bg-secondary"
-                                  >
-                                    <img
-                                      src={getBoardThumb(board.thumbIndex)}
-                                      alt=""
-                                      className="h-12 w-12 shrink-0 rounded-[14px] object-cover"
-                                    />
-                                    <span className="min-w-0 flex-1 truncate text-base font-semibold">
-                                      {board.name}
-                                    </span>
-                                    {board.locked && (
-                                      <Lock className="h-5 w-5 shrink-0 text-foreground" />
-                                    )}
-                                  </button>
-                                ))}
-                              </div>
+                                  {otherBoards.length > 0 && (
+                                    <>
+                                      <p className="mb-2 mt-4 px-2 text-[13px] font-medium text-muted-foreground">
+                                        All boards
+                                      </p>
+                                      <div className="space-y-2">
+                                        {otherBoards.map((board) => (
+                                          <BoardRow
+                                            key={board.id}
+                                            board={board}
+                                            saving={
+                                              saveMutation.isPending &&
+                                              saveMutation.variables === board.id
+                                            }
+                                            onSelect={() => saveMutation.mutate(board.id)}
+                                          />
+                                        ))}
+                                      </div>
+                                    </>
+                                  )}
+                                </>
+                              )}
                             </div>
                             <div className="absolute inset-x-0 bottom-0 rounded-b-[20px] bg-background/95 px-4 py-3 shadow-[0_-8px_22px_rgba(0,0,0,0.08)] backdrop-blur transition hover:bg-secondary">
                               <button
@@ -323,7 +402,13 @@ function PinDetail() {
                         </Popover>
                         <button
                           type="button"
-                          onClick={() => setIsAuthOpen(true)}
+                          onClick={() => {
+                            if (!isSignedIn) {
+                              setIsAuthOpen(true);
+                              return;
+                            }
+                            setIsSaveOpen(true);
+                          }}
                           className="h-11 px-5 rounded-full bg-primary text-primary-foreground font-bold text-base hover:brightness-90 transition"
                         >
                           Save
