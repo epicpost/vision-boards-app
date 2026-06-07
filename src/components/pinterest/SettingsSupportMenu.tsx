@@ -27,14 +27,14 @@ type Item = { label: string; external?: boolean; to?: "/settings" };
 function Row({ item, onClose }: { item: Item; onClose: () => void }) {
   const content = (
     <>
-      <span className="text-[17px] font-semibold text-foreground">{item.label}</span>
+      <span className="text-base font-semibold text-foreground">{item.label}</span>
       {item.external ? (
         <ExternalLink className="h-5 w-5 text-foreground" strokeWidth={2.2} />
       ) : null}
     </>
   );
   const className =
-    "flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left transition hover:bg-secondary";
+    "flex w-full items-center justify-between rounded-xl px-2 py-2.5 text-left transition hover:bg-secondary";
 
   if (item.to) {
     return (
@@ -61,14 +61,14 @@ export function SettingsSupportMenu({ onClose }: { onClose: () => void }) {
         >
           <X className="h-6 w-6 text-foreground" strokeWidth={2.2} />
         </button>
-        <h2 className="text-2xl font-bold text-foreground">Settings & Support</h2>
+        <h2 className="text-xl font-bold text-foreground">Settings & Support</h2>
       </div>
       <div className="mb-2">
         {main.map((item) => (
           <Row key={item.label} item={item} onClose={onClose} />
         ))}
       </div>
-      <div className="px-3 pb-2 pt-3 text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="px-2 pb-2 pt-3 text-[13px] font-medium text-muted-foreground">
         Support
       </div>
       <div className="mb-2">
@@ -76,13 +76,13 @@ export function SettingsSupportMenu({ onClose }: { onClose: () => void }) {
           <Row key={item.label} item={item} onClose={onClose} />
         ))}
       </div>
-      <div className="px-3 pb-2 pt-3 text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="px-2 pb-2 pt-3 text-[13px] font-medium text-muted-foreground">
         Resources
       </div>
-      <div className="px-3 pb-1 text-[15px] font-semibold text-[#3b6cd9]">
+      <div className="px-2 pb-1 text-base font-semibold text-[#3b6cd9]">
         {resourcesPrimary.join("  ")}
       </div>
-      <div className="px-3 pb-2 text-[15px] font-semibold text-[#3b6cd9]">
+      <div className="px-2 pb-2 text-base font-semibold text-[#3b6cd9]">
         {resourcesSecondary.join("  ")}
       </div>
     </div>
