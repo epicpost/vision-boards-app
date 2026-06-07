@@ -122,22 +122,21 @@ function BoardsPage() {
             </div>
           </div>
 
-          <nav className="flex items-center gap-6 border-b border-transparent mb-6">
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                className={`pb-2 text-[17px] font-semibold transition ${
-                  t.key === "boards"
-                    ? "text-foreground border-b-[3px] border-foreground"
-                    : "text-foreground/80 hover:text-foreground"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </nav>
-
-          <div className="flex items-center justify-between mb-6">
+          <nav className="flex items-center justify-between gap-6 border-b border-transparent mb-6">
+            <div className="flex items-center gap-6">
+              {TABS.map((t) => (
+                <button
+                  key={t.key}
+                  className={`pb-2 text-[17px] font-semibold transition ${
+                    t.key === "boards"
+                      ? "text-foreground border-b-[3px] border-foreground"
+                      : "text-foreground/80 hover:text-foreground"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 aria-label="Filters"
@@ -153,11 +152,11 @@ function BoardsPage() {
                   {f}
                 </button>
               ))}
+              <button className="rounded-full bg-[#e60023] hover:bg-[#ad081b] transition text-white px-5 h-11 text-[15px] font-semibold">
+                Create
+              </button>
             </div>
-            <button className="rounded-full bg-[#e60023] hover:bg-[#ad081b] transition text-white px-5 h-11 text-[15px] font-semibold">
-              Create
-            </button>
-          </div>
+          </nav>
 
           {boardsQuery.isLoading ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8">

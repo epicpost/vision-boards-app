@@ -1,4 +1,4 @@
-import { Home, LayoutGrid, Plus, Bell, MessageCircle, Settings } from "lucide-react";
+import { Home, LayoutGrid, Plus, Bell, Settings } from "lucide-react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -13,7 +13,6 @@ const items = [
   { icon: LayoutGrid, label: "Saved", to: "/boards" as const },
   { icon: Plus, label: "Create" },
   { icon: Bell, label: "Notifications" },
-  { icon: MessageCircle, label: "Messages" },
 ];
 
 function NavButton({

@@ -5,7 +5,11 @@ import { Sidebar } from "@/components/epicpost/Sidebar";
 import { TopBar } from "@/components/epicpost/TopBar";
 import { TemplateGrid } from "@/components/epicpost/TemplateGrid";
 import { MobileNav } from "@/components/epicpost/MobileNav";
-import { fetchBoardFeedCategories } from "@/lib/boards";
+import {
+  fetchBoardFeedCategories,
+  readCachedBoardFeedCategories,
+  writeCachedBoardFeedCategories,
+} from "@/lib/boards";
 import {
   fetchPostTemplates,
   getTemplateMedia,
@@ -38,11 +42,22 @@ function Index() {
   const activeBoardId = routeSearch?.board ?? "";
   const [searchInput, setSearchInput] = useState(search);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const cachedBoardCategories = useMemo(() => readCachedBoardFeedCategories(), []);
   const boardCategoriesQuery = useQuery({
     queryKey: ["board-feed-categories"],
     queryFn: fetchBoardFeedCategories,
     staleTime: 60_000,
+    // Show the cached list instantly, but treat it as stale so we always
+    // refetch in the background on mount and pick up any board changes.
+    initialData: cachedBoardCategories,
+    initialDataUpdatedAt: 0,
   });
+
+  // Persist the freshest board list so the next page open can render it instantly.
+  useEffect(() => {
+    if (!boardCategoriesQuery.isSuccess || boardCategoriesQuery.isPlaceholderData) return;
+    writeCachedBoardFeedCategories(boardCategoriesQuery.data);
+  }, [boardCategoriesQuery.data, boardCategoriesQuery.isSuccess, boardCategoriesQuery.isPlaceholderData]);
   const feedCategories = useMemo(
     () => [
       { id: ALL_CATEGORY_ID, label: "All" },

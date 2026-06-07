@@ -265,6 +265,42 @@ export interface BoardFeedCategory {
   name: string;
 }
 
+const BOARD_FEED_CATEGORIES_CACHE_KEY = "epicpost.board-feed-categories";
+
+export function readCachedBoardFeedCategories(): BoardFeedCategory[] | undefined {
+  if (typeof window === "undefined") return undefined;
+
+  try {
+    const raw = window.localStorage.getItem(BOARD_FEED_CATEGORIES_CACHE_KEY);
+    if (!raw) return undefined;
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return undefined;
+
+    return parsed
+      .filter(
+        (item): item is BoardFeedCategory =>
+          Boolean(item) && typeof item.id === "string" && typeof item.name === "string",
+      )
+      .map((item) => ({ id: item.id, name: item.name }));
+  } catch {
+    return undefined;
+  }
+}
+
+export function writeCachedBoardFeedCategories(categories: BoardFeedCategory[]): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(
+      BOARD_FEED_CATEGORIES_CACHE_KEY,
+      JSON.stringify(categories.map((category) => ({ id: category.id, name: category.name }))),
+    );
+  } catch {
+    // Ignore quota / serialization errors — the cache is a best-effort optimization.
+  }
+}
+
 export async function fetchBoardFeedCategories(): Promise<BoardFeedCategory[]> {
   const token = getAccessToken();
   if (!token) return [];
