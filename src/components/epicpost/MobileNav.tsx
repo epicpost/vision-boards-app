@@ -19,7 +19,7 @@ export function MobileNav() {
   };
 
   return (
-    <nav className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center justify-center gap-5 md:hidden">
+    <nav className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center justify-center gap-3 md:hidden">
       {items.map(({ icon: Icon, label, active }) => (
         <button
           key={label}
