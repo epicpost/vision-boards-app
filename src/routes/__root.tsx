@@ -79,15 +79,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         name: "viewport",
         content: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
       },
-      { title: "Pinterest — Discover ideas you'll love" },
+      { title: "EpicPost — Remixable Social Media Templates" },
       {
         name: "description",
-        content: "Discover recipes, home ideas, style inspiration and other ideas to try.",
+        content:
+          "Discover curated social media templates, remix them with your own assets, and create daily posts, reels, stories, and visuals faster with AI.",
       },
-      { property: "og:title", content: "Pinterest — Discover ideas you'll love" },
+      { property: "og:title", content: "EpicPost — Remixable Social Media Templates" },
       {
         property: "og:description",
-        content: "Discover recipes, home ideas, style inspiration and other ideas to try.",
+        content:
+          "Discover curated social media templates, remix them with your own assets, and create daily posts, reels, stories, and visuals faster with AI.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
