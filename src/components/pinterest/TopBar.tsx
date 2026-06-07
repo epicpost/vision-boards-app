@@ -13,7 +13,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SignupDialog } from "./SignupDialog";
+import { SearchMegaMenu } from "./SearchMegaMenu";
 
 export function TopBar({
   showTabs = true,
@@ -31,6 +33,7 @@ export function TopBar({
   onCategoryChange?: (category: string) => void;
 } = {}) {
   const [signupOpen, setSignupOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [authUser, setAuthUser] = useState<ReturnType<typeof getAuthUser>>(null);
   const [isMobileBrandHidden, setIsMobileBrandHidden] = useState(false);
@@ -112,28 +115,46 @@ export function TopBar({
       </div>
       <div className="hidden items-center gap-3 px-6 py-3 md:flex">
         <div className="flex-1 relative">
-          <div className="flex items-center gap-2 h-12 rounded-[16px] bg-input px-4 focus-within:ring-2 focus-within:ring-ring transition">
-            <Search className="h-5 w-5 text-muted-foreground shrink-0" strokeWidth={2.2} />
-            <input
-              type="text"
-              placeholder="Search"
-              value={searchValue ?? ""}
-              onChange={(event) => onSearchChange?.(event.target.value)}
-              className="flex-1 bg-transparent outline-none text-foreground placeholder:text-muted-foreground text-base"
-            />
-            <button
-              aria-label="Visual search"
-              className="hidden sm:flex h-8 w-8 items-center justify-center rounded-full hover:bg-accent transition"
+          <Popover open={searchOpen} onOpenChange={setSearchOpen}>
+            <PopoverTrigger asChild>
+              <div className={`flex items-center gap-2 h-12 rounded-[16px] bg-input px-4 transition ${searchOpen ? "ring-2 ring-ring" : "focus-within:ring-2 focus-within:ring-ring"}`}>
+                <Search className="h-5 w-5 text-muted-foreground shrink-0" strokeWidth={2.2} />
+                <input
+                  type="text"
+                  placeholder="Search"
+                  value={searchValue ?? ""}
+                  onChange={(event) => onSearchChange?.(event.target.value)}
+                  onFocus={() => setSearchOpen(true)}
+                  className="flex-1 bg-transparent outline-none text-foreground placeholder:text-muted-foreground text-base"
+                />
+                <button
+                  aria-label="Visual search"
+                  className="hidden sm:flex h-8 w-8 items-center justify-center rounded-full hover:bg-accent transition"
+                >
+                  <Camera className="h-5 w-5 text-foreground" strokeWidth={2.2} />
+                </button>
+                <button
+                  aria-label="Voice search"
+                  className="hidden sm:flex h-8 w-8 items-center justify-center rounded-full hover:bg-accent transition"
+                >
+                  <Mic className="h-5 w-5 text-foreground" strokeWidth={2.2} />
+                </button>
+              </div>
+            </PopoverTrigger>
+            <PopoverContent
+              align="start"
+              sideOffset={8}
+              onOpenAutoFocus={(e) => e.preventDefault()}
+              className="w-[var(--radix-popover-trigger-width)] border-none bg-transparent p-0 shadow-none"
             >
-              <Camera className="h-5 w-5 text-foreground" strokeWidth={2.2} />
-            </button>
-            <button
-              aria-label="Voice search"
-              className="hidden sm:flex h-8 w-8 items-center justify-center rounded-full hover:bg-accent transition"
-            >
-              <Mic className="h-5 w-5 text-foreground" strokeWidth={2.2} />
-            </button>
-          </div>
+              <SearchMegaMenu
+                onPick={(q) => {
+                  onSearchChange?.(q);
+                  setSearchOpen(false);
+                }}
+              />
+            </PopoverContent>
+          </Popover>
         </div>
         <div className="hidden md:flex items-center gap-2">
           {!isSignedIn ? (
