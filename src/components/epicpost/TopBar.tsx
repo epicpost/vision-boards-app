@@ -114,7 +114,7 @@ export function TopBar({
         <div className="flex items-center px-5 pb-3 pt-4">
           <a href="/" aria-label="EpicPost" className="flex min-w-0 items-center gap-2.5">
             <img src="/transparent-logo.png" alt="" className="h-10 w-10 shrink-0 object-contain" />
-            <span className="truncate text-[32px] font-bold leading-none tracking-normal text-foreground">
+            <span className="truncate text-2xl font-bold leading-none tracking-normal text-foreground">
               EpicPost
             </span>
           </a>

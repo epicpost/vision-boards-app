@@ -2,7 +2,6 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import {
   ArrowLeft,
   Heart,
-  MessageCircle,
   Upload,
   MoreHorizontal,
   ChevronRight,
@@ -349,12 +348,6 @@ function PinDetail() {
                           <span className="text-sm font-semibold text-foreground">
                             {template?.likes_count ?? 0}
                           </span>
-                        </button>
-                        <button
-                          aria-label="Comment"
-                          className="h-10 w-10 rounded-full hover:bg-secondary flex items-center justify-center transition"
-                        >
-                          <MessageCircle className="h-6 w-6 text-foreground" strokeWidth={2.2} />
                         </button>
                         <button
                           aria-label="Share"

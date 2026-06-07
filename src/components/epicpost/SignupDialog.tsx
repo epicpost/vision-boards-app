@@ -162,7 +162,10 @@ export function SignupDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[460px] rounded-[28px] p-10 border-none shadow-2xl">
+      <DialogContent
+        showCloseButton={false}
+        className="max-w-[460px] rounded-[28px] p-10 border-none shadow-2xl"
+      >
         <div className="flex flex-col items-center text-center">
           <div className="mb-4 flex h-16 w-16 items-center justify-center">
             <img src="/transparent-logo.png" alt="" className="h-16 w-16 object-contain" />
