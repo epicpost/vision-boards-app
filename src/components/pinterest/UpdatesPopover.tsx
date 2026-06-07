@@ -152,7 +152,7 @@ function UpdatesSection({
 
   return (
     <section>
-      <h3 className="mb-2 px-2 text-xl font-bold text-foreground">{title}</h3>
+      <h3 className="mb-2 px-2 text-lg font-bold text-foreground">{title}</h3>
       <div className="flex flex-col gap-1">
         {notifications.map((notification) => (
           <UpdateRow
@@ -213,7 +213,7 @@ export function UpdatesPanel() {
   return (
     <div className="max-h-[80vh] w-[min(400px,calc(100vw-24px))] overflow-y-auto rounded-[16px] bg-popover p-4">
       <div className="mb-3 flex items-center justify-between gap-3 px-2">
-        <h2 className="text-2xl font-bold text-foreground">Updates</h2>
+        <h2 className="text-xl font-bold text-foreground">Updates</h2>
         {unread.length > 0 ? (
           <button
             onClick={() => markAllSeenMutation.mutate()}
