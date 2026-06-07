@@ -72,7 +72,7 @@ export function SearchMegaMenu({ onPick }: { onPick: (q: string) => void }) {
     <div className="max-h-[calc(100vh-120px)] overflow-y-auto rounded-[20px] bg-background p-5 shadow-[0_12px_36px_rgba(0,0,0,0.18)]">
       <Section title="Recent searches" items={recentSearches} onPick={onPick} />
       <Section title="Ideas for you" items={ideasForYou} onPick={onPick} />
-      <Section title="Popular on Pinterest" items={popular} onPick={onPick} />
+      <Section title="Popular on EpicPost" items={popular} onPick={onPick} />
     </div>
   );
 }
