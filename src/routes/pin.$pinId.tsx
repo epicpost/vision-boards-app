@@ -242,20 +242,20 @@ function PinDetail() {
                           <PopoverContent
                             align="end"
                             sideOffset={10}
-                            className="w-[min(calc(100vw-24px),360px)] overflow-hidden rounded-[24px] border-0 bg-background p-0 text-foreground shadow-[0_8px_32px_rgba(0,0,0,0.18)]"
+                            className="w-[min(calc(100vw-24px),360px)] overflow-hidden rounded-[20px] border-0 bg-background p-0 text-foreground shadow-[0_12px_36px_rgba(0,0,0,0.18)]"
                           >
-                            <div className="max-h-[min(72vh,560px)] overflow-y-auto px-5 pb-24 pt-5">
-                              <h3 className="mb-5 text-center text-xl font-bold">Save</h3>
-                              <label className="mb-5 flex h-13 items-center gap-2 rounded-[22px] border-[3px] border-[oklch(0.58_0.22_265)] px-4">
-                                <Search className="h-5 w-5 shrink-0 text-foreground" />
+                            <div className="max-h-[min(72vh,560px)] overflow-y-auto px-4 pb-24 pt-4">
+                              <h3 className="mb-4 text-center text-xl font-bold">Save</h3>
+                              <label className="mb-4 flex h-12 items-center gap-2 rounded-[16px] bg-input px-4 transition focus-within:ring-2 focus-within:ring-ring">
+                                <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
                                 <input
                                   type="search"
                                   placeholder="Search"
-                                  className="min-w-0 flex-1 bg-transparent text-lg font-semibold outline-none placeholder:text-muted-foreground"
+                                  className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
                                 />
                               </label>
 
-                              <p className="mb-3 text-sm font-medium text-foreground">
+                              <p className="mb-2 px-2 text-[13px] font-medium text-muted-foreground">
                                 Top choices
                               </p>
                               <div className="space-y-2">
@@ -264,14 +264,14 @@ function PinDetail() {
                                     key={board.id}
                                     type="button"
                                     onClick={() => setIsAuthOpen(true)}
-                                    className="flex h-16 w-full items-center gap-3 rounded-[12px] text-left transition hover:bg-secondary"
+                                    className="flex h-16 w-full items-center gap-3 rounded-xl px-2 text-left transition hover:bg-secondary"
                                   >
                                     <img
                                       src={getBoardThumb(board.thumbIndex)}
                                       alt=""
-                                      className="h-12 w-12 shrink-0 rounded-[10px] object-cover"
+                                      className="h-12 w-12 shrink-0 rounded-xl object-cover"
                                     />
-                                    <span className="min-w-0 flex-1 truncate text-lg font-bold">
+                                    <span className="min-w-0 flex-1 truncate text-base font-semibold">
                                       {board.name}
                                     </span>
                                     {board.locked && (
@@ -281,7 +281,7 @@ function PinDetail() {
                                 ))}
                               </div>
 
-                              <p className="mb-3 mt-5 text-sm font-medium text-foreground">
+                              <p className="mb-2 mt-4 px-2 text-[13px] font-medium text-muted-foreground">
                                 All boards
                               </p>
                               <div className="space-y-2">
@@ -290,14 +290,14 @@ function PinDetail() {
                                     key={board.id}
                                     type="button"
                                     onClick={() => setIsAuthOpen(true)}
-                                    className="flex h-16 w-full items-center gap-3 rounded-[12px] text-left transition hover:bg-secondary"
+                                    className="flex h-16 w-full items-center gap-3 rounded-xl px-2 text-left transition hover:bg-secondary"
                                   >
                                     <img
                                       src={getBoardThumb(board.thumbIndex)}
                                       alt=""
-                                      className="h-12 w-12 shrink-0 rounded-[10px] object-cover"
+                                      className="h-12 w-12 shrink-0 rounded-xl object-cover"
                                     />
-                                    <span className="min-w-0 flex-1 truncate text-lg font-bold">
+                                    <span className="min-w-0 flex-1 truncate text-base font-semibold">
                                       {board.name}
                                     </span>
                                     {board.locked && (
@@ -307,16 +307,16 @@ function PinDetail() {
                                 ))}
                               </div>
                             </div>
-                            <div className="absolute inset-x-0 bottom-0 bg-background/95 px-5 py-4 shadow-[0_-8px_22px_rgba(0,0,0,0.08)] backdrop-blur">
+                            <div className="absolute inset-x-0 bottom-0 bg-background/95 px-4 py-3 shadow-[0_-8px_22px_rgba(0,0,0,0.08)] backdrop-blur">
                               <button
                                 type="button"
                                 onClick={() => setIsAuthOpen(true)}
-                                className="flex h-16 w-full items-center gap-3 rounded-[12px] text-left font-bold hover:bg-secondary"
+                                className="flex h-16 w-full items-center gap-3 rounded-xl px-2 text-left font-semibold hover:bg-secondary"
                               >
-                                <span className="flex h-12 w-12 items-center justify-center rounded-[10px] bg-secondary">
-                                  <Plus className="h-7 w-7 text-foreground" />
+                                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary">
+                                  <Plus className="h-6 w-6 text-foreground" />
                                 </span>
-                                <span className="text-xl">Create board</span>
+                                <span className="text-base">Create board</span>
                               </button>
                             </div>
                           </PopoverContent>
