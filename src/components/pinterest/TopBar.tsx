@@ -170,7 +170,7 @@ export function TopBar({
               <DropdownMenuTrigger asChild>
                 <button
                   aria-label="Open account menu"
-                  className="flex h-10 items-center gap-2 rounded-full pl-0.5 pr-1.5 outline-none transition hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex h-10 items-center gap-2 rounded-full pl-0.5 pr-1.5 outline-none transition hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <Avatar className="h-10 w-10 ring-2 ring-background">
                     <AvatarImage src={authUser?.avatar_url ?? undefined} alt={displayName} />
@@ -184,23 +184,23 @@ export function TopBar({
               <DropdownMenuContent
                 align="end"
                 sideOffset={10}
-                className="w-[min(360px,calc(100vw-32px))] rounded-[20px] border-none bg-white p-4 text-foreground shadow-[0_12px_36px_rgba(0,0,0,0.18)]"
+                className="w-[380px] max-w-[calc(100vw-24px)] rounded-[20px] border-none bg-background p-4 text-foreground shadow-[0_12px_36px_rgba(0,0,0,0.18)]"
               >
-                <div className="px-2 pb-3 text-[15px] font-semibold text-muted-foreground">
+                <div className="px-2 pb-2 text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
                   Currently in
                 </div>
-                <div className="flex items-center gap-4 rounded-xl px-2 py-2">
-                  <Avatar className="h-16 w-16">
+                <div className="flex items-center gap-3 rounded-xl px-2 py-2">
+                  <Avatar className="h-14 w-14">
                     <AvatarImage src={authUser?.avatar_url ?? undefined} alt={displayName} />
-                    <AvatarFallback className="bg-muted text-2xl font-semibold">
+                    <AvatarFallback className="bg-muted text-xl font-semibold">
                       {avatarFallback}
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-xl font-bold leading-tight">{displayName}</div>
-                    <div className="mt-1 text-base text-muted-foreground">Personal</div>
+                    <div className="truncate text-base font-semibold leading-tight">{displayName}</div>
+                    <div className="text-sm text-muted-foreground">Personal</div>
                     {authUser?.email ? (
-                      <div className="truncate text-base text-muted-foreground">
+                      <div className="truncate text-sm text-muted-foreground">
                         {authUser.email}
                       </div>
                     ) : null}
@@ -209,7 +209,7 @@ export function TopBar({
                 </div>
                 <DropdownMenuItem
                   onSelect={clearAuthSession}
-                  className="mt-3 cursor-pointer rounded-xl px-2 py-3 text-xl font-bold focus:bg-accent"
+                  className="mt-2 cursor-pointer rounded-xl px-3 py-2.5 text-[17px] font-semibold focus:bg-secondary"
                 >
                   Log out
                 </DropdownMenuItem>
