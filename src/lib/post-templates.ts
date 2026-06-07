@@ -1,3 +1,5 @@
+import { getAccessToken } from "@/lib/auth";
+
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "https://epicapi.epicpost.app";
 
 export type TemplateMediaType = "image" | "video";
@@ -88,7 +90,12 @@ export async function fetchPostTemplates(search?: string): Promise<PostTemplateF
     url.searchParams.set("search", normalizedSearch);
   }
 
-  const response = await fetch(url);
+  // Optional auth: when signed in, send the access token so the feed includes
+  // per-user state (is_saved / board_id / board_name / remix_id).
+  const token = getAccessToken();
+  const response = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
   if (!response.ok) {
     throw new Error(`Post templates request failed with ${response.status}`);
   }
