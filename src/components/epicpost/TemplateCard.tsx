@@ -1,4 +1,4 @@
-import { MoreHorizontal, Upload, Video } from "lucide-react";
+import { Upload, Video } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
@@ -84,13 +84,7 @@ export function TemplateCard({ pin }: { pin: Pin }) {
               Save
             </span>
           </div>
-          <div className="absolute bottom-3 left-3 right-3 flex justify-between items-end gap-2">
-            <span
-              aria-label="More"
-              className="h-9 w-9 rounded-full bg-white text-foreground flex items-center justify-center"
-            >
-              <MoreHorizontal className="h-5 w-5" />
-            </span>
+          <div className="absolute bottom-3 left-3 right-3 flex justify-end items-end gap-2">
             <span
               aria-label="Share"
               className="h-9 w-9 rounded-full bg-white text-foreground flex items-center justify-center"
