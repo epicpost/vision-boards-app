@@ -70,7 +70,7 @@ export function Sidebar() {
 
   return (
     <aside className="hidden md:flex fixed left-0 top-0 h-screen w-[72px] flex-col items-center justify-between py-4 bg-background border-r border-border z-40">
-      <div className="flex flex-col items-center gap-2">
+      <div className="flex flex-col items-center gap-4">
         <a
           href="/"
           aria-label="EpicPost home"
