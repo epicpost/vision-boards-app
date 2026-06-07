@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { X } from "lucide-react";
 
 import {
   deleteSearchHistoryItem,
   fetchSearchMenu,
+  readCachedSearchMenu,
   searchMenuQueryKey,
   type SearchMenuItem,
   type SearchMenuResponse,
@@ -101,10 +103,15 @@ function SectionSkeleton({ title }: { title: string }) {
 
 export function SearchMegaMenu({ onPick }: { onPick: (q: string) => void }) {
   const queryClient = useQueryClient();
+  // Show the cached menu instantly, but treat it as stale so opening search
+  // always refetches and applies any changes to the open menu in place.
+  const cachedMenu = useMemo(() => readCachedSearchMenu(), []);
   const { data, isLoading, isError, error } = useQuery({
     queryKey: searchMenuQueryKey,
     queryFn: fetchSearchMenu,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    initialData: cachedMenu,
+    initialDataUpdatedAt: 0,
   });
 
   const deleteMutation = useMutation({

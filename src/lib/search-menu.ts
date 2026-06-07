@@ -1,4 +1,4 @@
-import { expireAuthSession, getAccessToken, requestAuthDialog } from "@/lib/auth";
+import { expireAuthSession, getAccessToken, hasAuthSession, requestAuthDialog } from "@/lib/auth";
 import { API_BASE_URL } from "@/lib/post-templates";
 
 export interface SearchMenuItem {
@@ -71,6 +71,39 @@ function normalizeItem(raw: RawRecentItem | RawSuggestionItem): SearchMenuItem {
 
 export const searchMenuQueryKey = ["search", "menu"] as const;
 
+const SEARCH_MENU_CACHE_KEY = "epicpost.search-menu";
+
+export function readCachedSearchMenu(): SearchMenuResponse | undefined {
+  if (typeof window === "undefined") return undefined;
+
+  try {
+    const raw = window.localStorage.getItem(SEARCH_MENU_CACHE_KEY);
+    if (!raw) return undefined;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.sections)) return undefined;
+
+    return parsed as SearchMenuResponse;
+  } catch {
+    return undefined;
+  }
+}
+
+export function writeCachedSearchMenu(data: SearchMenuResponse): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(SEARCH_MENU_CACHE_KEY, JSON.stringify(data));
+  } catch {
+    // Ignore quota / serialization errors — the cache is a best-effort optimization.
+  }
+}
+
+export function clearCachedSearchMenu(): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(SEARCH_MENU_CACHE_KEY);
+}
+
 export async function fetchSearchMenu(): Promise<SearchMenuResponse> {
   const token = getAccessToken();
   if (!token) {
@@ -97,7 +130,7 @@ export async function fetchSearchMenu(): Promise<SearchMenuResponse> {
 
   const data = payload.data ?? {};
 
-  return {
+  const result: SearchMenuResponse = {
     sections: [
       {
         key: "recent",
@@ -119,6 +152,26 @@ export async function fetchSearchMenu(): Promise<SearchMenuResponse> {
       },
     ].filter((section) => section.items.length > 0),
   };
+
+  // Persist the freshest menu so the next app open / search can render instantly.
+  writeCachedSearchMenu(result);
+
+  return result;
+}
+
+/**
+ * Fetch the search menu in the background for signed-in users without ever
+ * prompting the sign-in dialog. Used to warm the cache on app open.
+ */
+export async function prefetchSearchMenu(): Promise<SearchMenuResponse | undefined> {
+  if (!hasAuthSession()) return undefined;
+
+  try {
+    return await fetchSearchMenu();
+  } catch {
+    // Background warm-up is best-effort; ignore failures.
+    return undefined;
+  }
 }
 
 export async function recordSearch(query: string, imgPreview?: string | null): Promise<void> {

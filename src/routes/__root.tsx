@@ -9,7 +9,13 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { SignupDialog } from "@/components/epicpost/SignupDialog";
-import { AUTH_REQUIRED_EVENT } from "@/lib/auth";
+import { AUTH_REQUIRED_EVENT, AUTH_SESSION_CHANGED_EVENT, hasAuthSession } from "@/lib/auth";
+import {
+  clearCachedSearchMenu,
+  prefetchSearchMenu,
+  readCachedSearchMenu,
+  searchMenuQueryKey,
+} from "@/lib/search-menu";
 import { Toaster } from "@/components/ui/sonner";
 
 import appCss from "../styles.css?url";
@@ -160,6 +166,46 @@ function RootComponent() {
       window.removeEventListener(AUTH_REQUIRED_EVENT, openAuthDialog);
     };
   }, []);
+
+  // Warm the search menu on app open: seed react-query from the persisted cache
+  // (so opening search is instant) and fetch a fresh copy in the background. The
+  // queryFn rewrites the cache, so the next open already has the latest data.
+  useEffect(() => {
+    const cached = readCachedSearchMenu();
+    if (cached) {
+      queryClient.setQueryData(searchMenuQueryKey, cached, { updatedAt: 0 });
+    }
+
+    void prefetchSearchMenu().then((fresh) => {
+      if (fresh) {
+        queryClient.setQueryData(searchMenuQueryKey, fresh);
+      }
+    });
+  }, [queryClient]);
+
+  // After a successful sign-in, refetch the personalized data (post templates,
+  // boards, and the search menu) so they reload with the new JWT.
+  useEffect(() => {
+    const handleSessionChange = () => {
+      if (!hasAuthSession()) {
+        // Signed out: drop the previous user's cached search history.
+        clearCachedSearchMenu();
+        queryClient.removeQueries({ queryKey: searchMenuQueryKey });
+        return;
+      }
+
+      void queryClient.invalidateQueries({ queryKey: ["post-templates"] });
+      void queryClient.invalidateQueries({ queryKey: ["boards"] });
+      void queryClient.invalidateQueries({ queryKey: ["board-feed-categories"] });
+      void queryClient.invalidateQueries({ queryKey: searchMenuQueryKey });
+    };
+
+    window.addEventListener(AUTH_SESSION_CHANGED_EVENT, handleSessionChange);
+
+    return () => {
+      window.removeEventListener(AUTH_SESSION_CHANGED_EVENT, handleSessionChange);
+    };
+  }, [queryClient]);
 
   // After a new deploy, an open tab may reference chunk hashes that no longer
   // exist on the server (404 on dynamic import). Vite fires `vite:preloadError`
