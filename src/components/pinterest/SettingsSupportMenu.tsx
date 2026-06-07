@@ -34,7 +34,7 @@ function Row({ item, onClose }: { item: Item; onClose: () => void }) {
     </>
   );
   const className =
-    "flex w-full items-center justify-between rounded-xl px-2 py-2.5 text-left transition hover:bg-secondary";
+    "flex w-full items-center justify-between rounded-[16px] px-2 py-2.5 text-left transition hover:bg-secondary";
 
   if (item.to) {
     return (
@@ -68,17 +68,13 @@ export function SettingsSupportMenu({ onClose }: { onClose: () => void }) {
           <Row key={item.label} item={item} onClose={onClose} />
         ))}
       </div>
-      <div className="px-2 pb-2 pt-3 text-[13px] font-medium text-muted-foreground">
-        Support
-      </div>
+      <div className="px-2 pb-2 pt-3 text-[13px] font-medium text-muted-foreground">Support</div>
       <div className="mb-2">
         {support.map((item) => (
           <Row key={item.label} item={item} onClose={onClose} />
         ))}
       </div>
-      <div className="px-2 pb-2 pt-3 text-[13px] font-medium text-muted-foreground">
-        Resources
-      </div>
+      <div className="px-2 pb-2 pt-3 text-[13px] font-medium text-muted-foreground">Resources</div>
       <div className="px-2 pb-1 text-base font-semibold text-[#3b6cd9]">
         {resourcesPrimary.join("  ")}
       </div>

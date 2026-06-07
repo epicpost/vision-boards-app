@@ -119,7 +119,9 @@ export function TopBar({
         <div className="flex-1 relative">
           <Popover open={searchOpen} onOpenChange={setSearchOpen}>
             <PopoverTrigger asChild>
-              <div className={`flex items-center gap-2 h-12 rounded-[16px] bg-input px-4 transition ${searchOpen ? "ring-2 ring-ring" : "focus-within:ring-2 focus-within:ring-ring"}`}>
+              <div
+                className={`flex items-center gap-2 h-12 rounded-[16px] bg-input px-4 transition ${searchOpen ? "ring-2 ring-ring" : "focus-within:ring-2 focus-within:ring-ring"}`}
+              >
                 <Search className="h-5 w-5 text-muted-foreground shrink-0" strokeWidth={2.2} />
                 <input
                   type="text"
@@ -210,19 +212,19 @@ export function TopBar({
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-base font-semibold leading-tight">{displayName}</div>
+                    <div className="truncate text-base font-semibold leading-tight">
+                      {displayName}
+                    </div>
                     <div className="text-sm text-muted-foreground">Personal</div>
                     {authUser?.email ? (
-                      <div className="truncate text-sm text-muted-foreground">
-                        {authUser.email}
-                      </div>
+                      <div className="truncate text-sm text-muted-foreground">{authUser.email}</div>
                     ) : null}
                   </div>
                   <Check className="h-5 w-5 shrink-0 text-foreground" strokeWidth={2.5} />
                 </div>
                 <DropdownMenuItem
                   onSelect={clearAuthSession}
-                  className="cursor-pointer rounded-xl px-2 py-2 text-base font-semibold focus:bg-secondary"
+                  className="cursor-pointer rounded-[16px] px-2 py-2 text-base font-semibold focus:bg-secondary"
                 >
                   Log out
                 </DropdownMenuItem>
