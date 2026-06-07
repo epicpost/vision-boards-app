@@ -184,15 +184,15 @@ export function TopBar({
               <DropdownMenuContent
                 align="end"
                 sideOffset={10}
-                className="w-[380px] max-w-[calc(100vw-24px)] rounded-[20px] border-none bg-background p-4 text-foreground shadow-[0_12px_36px_rgba(0,0,0,0.18)]"
+                className="w-[360px] max-w-[calc(100vw-24px)] rounded-[20px] border-none bg-background p-4 text-foreground shadow-[0_12px_36px_rgba(0,0,0,0.18)]"
               >
-                <div className="px-2 pb-2 text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
+                <div className="px-2 pb-1 text-[13px] font-medium text-muted-foreground">
                   Currently in
                 </div>
                 <div className="flex items-center gap-3 rounded-xl px-2 py-2">
-                  <Avatar className="h-14 w-14">
+                  <Avatar className="h-12 w-12">
                     <AvatarImage src={authUser?.avatar_url ?? undefined} alt={displayName} />
-                    <AvatarFallback className="bg-muted text-xl font-semibold">
+                    <AvatarFallback className="bg-muted text-lg font-semibold">
                       {avatarFallback}
                     </AvatarFallback>
                   </Avatar>
@@ -207,9 +207,15 @@ export function TopBar({
                   </div>
                   <Check className="h-5 w-5 shrink-0 text-foreground" strokeWidth={2.5} />
                 </div>
+                <DropdownMenuItem className="cursor-pointer rounded-xl px-2 py-2 text-base font-semibold focus:bg-secondary">
+                  Convert to business
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer rounded-xl px-2 py-2 text-base font-semibold focus:bg-secondary">
+                  Add Pinterest account
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={clearAuthSession}
-                  className="mt-2 cursor-pointer rounded-xl px-3 py-2.5 text-[17px] font-semibold focus:bg-secondary"
+                  className="cursor-pointer rounded-xl px-2 py-2 text-base font-semibold focus:bg-secondary"
                 >
                   Log out
                 </DropdownMenuItem>
