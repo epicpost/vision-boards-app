@@ -8,7 +8,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { SignupDialog } from "@/components/pinterest/SignupDialog";
+import { SignupDialog } from "@/components/epicpost/SignupDialog";
 import { AUTH_REQUIRED_EVENT } from "@/lib/auth";
 import { Toaster } from "@/components/ui/sonner";
 

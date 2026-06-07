@@ -17,11 +17,11 @@ import {
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Sidebar } from "@/components/pinterest/Sidebar";
-import { TopBar } from "@/components/pinterest/TopBar";
-import { PinCard } from "@/components/pinterest/PinCard";
-import { MobileNav } from "@/components/pinterest/MobileNav";
-import { SignupDialog } from "@/components/pinterest/SignupDialog";
+import { Sidebar } from "@/components/epicpost/Sidebar";
+import { TopBar } from "@/components/epicpost/TopBar";
+import { TemplateCard } from "@/components/epicpost/TemplateCard";
+import { MobileNav } from "@/components/epicpost/MobileNav";
+import { SignupDialog } from "@/components/epicpost/SignupDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   fetchPostTemplates,
@@ -35,7 +35,7 @@ import { boardsQueryKey, fetchBoards, saveTemplateToBoard, type Board } from "@/
 import { getAccessToken } from "@/lib/auth";
 import { useEffect, useMemo, useState } from "react";
 
-export const Route = createFileRoute("/pin/$pinId")({
+export const Route = createFileRoute("/template/$pinId")({
   component: PinDetail,
 });
 
@@ -100,6 +100,41 @@ function BoardRow({
   );
 }
 
+function showSavedToast(board: Board | null, onUndo: () => void) {
+  const thumbs = board?.preview_assets.slice(0, 4) ?? [];
+
+  toast.custom(
+    (id) => (
+      <div className="flex items-center gap-3 rounded-[18px] bg-[#2d2c2a] px-3 py-2.5 text-white shadow-[0_12px_36px_rgba(0,0,0,0.28)]">
+        <div className="grid h-11 w-11 shrink-0 grid-cols-2 grid-rows-2 gap-px overflow-hidden rounded-[10px] bg-white/10">
+          {thumbs.length > 0 ? (
+            thumbs.map((asset) => (
+              <img key={asset.id} src={asset.url} alt="" className="h-full w-full object-cover" />
+            ))
+          ) : (
+            <span className="col-span-2 row-span-2" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="text-[15px] text-white/80">Saved to</p>
+          <p className="truncate text-[15px] font-bold">{board?.name ?? "your board"}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            onUndo();
+            toast.dismiss(id);
+          }}
+          className="shrink-0 rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/90"
+        >
+          Undo
+        </button>
+      </div>
+    ),
+    { duration: 5000 },
+  );
+}
+
 function PinDetail() {
   const { pinId } = Route.useParams();
   const queryClient = useQueryClient();
@@ -123,7 +158,9 @@ function PinDetail() {
     onSuccess: (_data, boardId) => {
       setSavedBoardId(boardId);
       const board = boardsQuery.data?.data.find((item) => item.id === boardId);
-      toast.success(board ? `Saved to ${board.name}` : "Saved");
+      showSavedToast(board ?? null, () => {
+        setSavedBoardId(null);
+      });
       setIsSaveOpen(false);
     },
     onError: (error: unknown) => {
@@ -154,6 +191,7 @@ function PinDetail() {
   const cachedTemplates = cachedFeeds.flatMap(([, feed]) => feed?.data ?? []);
   const templates = uniqueTemplates([...cachedTemplates, ...(defaultFeedQuery.data?.data ?? [])]);
   const template = templates.find((item) => item.id === pinId);
+  const isSaved = Boolean(savedBoardId) || Boolean(template?.board_id);
   const relatedTemplates = templates.filter((item) => item.id !== pinId);
   const previewMedia = useMemo<PreviewMedia[]>(() => {
     if (!template) return [];
@@ -409,19 +447,35 @@ function PinDetail() {
                             </div>
                           </PopoverContent>
                         </Popover>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!isSignedIn) {
-                              setIsAuthOpen(true);
-                              return;
-                            }
-                            setIsSaveOpen(true);
-                          }}
-                          className="h-11 px-5 rounded-full bg-primary text-primary-foreground font-bold text-base hover:brightness-90 transition"
-                        >
-                          Save
-                        </button>
+                        {isSaved ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!isSignedIn) {
+                                setIsAuthOpen(true);
+                                return;
+                              }
+                              setIsSaveOpen(true);
+                            }}
+                            className="h-11 px-5 rounded-[14px] bg-foreground text-background font-bold text-base hover:brightness-110 transition"
+                          >
+                            Saved
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!isSignedIn) {
+                                setIsAuthOpen(true);
+                                return;
+                              }
+                              setIsSaveOpen(true);
+                            }}
+                            className="h-11 px-5 rounded-full bg-primary text-primary-foreground font-bold text-base hover:brightness-90 transition"
+                          >
+                            Save
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -546,7 +600,7 @@ function PinDetail() {
               {/* Pins flowing right below the detail card */}
               <div className="mt-3 columns-2 sm:columns-2 md:columns-3 lg:columns-4 gap-3 [column-fill:_balance]">
                 {belowPins.map((p, i) => (
-                  <PinCard key={`below-${i}-${p.id}`} pin={templateToPin(p, i)} />
+                  <TemplateCard key={`below-${i}-${p.id}`} pin={templateToPin(p, i)} />
                 ))}
               </div>
             </div>
@@ -555,7 +609,7 @@ function PinDetail() {
             <aside className="hidden xl:block xl:w-1/5 2xl:w-2/6">
               <div className="columns-1 2xl:columns-2 gap-3 [column-fill:_balance]">
                 {sidePins.map((p, i) => (
-                  <PinCard key={`side-${i}-${p.id}`} pin={templateToPin(p, i)} />
+                  <TemplateCard key={`side-${i}-${p.id}`} pin={templateToPin(p, i)} />
                 ))}
               </div>
             </aside>

@@ -1,10 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Lock, SlidersHorizontal } from "lucide-react";
-import { Sidebar } from "@/components/pinterest/Sidebar";
-import { TopBar } from "@/components/pinterest/TopBar";
-import { MobileNav } from "@/components/pinterest/MobileNav";
-import { pins } from "@/components/pinterest/pins-data";
+import { Sidebar } from "@/components/epicpost/Sidebar";
+import { TopBar } from "@/components/epicpost/TopBar";
+import { MobileNav } from "@/components/epicpost/MobileNav";
+import { pins } from "@/components/epicpost/pins-data";
 import { boardsQueryKey, fetchBoards, type Board } from "@/lib/boards";
 
 export const Route = createFileRoute("/boards")({

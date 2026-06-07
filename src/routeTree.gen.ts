@@ -12,7 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as BoardsRouteImport } from './routes/boards'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as PinPinIdRouteImport } from './routes/pin.$pinId'
+import { Route as PinPinIdRouteImport } from './routes/template.$pinId'
 import { Route as AuthMagicLinkConfirmRouteImport } from './routes/auth/magic-link/confirm'
 
 const SettingsRoute = SettingsRouteImport.update({
@@ -31,8 +31,8 @@ const IndexRoute = IndexRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const PinPinIdRoute = PinPinIdRouteImport.update({
-  id: '/pin/$pinId',
-  path: '/pin/$pinId',
+  id: '/template/$pinId',
+  path: '/template/$pinId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthMagicLinkConfirmRoute = AuthMagicLinkConfirmRouteImport.update({
@@ -45,14 +45,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/boards': typeof BoardsRoute
   '/settings': typeof SettingsRoute
-  '/pin/$pinId': typeof PinPinIdRoute
+  '/template/$pinId': typeof PinPinIdRoute
   '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/boards': typeof BoardsRoute
   '/settings': typeof SettingsRoute
-  '/pin/$pinId': typeof PinPinIdRoute
+  '/template/$pinId': typeof PinPinIdRoute
   '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
 }
 export interface FileRoutesById {
@@ -60,7 +60,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/boards': typeof BoardsRoute
   '/settings': typeof SettingsRoute
-  '/pin/$pinId': typeof PinPinIdRoute
+  '/template/$pinId': typeof PinPinIdRoute
   '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
 }
 export interface FileRouteTypes {
@@ -69,16 +69,16 @@ export interface FileRouteTypes {
     | '/'
     | '/boards'
     | '/settings'
-    | '/pin/$pinId'
+    | '/template/$pinId'
     | '/auth/magic-link/confirm'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/boards' | '/settings' | '/pin/$pinId' | '/auth/magic-link/confirm'
+  to: '/' | '/boards' | '/settings' | '/template/$pinId' | '/auth/magic-link/confirm'
   id:
     | '__root__'
     | '/'
     | '/boards'
     | '/settings'
-    | '/pin/$pinId'
+    | '/template/$pinId'
     | '/auth/magic-link/confirm'
   fileRoutesById: FileRoutesById
 }
@@ -113,10 +113,10 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/pin/$pinId': {
-      id: '/pin/$pinId'
-      path: '/pin/$pinId'
-      fullPath: '/pin/$pinId'
+    '/template/$pinId': {
+      id: '/template/$pinId'
+      path: '/template/$pinId'
+      fullPath: '/template/$pinId'
       preLoaderRoute: typeof PinPinIdRouteImport
       parentRoute: typeof rootRouteImport
     }

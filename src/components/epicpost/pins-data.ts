@@ -1,4 +1,4 @@
-import type { Pin } from "./PinCard";
+import type { Pin } from "./TemplateCard";
 
 const seeds = [
   { s: "ocean", h: 620, t: "Aerial coastline" },

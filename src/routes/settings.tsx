@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Sidebar } from "@/components/pinterest/Sidebar";
-import { TopBar } from "@/components/pinterest/TopBar";
-import { MobileNav } from "@/components/pinterest/MobileNav";
+import { Sidebar } from "@/components/epicpost/Sidebar";
+import { TopBar } from "@/components/epicpost/TopBar";
+import { MobileNav } from "@/components/epicpost/MobileNav";
 import { getAuthUser } from "@/lib/auth";
 
 export const Route = createFileRoute("/settings")({

@@ -1,4 +1,4 @@
-import { PinCard } from "./PinCard";
+import { TemplateCard } from "./TemplateCard";
 import { getTemplateMedia, type PostTemplate } from "@/lib/post-templates";
 
 function templateToPin(template: PostTemplate, index: number) {
@@ -27,7 +27,7 @@ function PinSkeleton({ index }: { index: number }) {
   );
 }
 
-export function PinGrid({
+export function TemplateGrid({
   templates,
   isLoading,
   isError,
@@ -78,7 +78,7 @@ export function PinGrid({
         {isLoading
           ? Array.from({ length: 12 }, (_, index) => <PinSkeleton key={index} index={index} />)
           : templates.map((template, index) => (
-              <PinCard key={template.id} pin={templateToPin(template, index)} />
+              <TemplateCard key={template.id} pin={templateToPin(template, index)} />
             ))}
       </div>
     </div>

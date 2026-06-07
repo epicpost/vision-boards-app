@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
-import { Sidebar } from "@/components/pinterest/Sidebar";
-import { TopBar } from "@/components/pinterest/TopBar";
-import { PinGrid } from "@/components/pinterest/PinGrid";
-import { MobileNav } from "@/components/pinterest/MobileNav";
+import { Sidebar } from "@/components/epicpost/Sidebar";
+import { TopBar } from "@/components/epicpost/TopBar";
+import { TemplateGrid } from "@/components/epicpost/TemplateGrid";
+import { MobileNav } from "@/components/epicpost/MobileNav";
 import { fetchBoardFeedCategories } from "@/lib/boards";
 import {
   fetchPostTemplates,
@@ -165,7 +165,7 @@ function Index() {
         />
         <main onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
           <h1 className="sr-only">Pinterest — Discover ideas you'll love</h1>
-          <PinGrid
+          <TemplateGrid
             templates={templatesQuery.data?.data ?? []}
             isLoading={templatesQuery.isLoading}
             isError={templatesQuery.isError}

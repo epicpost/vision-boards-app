@@ -16,7 +16,7 @@ function isValidDimension(value: number | null | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
-export function PinCard({ pin }: { pin: Pin }) {
+export function TemplateCard({ pin }: { pin: Pin }) {
   const [detectedSize, setDetectedSize] = useState<{ width: number; height: number } | null>(null);
   const width = isValidDimension(pin.width) ? pin.width : detectedSize?.width;
   const height = isValidDimension(pin.height) ? pin.height : detectedSize?.height;
@@ -29,7 +29,7 @@ export function PinCard({ pin }: { pin: Pin }) {
   return (
     <div className="mb-3 break-inside-avoid group">
       <Link
-        to="/pin/$pinId"
+        to="/template/$pinId"
         params={{ pinId: pin.id }}
         className="relative block w-full overflow-hidden rounded-[16px] bg-secondary cursor-pointer"
         style={{ aspectRatio }}
