@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Lock } from "lucide-react";
 import { Sidebar } from "@/components/epicpost/Sidebar";
 import { TopBar } from "@/components/epicpost/TopBar";
 import { MobileNav } from "@/components/epicpost/MobileNav";
+import { CreateBoardDialog } from "@/components/epicpost/CreateBoardDialog";
 import { pins } from "@/components/epicpost/pins-data";
 import { boardsQueryKey, fetchBoards, type Board } from "@/lib/boards";
 
@@ -94,6 +96,7 @@ const TABS = [
 ] as const;
 
 function BoardsPage() {
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const boardsQuery = useQuery({
     queryKey: boardsQueryKey(),
     queryFn: () => fetchBoards(),
@@ -126,7 +129,10 @@ function BoardsPage() {
               ))}
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <button className="rounded-full bg-[#e60023] hover:bg-[#ad081b] transition text-white px-5 h-11 text-[15px] font-semibold">
+              <button
+                onClick={() => setIsCreateOpen(true)}
+                className="rounded-full bg-[#e60023] hover:bg-[#ad081b] transition text-white px-5 h-11 text-[15px] font-semibold"
+              >
                 Create
               </button>
             </div>
@@ -168,6 +174,7 @@ function BoardsPage() {
         </main>
       </div>
       <MobileNav />
+      <CreateBoardDialog open={isCreateOpen} onOpenChange={setIsCreateOpen} />
     </div>
   );
 }
