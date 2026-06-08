@@ -144,6 +144,13 @@ function RootShell({ children }: { children: React.ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        <script
+          async
+          defer
+          src="https://www.faurya.com/js/script.js"
+          data-domain="epicpost.app"
+          data-website-id="cmq5fw4410009jv04de28dq54"
+        />
       </head>
       <body>
         {children}
