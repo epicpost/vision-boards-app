@@ -435,7 +435,7 @@ function PinDetail() {
                     <div className="absolute bottom-4 right-4 flex flex-col gap-2">
                       <button
                         aria-label="Expand"
-                        className="h-11 w-11 rounded-full bg-background/90 shadow-md flex items-center justify-center hover:bg-background"
+                        className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-background shadow-md transition hover:bg-secondary"
                       >
                         <Maximize2 className="h-5 w-5 text-foreground" />
                       </button>
