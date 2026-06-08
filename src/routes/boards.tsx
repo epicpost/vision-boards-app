@@ -120,7 +120,7 @@ function BoardsPage() {
                   key={t.key}
                   className={`pb-2 text-[17px] font-semibold transition ${
                     t.key === "boards"
-                      ? "text-foreground border-b-[3px] border-foreground"
+                      ? "text-foreground border-b-[2px] border-foreground"
                       : "text-foreground/80 hover:text-foreground"
                   }`}
                 >

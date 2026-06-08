@@ -247,7 +247,7 @@ export function TopBar({
               onClick={() => onCategoryChange?.(tab.id)}
               className={`shrink-0 px-3 py-2 text-[15px] font-semibold rounded-full transition ${
                 tab.id === activeCategory
-                  ? "text-foreground border-b-[3px] border-foreground rounded-none"
+                  ? "text-foreground border-b-[2px] border-foreground rounded-none"
                   : "text-foreground hover:bg-secondary"
               }`}
             >

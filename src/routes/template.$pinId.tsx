@@ -7,7 +7,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Maximize2,
-  Sparkles,
   Smile,
   Sticker,
   Image as ImageIcon,
@@ -395,9 +394,9 @@ function PinDetail() {
                         size="icon"
                         aria-label="Previous media"
                         onClick={showPreviousMedia}
-                        className="absolute left-4 top-1/2 z-10 h-12 w-12 -translate-y-1/2 rounded-full bg-background/90 opacity-0 shadow-md transition-opacity hover:bg-background group-hover/preview:opacity-100 focus-visible:opacity-100"
+                        className="absolute left-4 top-1/2 z-10 h-11 w-11 -translate-y-1/2 rounded-[14px] bg-background opacity-0 shadow-md transition-opacity hover:bg-secondary group-hover/preview:opacity-100 focus-visible:opacity-100"
                       >
-                        <ChevronLeft className="h-6 w-6 text-foreground" strokeWidth={2.4} />
+                        <ChevronLeft className="h-5 w-5 text-foreground" strokeWidth={2.4} />
                       </Button>
                     ) : null}
                     {canShowNextMedia ? (
@@ -407,9 +406,9 @@ function PinDetail() {
                         size="icon"
                         aria-label="Next media"
                         onClick={showNextMedia}
-                        className="absolute right-4 top-1/2 z-10 h-12 w-12 -translate-y-1/2 rounded-full bg-background/90 opacity-0 shadow-md transition-opacity hover:bg-background group-hover/preview:opacity-100 focus-visible:opacity-100"
+                        className="absolute right-4 top-1/2 z-10 h-11 w-11 -translate-y-1/2 rounded-[14px] bg-background opacity-0 shadow-md transition-opacity hover:bg-secondary group-hover/preview:opacity-100 focus-visible:opacity-100"
                       >
-                        <ChevronRight className="h-6 w-6 text-foreground" strokeWidth={2.4} />
+                        <ChevronRight className="h-5 w-5 text-foreground" strokeWidth={2.4} />
                       </Button>
                     ) : null}
                     {showMediaBullets && (
@@ -439,12 +438,6 @@ function PinDetail() {
                         className="h-11 w-11 rounded-full bg-background/90 shadow-md flex items-center justify-center hover:bg-background"
                       >
                         <Maximize2 className="h-5 w-5 text-foreground" />
-                      </button>
-                      <button
-                        aria-label="Visual search"
-                        className="h-11 w-11 rounded-full bg-background/90 shadow-md flex items-center justify-center hover:bg-background"
-                      >
-                        <Sparkles className="h-5 w-5 text-foreground" />
                       </button>
                     </div>
                   </div>
