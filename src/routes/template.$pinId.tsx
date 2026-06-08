@@ -22,6 +22,7 @@ import { TopBar } from "@/components/epicpost/TopBar";
 import { TemplateCard } from "@/components/epicpost/TemplateCard";
 import { MobileNav } from "@/components/epicpost/MobileNav";
 import { SignupDialog } from "@/components/epicpost/SignupDialog";
+import { CreateBoardDialog } from "@/components/epicpost/CreateBoardDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   fetchPostTemplates,
@@ -165,6 +166,7 @@ function PinDetail() {
   const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isSaveOpen, setIsSaveOpen] = useState(false);
+  const [isCreateBoardOpen, setIsCreateBoardOpen] = useState(false);
   const [boardSearch, setBoardSearch] = useState("");
   const [savedBoardId, setSavedBoardId] = useState<string | null>(null);
   const isSignedIn = Boolean(getAccessToken());
@@ -469,7 +471,10 @@ function PinDetail() {
                             <div className="absolute inset-x-0 bottom-0 rounded-b-[20px] bg-background/95 px-4 py-3 shadow-[0_-8px_22px_rgba(0,0,0,0.08)] backdrop-blur transition hover:bg-secondary">
                               <button
                                 type="button"
-                                onClick={() => setIsAuthOpen(true)}
+                                onClick={() => {
+                                  setIsSaveOpen(false);
+                                  setIsCreateBoardOpen(true);
+                                }}
                                 className="flex h-16 w-full items-center gap-3 px-2 text-left font-semibold"
                               >
                                 <span className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-secondary">
@@ -651,6 +656,7 @@ function PinDetail() {
       </div>
       <MobileNav />
       <SignupDialog open={isAuthOpen} onOpenChange={setIsAuthOpen} />
+      <CreateBoardDialog open={isCreateBoardOpen} onOpenChange={setIsCreateBoardOpen} />
     </div>
   );
 }
