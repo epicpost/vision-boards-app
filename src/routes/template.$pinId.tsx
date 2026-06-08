@@ -271,6 +271,33 @@ function PinDetail() {
     }
   }, [previewMedia.length, selectedMediaIndex]);
 
+  useEffect(() => {
+    if (previewMedia.length <= 1) return;
+
+    function handleCarouselKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+
+      const target = event.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      ) {
+        return;
+      }
+
+      if (event.key === "ArrowLeft") {
+        setSelectedMediaIndex((index) => Math.max(0, index - 1));
+      } else if (event.key === "ArrowRight") {
+        setSelectedMediaIndex((index) => Math.min(previewMedia.length - 1, index + 1));
+      }
+    }
+
+    window.addEventListener("keydown", handleCarouselKeyDown);
+    return () => window.removeEventListener("keydown", handleCarouselKeyDown);
+  }, [previewMedia.length]);
+
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
@@ -282,7 +309,7 @@ function PinDetail() {
               <article className="rounded-[16px] border border-border bg-background overflow-hidden">
                 <div className="grid grid-cols-1 md:grid-cols-2">
                   {/* Image side */}
-                  <div className="relative bg-white">
+                  <div className="group/preview relative bg-white">
                     <button
                       aria-label="Back"
                       onClick={() => router.history.back()}
@@ -323,7 +350,7 @@ function PinDetail() {
                         size="icon"
                         aria-label="Previous media"
                         onClick={showPreviousMedia}
-                        className="absolute left-4 top-1/2 z-10 h-12 w-12 -translate-y-1/2 rounded-full bg-background/90 shadow-md hover:bg-background"
+                        className="absolute left-4 top-1/2 z-10 h-12 w-12 -translate-y-1/2 rounded-full bg-background/90 opacity-0 shadow-md transition-opacity hover:bg-background group-hover/preview:opacity-100 focus-visible:opacity-100"
                       >
                         <ChevronLeft className="h-6 w-6 text-foreground" strokeWidth={2.4} />
                       </Button>
@@ -335,7 +362,7 @@ function PinDetail() {
                         size="icon"
                         aria-label="Next media"
                         onClick={showNextMedia}
-                        className="absolute right-4 top-1/2 z-10 h-12 w-12 -translate-y-1/2 rounded-full bg-background/90 shadow-md hover:bg-background"
+                        className="absolute right-4 top-1/2 z-10 h-12 w-12 -translate-y-1/2 rounded-full bg-background/90 opacity-0 shadow-md transition-opacity hover:bg-background group-hover/preview:opacity-100 focus-visible:opacity-100"
                       >
                         <ChevronRight className="h-6 w-6 text-foreground" strokeWidth={2.4} />
                       </Button>
