@@ -79,6 +79,8 @@ export function SignupDialog({
     if (!open) {
       setGoogleButtonReady(false);
       setGoogleButtonFailed(false);
+      setIsGoogleLoading(false);
+      clearGooglePromptTimeout();
       return;
     }
 
@@ -113,18 +115,38 @@ export function SignupDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  const googlePromptTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function clearGooglePromptTimeout() {
+    if (googlePromptTimeout.current) {
+      clearTimeout(googlePromptTimeout.current);
+      googlePromptTimeout.current = null;
+    }
+  }
+
   function handleGoogleFallbackClick() {
     setIsGoogleLoading(true);
+    // The FedCM/One Tap chooser can close without ever invoking a callback
+    // (e.g. dismissed by the user), which would otherwise leave the button
+    // stuck on "Signing in". Recover after a grace period.
+    clearGooglePromptTimeout();
+    googlePromptTimeout.current = setTimeout(() => {
+      setIsGoogleLoading(false);
+    }, 60000);
     void promptGoogleOneTap(
       (idToken) => {
+        clearGooglePromptTimeout();
         void handleGoogleCredential(idToken);
       },
       (promptError) => {
+        clearGooglePromptTimeout();
         setIsGoogleLoading(false);
         toast.error(promptError.message);
       },
     );
   }
+
+  useEffect(() => clearGooglePromptTimeout, []);
 
   async function handleMagicLink(e: React.FormEvent) {
     e.preventDefault();

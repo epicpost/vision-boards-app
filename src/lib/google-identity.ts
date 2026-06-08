@@ -28,7 +28,16 @@ interface GoogleIdAccounts {
       logo_alignment?: "left" | "center";
     },
   ) => void;
-  prompt: () => void;
+  prompt: (momentListener?: (notification: PromptMomentNotification) => void) => void;
+}
+
+interface PromptMomentNotification {
+  isNotDisplayed: () => boolean;
+  isSkippedMoment: () => boolean;
+  isDismissedMoment: () => boolean;
+  getNotDisplayedReason: () => string;
+  getSkippedReason: () => string;
+  getDismissedReason: () => string;
 }
 
 declare global {
@@ -97,19 +106,51 @@ export async function promptGoogleOneTap(
     return;
   }
 
+  let settled = false;
+  const settle = (run: () => void) => {
+    if (settled) return;
+    settled = true;
+    run();
+  };
+
   accounts.initialize({
     client_id: GOOGLE_CLIENT_ID,
     callback: (response) => {
       if (response.credential) {
-        onCredential(response.credential);
+        settle(() => onCredential(response.credential!));
       } else {
-        onError(new Error("Google sign-in was cancelled."));
+        settle(() => onError(new Error("Google sign-in was cancelled.")));
       }
     },
     use_fedcm_for_prompt: true,
   });
 
-  accounts.prompt();
+  // Observe the prompt moment so a dismissed/suppressed chooser doesn't leave
+  // the caller hanging (which froze the "Signing in" button). The credential
+  // callback above fires separately on success.
+  accounts.prompt((notification) => {
+    if (notification.isNotDisplayed()) {
+      settle(() =>
+        onError(
+          new Error(
+            `Google sign-in could not be shown (${notification.getNotDisplayedReason()}).`,
+          ),
+        ),
+      );
+      return;
+    }
+    if (notification.isSkippedMoment()) {
+      settle(() => onError(new Error("Google sign-in was dismissed.")));
+      return;
+    }
+    if (notification.isDismissedMoment()) {
+      const reason = notification.getDismissedReason();
+      // "credential_returned" means the callback above will deliver the token.
+      if (reason !== "credential_returned") {
+        settle(() => onError(new Error("Google sign-in was cancelled.")));
+      }
+    }
+  });
 }
 
 export async function renderGoogleButton(
