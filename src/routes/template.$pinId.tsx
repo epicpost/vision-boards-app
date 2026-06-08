@@ -547,7 +547,7 @@ function PinDetail() {
                             </button>
                           </PopoverTrigger>
                           <PopoverContent
-                            align="start"
+                            align="center"
                             sideOffset={10}
                             className="w-[min(calc(100vw-24px),360px)] overflow-hidden rounded-[20px] border-0 bg-background p-0 text-foreground shadow-[0_12px_36px_rgba(0,0,0,0.18)]"
                           >
