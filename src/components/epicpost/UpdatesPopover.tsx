@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, MoreHorizontal, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -12,7 +12,6 @@ import {
   deleteNotification,
   fetchNotifications,
   markAllNotificationsSeen,
-  markNotificationSeen,
   Notification,
   notificationsQueryKey,
   unreadNotificationsQueryKey,
@@ -72,12 +71,10 @@ function UpdateRow({
   notification,
   isDeleting,
   onDelete,
-  onMarkSeen,
 }: {
   notification: Notification;
   isDeleting: boolean;
   onDelete: (id: string) => void;
-  onMarkSeen: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const titleWeight = notification.is_seen ? "font-normal" : "font-bold";
@@ -117,14 +114,6 @@ function UpdateRow({
             >
               {isDeleting ? "Deleting..." : "Delete update"}
             </DropdownMenuItem>
-            {!notification.is_seen ? (
-              <DropdownMenuItem
-                onSelect={() => onMarkSeen(notification.id)}
-                className="cursor-pointer rounded-[10px] px-3 py-2 text-[15px] font-medium"
-              >
-                Mark as seen
-              </DropdownMenuItem>
-            ) : null}
             <DropdownMenuItem className="cursor-pointer rounded-[10px] px-3 py-2 text-[15px] font-medium">
               View notification settings
             </DropdownMenuItem>
@@ -140,13 +129,11 @@ function UpdatesSection({
   notifications,
   deletingId,
   onDelete,
-  onMarkSeen,
 }: {
   title: string;
   notifications: Notification[];
   deletingId: string | null;
   onDelete: (id: string) => void;
-  onMarkSeen: (id: string) => void;
 }) {
   if (notifications.length === 0) return null;
 
@@ -160,7 +147,6 @@ function UpdatesSection({
             notification={notification}
             isDeleting={deletingId === notification.id}
             onDelete={onDelete}
-            onMarkSeen={onMarkSeen}
           />
         ))}
       </div>
@@ -181,13 +167,13 @@ export function UpdatesPanel() {
     void queryClient.invalidateQueries({ queryKey: unreadNotificationsQueryKey });
   };
 
-  const markSeenMutation = useMutation({
-    mutationFn: markNotificationSeen,
-    onSuccess: refreshNotifications,
-  });
   const markAllSeenMutation = useMutation({
     mutationFn: markAllNotificationsSeen,
-    onSuccess: refreshNotifications,
+    onSuccess: () => {
+      // Clear the unread badge without re-sorting the open list, so the
+      // current New/Seen split stays put until the panel is reopened.
+      void queryClient.invalidateQueries({ queryKey: unreadNotificationsQueryKey });
+    },
   });
   const deleteMutation = useMutation({
     mutationFn: deleteNotification,
@@ -210,19 +196,20 @@ export function UpdatesPanel() {
   const unread = notifications.filter((notification) => !notification.is_seen);
   const seen = notifications.filter((notification) => notification.is_seen);
 
+  // Once the panel has opened with unread updates, mark them all seen in the
+  // background so the bell's red dot clears. Runs once per mount.
+  const hasMarkedSeen = useRef(false);
+  const markAllSeen = markAllSeenMutation.mutate;
+  useEffect(() => {
+    if (hasMarkedSeen.current || unread.length === 0) return;
+    hasMarkedSeen.current = true;
+    markAllSeen();
+  }, [unread.length, markAllSeen]);
+
   return (
     <div className="max-h-[80vh] w-[min(400px,calc(100vw-24px))] overflow-y-auto rounded-[16px] bg-popover p-4">
-      <div className="mb-3 flex items-center justify-between gap-3 px-2">
+      <div className="mb-3 flex items-center px-2">
         <h2 className="text-xl font-bold text-foreground">Updates</h2>
-        {unread.length > 0 ? (
-          <button
-            onClick={() => markAllSeenMutation.mutate()}
-            disabled={markAllSeenMutation.isPending}
-            className="rounded-full px-3 py-1.5 text-sm font-semibold text-foreground transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Mark all seen
-          </button>
-        ) : null}
       </div>
 
       {notificationsQuery.isLoading ? (
@@ -257,14 +244,12 @@ export function UpdatesPanel() {
             notifications={unread}
             deletingId={deletingId}
             onDelete={(id) => deleteMutation.mutate(id)}
-            onMarkSeen={(id) => markSeenMutation.mutate(id)}
           />
           <UpdatesSection
             title="Seen"
             notifications={seen}
             deletingId={deletingId}
             onDelete={(id) => deleteMutation.mutate(id)}
-            onMarkSeen={(id) => markSeenMutation.mutate(id)}
           />
         </div>
       )}
