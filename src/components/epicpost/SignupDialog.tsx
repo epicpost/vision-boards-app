@@ -164,6 +164,7 @@ export function SignupDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
+        onInteractOutside={(event) => event.preventDefault()}
         className="max-w-[460px] rounded-[28px] p-10 border-none shadow-2xl"
       >
         <div className="flex flex-col items-center text-center">

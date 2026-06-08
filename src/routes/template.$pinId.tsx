@@ -14,6 +14,10 @@ import {
   Lock,
   Check,
   Plus,
+  Link2,
+  MessageCircle,
+  Facebook,
+  Twitter,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -194,11 +198,77 @@ function PinDetail() {
   const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isSaveOpen, setIsSaveOpen] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [shareSearch, setShareSearch] = useState("");
   const [isCreateBoardOpen, setIsCreateBoardOpen] = useState(false);
   const [boardSearch, setBoardSearch] = useState("");
   const [savedBoardId, setSavedBoardId] = useState<string | null>(null);
   const [isFirstMediaLoaded, setIsFirstMediaLoaded] = useState(false);
   const isSignedIn = Boolean(getAccessToken());
+  const shareUrl =
+    typeof window !== "undefined" ? window.location.href : `/template/${pinId}`;
+  const shareTitle = template?.title ?? "Check out this template on EpicPost";
+  const shareTargets = useMemo(
+    () => [
+      {
+        key: "copy",
+        label: "Copy link",
+        bg: "bg-secondary",
+        icon: <Link2 className="h-7 w-7 text-foreground" strokeWidth={2.2} />,
+        onClick: async () => {
+          try {
+            await navigator.clipboard.writeText(shareUrl);
+            toast.success("Link copied");
+          } catch {
+            toast.error("Could not copy link");
+          }
+        },
+      },
+      {
+        key: "whatsapp",
+        label: "WhatsApp",
+        bg: "bg-[#25D366]",
+        icon: <MessageCircle className="h-7 w-7 text-white" strokeWidth={2.2} />,
+        href: `https://wa.me/?text=${encodeURIComponent(`${shareTitle} ${shareUrl}`)}`,
+      },
+      {
+        key: "facebook",
+        label: "Facebook",
+        bg: "bg-[#1877F2]",
+        icon: <Facebook className="h-7 w-7 text-white" fill="currentColor" strokeWidth={0} />,
+        href: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`,
+      },
+      {
+        key: "x",
+        label: "X",
+        bg: "bg-foreground",
+        icon: <Twitter className="h-7 w-7 text-background" fill="currentColor" strokeWidth={0} />,
+        href: `https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareTitle)}`,
+      },
+    ],
+    [shareUrl, shareTitle],
+  );
+  const shareRecipients = useMemo(
+    () => [
+      { id: "ella", name: "ELLA", handle: "@ella_contentclub" },
+      {
+        id: "global-travel",
+        name: "Global Travel Inspiration",
+        handle: "@GlobalTravelCollection2",
+      },
+      { id: "uae", name: "UAE", handle: "@uaestories" },
+    ],
+    [],
+  );
+  const filteredRecipients = useMemo(() => {
+    const query = shareSearch.trim().toLowerCase();
+    if (!query) return shareRecipients;
+    return shareRecipients.filter(
+      (recipient) =>
+        recipient.name.toLowerCase().includes(query) ||
+        recipient.handle.toLowerCase().includes(query),
+    );
+  }, [shareRecipients, shareSearch]);
   // Prefetch and cache boards as soon as the pin detail opens so that opening
   // the save dropdown reads from the cache instead of showing "Loading boards...".
   const boardsQuery = useQuery({
@@ -464,12 +534,114 @@ function PinDetail() {
                             {template?.likes_count ?? 0}
                           </span>
                         </button>
-                        <button
-                          aria-label="Share"
-                          className="h-10 w-10 rounded-full hover:bg-secondary flex items-center justify-center transition"
-                        >
-                          <Upload className="h-5 w-5 text-foreground" strokeWidth={2.2} />
-                        </button>
+                        <Popover open={isShareOpen} onOpenChange={(open) => {
+                          setIsShareOpen(open);
+                          if (!open) setShareSearch("");
+                        }}>
+                          <PopoverTrigger asChild>
+                            <button
+                              aria-label="Share"
+                              className="h-10 w-10 rounded-full hover:bg-secondary flex items-center justify-center transition"
+                            >
+                              <Upload className="h-5 w-5 text-foreground" strokeWidth={2.2} />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            align="start"
+                            sideOffset={10}
+                            className="w-[min(calc(100vw-24px),360px)] overflow-hidden rounded-[20px] border-0 bg-background p-0 text-foreground shadow-[0_12px_36px_rgba(0,0,0,0.18)]"
+                          >
+                            <div className="max-h-[min(72vh,560px)] overflow-y-auto px-4 pb-4 pt-4">
+                              <h3 className="mb-4 text-center text-xl font-bold">Share</h3>
+                              <div className="mb-4 flex items-start justify-between gap-2">
+                                {shareTargets.map((target) =>
+                                  target.href ? (
+                                    <a
+                                      key={target.key}
+                                      href={target.href}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="flex flex-1 flex-col items-center gap-2 text-center"
+                                    >
+                                      <span className={`flex h-14 w-14 items-center justify-center rounded-full ${target.bg}`}>
+                                        {target.icon}
+                                      </span>
+                                      <span className="text-[13px] font-medium text-foreground">
+                                        {target.label}
+                                      </span>
+                                    </a>
+                                  ) : (
+                                    <button
+                                      key={target.key}
+                                      type="button"
+                                      onClick={target.onClick}
+                                      className="flex flex-1 flex-col items-center gap-2 text-center"
+                                    >
+                                      <span className={`flex h-14 w-14 items-center justify-center rounded-full ${target.bg}`}>
+                                        {target.icon}
+                                      </span>
+                                      <span className="text-[13px] font-medium text-foreground">
+                                        {target.label}
+                                      </span>
+                                    </button>
+                                  ),
+                                )}
+                              </div>
+
+                              <div className="mb-4 h-px bg-border" />
+
+                              <label className="mb-4 flex h-12 items-center gap-2 rounded-[16px] bg-input px-4 transition focus-within:ring-2 focus-within:ring-ring">
+                                <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
+                                <input
+                                  type="search"
+                                  placeholder="Search by name or email"
+                                  value={shareSearch}
+                                  onChange={(event) => setShareSearch(event.target.value)}
+                                  className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
+                                />
+                              </label>
+
+                              {filteredRecipients.length === 0 ? (
+                                <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                                  No people match your search.
+                                </p>
+                              ) : (
+                                <div className="space-y-1">
+                                  {filteredRecipients.map((recipient) => (
+                                    <div
+                                      key={recipient.id}
+                                      className="flex items-center gap-3 rounded-[14px] px-2 py-2"
+                                    >
+                                      <div className="h-12 w-12 shrink-0 rounded-full bg-gradient-to-br from-rose-300 to-amber-200" />
+                                      <div className="min-w-0 flex-1">
+                                        <p className="truncate text-base font-semibold text-foreground">
+                                          {recipient.name}
+                                        </p>
+                                        <p className="truncate text-sm text-muted-foreground">
+                                          {recipient.handle}
+                                        </p>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (!isSignedIn) {
+                                            setIsShareOpen(false);
+                                            setIsAuthOpen(true);
+                                            return;
+                                          }
+                                          toast.success(`Sent to ${recipient.name}`);
+                                        }}
+                                        className="h-10 shrink-0 rounded-full bg-secondary px-5 text-sm font-semibold text-foreground transition hover:brightness-95"
+                                      >
+                                        Send
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
                         <button
                           aria-label="More"
                           className="h-10 w-10 rounded-full hover:bg-secondary flex items-center justify-center transition"
