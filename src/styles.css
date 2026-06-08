@@ -171,3 +171,16 @@
     transform: scale(1);
   }
 }
+
+/* Keep Google Identity Services One Tap / account chooser above the auth
+   dialog overlay and clickable. Radix sets `pointer-events: none` on <body>
+   while a dialog is open, and the dialog overlay sits at z-50; Google appends
+   its prompt to <body>, outside the React tree, so without this the chooser is
+   either covered or unclickable (clicking it would dismiss it). */
+#credential_picker_container,
+#credential_picker_iframe,
+div[id^="credential_picker"],
+iframe[src*="accounts.google.com/gsi"] {
+  z-index: 2147483647 !important;
+  pointer-events: auto !important;
+}
