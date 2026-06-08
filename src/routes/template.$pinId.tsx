@@ -4,6 +4,7 @@ import {
   Heart,
   Upload,
   MoreHorizontal,
+  ChevronLeft,
   ChevronRight,
   Maximize2,
   Sparkles,
@@ -23,6 +24,7 @@ import { TemplateCard } from "@/components/epicpost/TemplateCard";
 import { MobileNav } from "@/components/epicpost/MobileNav";
 import { SignupDialog } from "@/components/epicpost/SignupDialog";
 import { CreateBoardDialog } from "@/components/epicpost/CreateBoardDialog";
+import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   fetchPostTemplates,
@@ -245,9 +247,19 @@ function PinDetail() {
   const selectedMedia = previewMedia[selectedMediaIndex] ?? previewMedia[0] ?? null;
   const showMediaBullets = previewMedia.length > 1;
   const showMediaPreviews = previewMedia.length > 1;
+  const canShowPreviousMedia = selectedMediaIndex > 0;
+  const canShowNextMedia = selectedMediaIndex < previewMedia.length - 1;
   const thumbs = previewMedia.slice(0, 5);
   const sidePins = relatedTemplates.slice(0, 10);
   const belowPins = relatedTemplates.slice(10).concat(relatedTemplates.slice(0, 10));
+
+  function showPreviousMedia() {
+    setSelectedMediaIndex((index) => Math.max(0, index - 1));
+  }
+
+  function showNextMedia() {
+    setSelectedMediaIndex((index) => Math.min(previewMedia.length - 1, index + 1));
+  }
 
   useEffect(() => {
     setSelectedMediaIndex(0);
@@ -304,6 +316,30 @@ function PinDetail() {
                           : "Template preview unavailable"}
                       </div>
                     )}
+                    {canShowPreviousMedia ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="icon"
+                        aria-label="Previous media"
+                        onClick={showPreviousMedia}
+                        className="absolute left-4 top-1/2 z-10 h-12 w-12 -translate-y-1/2 rounded-full bg-background/90 shadow-md hover:bg-background"
+                      >
+                        <ChevronLeft className="h-6 w-6 text-foreground" strokeWidth={2.4} />
+                      </Button>
+                    ) : null}
+                    {canShowNextMedia ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="icon"
+                        aria-label="Next media"
+                        onClick={showNextMedia}
+                        className="absolute right-4 top-1/2 z-10 h-12 w-12 -translate-y-1/2 rounded-full bg-background/90 shadow-md hover:bg-background"
+                      >
+                        <ChevronRight className="h-6 w-6 text-foreground" strokeWidth={2.4} />
+                      </Button>
+                    ) : null}
                     {showMediaBullets && (
                       <div
                         className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2"
