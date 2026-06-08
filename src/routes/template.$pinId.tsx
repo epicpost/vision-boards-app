@@ -66,6 +66,33 @@ function uniqueTemplates(templates: PostTemplate[]) {
   return Array.from(new Map(templates.map((template) => [template.id, template])).values());
 }
 
+function preloadMediaAssets(media: PreviewMedia[]) {
+  const cleanup: Array<() => void> = [];
+
+  media.forEach((item) => {
+    if (item.type === "video") {
+      const video = document.createElement("video");
+      video.preload = "auto";
+      video.muted = true;
+      video.playsInline = true;
+      video.src = item.url;
+      video.load();
+      cleanup.push(() => {
+        video.removeAttribute("src");
+        video.load();
+      });
+      return;
+    }
+
+    const image = new Image();
+    image.src = item.url;
+  });
+
+  return () => {
+    cleanup.forEach((dispose) => dispose());
+  };
+}
+
 interface PreviewMedia {
   id: string;
   url: string;
@@ -171,6 +198,7 @@ function PinDetail() {
   const [isCreateBoardOpen, setIsCreateBoardOpen] = useState(false);
   const [boardSearch, setBoardSearch] = useState("");
   const [savedBoardId, setSavedBoardId] = useState<string | null>(null);
+  const [isFirstMediaLoaded, setIsFirstMediaLoaded] = useState(false);
   const isSignedIn = Boolean(getAccessToken());
   // Prefetch and cache boards as soon as the pin detail opens so that opening
   // the save dropdown reads from the cache instead of showing "Loading boards...".
@@ -244,12 +272,12 @@ function PinDetail() {
     const media = getTemplateMedia(template);
     return media.url ? [{ id: `${template.id}-preview`, url: media.url, type: media.type }] : [];
   }, [template]);
+  const firstPreviewMediaId = previewMedia[0]?.id;
   const selectedMedia = previewMedia[selectedMediaIndex] ?? previewMedia[0] ?? null;
   const showMediaBullets = previewMedia.length > 1;
   const showMediaPreviews = previewMedia.length > 1;
   const canShowPreviousMedia = selectedMediaIndex > 0;
   const canShowNextMedia = selectedMediaIndex < previewMedia.length - 1;
-  const thumbs = previewMedia.slice(0, 5);
   const sidePins = relatedTemplates.slice(0, 10);
   const belowPins = relatedTemplates.slice(10).concat(relatedTemplates.slice(0, 10));
 
@@ -263,7 +291,12 @@ function PinDetail() {
 
   useEffect(() => {
     setSelectedMediaIndex(0);
+    setIsFirstMediaLoaded(false);
   }, [pinId]);
+
+  useEffect(() => {
+    setIsFirstMediaLoaded(false);
+  }, [firstPreviewMediaId]);
 
   useEffect(() => {
     if (selectedMediaIndex >= previewMedia.length) {
@@ -298,6 +331,12 @@ function PinDetail() {
     return () => window.removeEventListener("keydown", handleCarouselKeyDown);
   }, [previewMedia.length]);
 
+  useEffect(() => {
+    if (!isFirstMediaLoaded || previewMedia.length <= 1) return;
+
+    return preloadMediaAssets(previewMedia.slice(1));
+  }, [isFirstMediaLoaded, previewMedia]);
+
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
@@ -327,6 +366,9 @@ function PinDetail() {
                         loop
                         playsInline
                         autoPlay
+                        onLoadedData={() => {
+                          if (selectedMediaIndex === 0) setIsFirstMediaLoaded(true);
+                        }}
                         className="h-full max-h-[820px] w-full object-contain"
                       />
                     ) : selectedMedia ? (
@@ -334,6 +376,9 @@ function PinDetail() {
                         key={selectedMedia.id}
                         src={selectedMedia.url}
                         alt={template?.title ?? "Template"}
+                        onLoad={() => {
+                          if (selectedMediaIndex === 0) setIsFirstMediaLoaded(true);
+                        }}
                         className="h-full max-h-[820px] w-full object-contain"
                       />
                     ) : (
@@ -592,31 +637,37 @@ function PinDetail() {
 
                     {showMediaPreviews && (
                       <div className="flex items-center gap-2 mb-5">
-                        {thumbs.map((asset, i) => (
-                          <button
-                            key={asset.id}
-                            type="button"
-                            onClick={() => setSelectedMediaIndex(i)}
-                            className={`h-14 w-14 shrink-0 overflow-hidden rounded-[14px] transition ${
-                              i === selectedMediaIndex
-                                ? "ring-2 ring-foreground"
-                                : "opacity-90 hover:opacity-100"
-                            }`}
-                          >
-                            {asset.type === "video" ? (
-                              <video
-                                src={asset.url}
-                                muted
-                                playsInline
-                                preload="metadata"
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <img src={asset.url} alt="" className="h-full w-full object-cover" />
-                            )}
-                          </button>
-                        ))}
-                        <button className="h-10 w-10 ml-auto rounded-full hover:bg-secondary flex items-center justify-center">
+                        <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto py-1">
+                          {previewMedia.map((asset, i) => (
+                            <button
+                              key={asset.id}
+                              type="button"
+                              onClick={() => setSelectedMediaIndex(i)}
+                              className={`h-14 w-14 shrink-0 overflow-hidden rounded-[14px] transition ${
+                                i === selectedMediaIndex
+                                  ? "ring-2 ring-foreground"
+                                  : "opacity-90 hover:opacity-100"
+                              }`}
+                            >
+                              {asset.type === "video" ? (
+                                <video
+                                  src={asset.url}
+                                  muted
+                                  playsInline
+                                  preload="metadata"
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <img
+                                  src={asset.url}
+                                  alt=""
+                                  className="h-full w-full object-cover"
+                                />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                        <button className="h-10 w-10 shrink-0 rounded-full hover:bg-secondary flex items-center justify-center">
                           <ChevronRight className="h-5 w-5 text-foreground" />
                         </button>
                       </div>
