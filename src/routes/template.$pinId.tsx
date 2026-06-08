@@ -205,6 +205,62 @@ function PinDetail() {
   const [savedBoardId, setSavedBoardId] = useState<string | null>(null);
   const [isFirstMediaLoaded, setIsFirstMediaLoaded] = useState(false);
   const isSignedIn = Boolean(getAccessToken());
+  // Prefetch and cache boards as soon as the pin detail opens so that opening
+  // the save dropdown reads from the cache instead of showing "Loading boards...".
+  const boardsQuery = useQuery({
+    queryKey: boardsQueryKey(pinId),
+    queryFn: () => fetchBoards(pinId),
+    enabled: isSignedIn,
+    staleTime: 5 * 60 * 1000,
+  });
+  const unsaveMutation = useMutation({
+    mutationFn: (boardId: string) => unsaveTemplateFromBoard(pinId, boardId),
+    onSuccess: () => {
+      setSavedBoardId(null);
+      showRemovedToast();
+    },
+    onError: (error: unknown) => {
+      toast.error(error instanceof Error ? error.message : "Could not remove template.");
+    },
+  });
+  const saveMutation = useMutation({
+    mutationFn: (boardId: string) => saveTemplateToBoard(pinId, boardId),
+    onSuccess: (_data, boardId) => {
+      setSavedBoardId(boardId);
+      const board = boardsQuery.data?.data.find((item) => item.id === boardId);
+      showSavedToast(board ?? null, () => {
+        unsaveMutation.mutate(boardId);
+      });
+      setIsSaveOpen(false);
+    },
+    onError: (error: unknown) => {
+      toast.error(error instanceof Error ? error.message : "Could not save template.");
+    },
+  });
+  const boards = useMemo(() => boardsQuery.data?.data ?? [], [boardsQuery.data]);
+  const filteredBoards = useMemo(() => {
+    const query = boardSearch.trim().toLowerCase();
+    if (!query) return boards;
+    return boards.filter((board) => board.name.toLowerCase().includes(query));
+  }, [boards, boardSearch]);
+  // The API flags boards relevant to this template (`suggest_for=pinId`) as
+  // top choices based on tag overlap; we keep them out of the "All boards" list.
+  // While searching, show a single flat list of matches instead.
+  const topChoices = boardSearch ? [] : filteredBoards.filter((board) => board.is_top_choice);
+  const otherBoards = boardSearch
+    ? filteredBoards
+    : filteredBoards.filter((board) => !board.is_top_choice);
+  const selectedBoard = boards.find((board) => board.id === savedBoardId) ?? null;
+  const defaultFeedQuery = useQuery({
+    queryKey: postTemplatesQueryKey(),
+    queryFn: () => fetchPostTemplates(),
+  });
+  const cachedFeeds = queryClient.getQueriesData<PostTemplateFeedResponse>({
+    queryKey: ["post-templates"],
+  });
+  const cachedTemplates = cachedFeeds.flatMap(([, feed]) => feed?.data ?? []);
+  const templates = uniqueTemplates([...cachedTemplates, ...(defaultFeedQuery.data?.data ?? [])]);
+  const template = templates.find((item) => item.id === pinId);
   const shareUrl =
     typeof window !== "undefined" ? window.location.href : `/template/${pinId}`;
   const shareTitle = template?.title ?? "Check out this template on EpicPost";
@@ -269,62 +325,6 @@ function PinDetail() {
         recipient.handle.toLowerCase().includes(query),
     );
   }, [shareRecipients, shareSearch]);
-  // Prefetch and cache boards as soon as the pin detail opens so that opening
-  // the save dropdown reads from the cache instead of showing "Loading boards...".
-  const boardsQuery = useQuery({
-    queryKey: boardsQueryKey(pinId),
-    queryFn: () => fetchBoards(pinId),
-    enabled: isSignedIn,
-    staleTime: 5 * 60 * 1000,
-  });
-  const unsaveMutation = useMutation({
-    mutationFn: (boardId: string) => unsaveTemplateFromBoard(pinId, boardId),
-    onSuccess: () => {
-      setSavedBoardId(null);
-      showRemovedToast();
-    },
-    onError: (error: unknown) => {
-      toast.error(error instanceof Error ? error.message : "Could not remove template.");
-    },
-  });
-  const saveMutation = useMutation({
-    mutationFn: (boardId: string) => saveTemplateToBoard(pinId, boardId),
-    onSuccess: (_data, boardId) => {
-      setSavedBoardId(boardId);
-      const board = boardsQuery.data?.data.find((item) => item.id === boardId);
-      showSavedToast(board ?? null, () => {
-        unsaveMutation.mutate(boardId);
-      });
-      setIsSaveOpen(false);
-    },
-    onError: (error: unknown) => {
-      toast.error(error instanceof Error ? error.message : "Could not save template.");
-    },
-  });
-  const boards = useMemo(() => boardsQuery.data?.data ?? [], [boardsQuery.data]);
-  const filteredBoards = useMemo(() => {
-    const query = boardSearch.trim().toLowerCase();
-    if (!query) return boards;
-    return boards.filter((board) => board.name.toLowerCase().includes(query));
-  }, [boards, boardSearch]);
-  // The API flags boards relevant to this template (`suggest_for=pinId`) as
-  // top choices based on tag overlap; we keep them out of the "All boards" list.
-  // While searching, show a single flat list of matches instead.
-  const topChoices = boardSearch ? [] : filteredBoards.filter((board) => board.is_top_choice);
-  const otherBoards = boardSearch
-    ? filteredBoards
-    : filteredBoards.filter((board) => !board.is_top_choice);
-  const selectedBoard = boards.find((board) => board.id === savedBoardId) ?? null;
-  const defaultFeedQuery = useQuery({
-    queryKey: postTemplatesQueryKey(),
-    queryFn: () => fetchPostTemplates(),
-  });
-  const cachedFeeds = queryClient.getQueriesData<PostTemplateFeedResponse>({
-    queryKey: ["post-templates"],
-  });
-  const cachedTemplates = cachedFeeds.flatMap(([, feed]) => feed?.data ?? []);
-  const templates = uniqueTemplates([...cachedTemplates, ...(defaultFeedQuery.data?.data ?? [])]);
-  const template = templates.find((item) => item.id === pinId);
   const currentBoardId = savedBoardId ?? template?.board_id ?? null;
   const isSaved = Boolean(currentBoardId);
   const relatedTemplates = templates.filter((item) => item.id !== pinId);
