@@ -356,30 +356,50 @@ function PinDetail() {
                       <ArrowLeft className="h-5 w-5 text-foreground" strokeWidth={2.4} />
                     </button>
                     {selectedMedia?.type === "video" ? (
-                      <video
-                        key={selectedMedia.id}
-                        src={selectedMedia.url}
-                        aria-label={template?.title ?? "Video template"}
-                        controls
-                        muted
-                        loop
-                        playsInline
-                        autoPlay
-                        onLoadedData={() => {
-                          if (selectedMediaIndex === 0) setIsFirstMediaLoaded(true);
-                        }}
-                        className="h-full max-h-[820px] w-full object-contain"
-                      />
+                      <div className="relative mx-auto flex w-fit max-w-full">
+                        <video
+                          key={selectedMedia.id}
+                          src={selectedMedia.url}
+                          aria-label={template?.title ?? "Video template"}
+                          controls
+                          muted
+                          loop
+                          playsInline
+                          autoPlay
+                          onLoadedData={() => {
+                            if (selectedMediaIndex === 0) setIsFirstMediaLoaded(true);
+                          }}
+                          className="max-h-[820px] max-w-full object-contain"
+                        />
+                        <div className="absolute bottom-4 right-4 flex flex-col gap-2">
+                          <button
+                            aria-label="Expand"
+                            className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-background shadow-md transition hover:bg-secondary"
+                          >
+                            <Maximize2 className="h-5 w-5 text-foreground" />
+                          </button>
+                        </div>
+                      </div>
                     ) : selectedMedia ? (
-                      <img
-                        key={selectedMedia.id}
-                        src={selectedMedia.url}
-                        alt={template?.title ?? "Template"}
-                        onLoad={() => {
-                          if (selectedMediaIndex === 0) setIsFirstMediaLoaded(true);
-                        }}
-                        className="h-full max-h-[820px] w-full object-contain"
-                      />
+                      <div className="relative mx-auto flex w-fit max-w-full">
+                        <img
+                          key={selectedMedia.id}
+                          src={selectedMedia.url}
+                          alt={template?.title ?? "Template"}
+                          onLoad={() => {
+                            if (selectedMediaIndex === 0) setIsFirstMediaLoaded(true);
+                          }}
+                          className="max-h-[820px] max-w-full object-contain"
+                        />
+                        <div className="absolute bottom-4 right-4 flex flex-col gap-2">
+                          <button
+                            aria-label="Expand"
+                            className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-background shadow-md transition hover:bg-secondary"
+                          >
+                            <Maximize2 className="h-5 w-5 text-foreground" />
+                          </button>
+                        </div>
+                      </div>
                     ) : (
                       <div className="flex min-h-[480px] w-full items-center justify-center px-6 text-center text-sm font-semibold text-muted-foreground">
                         {defaultFeedQuery.isLoading
@@ -432,14 +452,6 @@ function PinDetail() {
                         ))}
                       </div>
                     )}
-                    <div className="absolute bottom-4 right-4 flex flex-col gap-2">
-                      <button
-                        aria-label="Expand"
-                        className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-background shadow-md transition hover:bg-secondary"
-                      >
-                        <Maximize2 className="h-5 w-5 text-foreground" />
-                      </button>
-                    </div>
                   </div>
 
                   {/* Details side */}
