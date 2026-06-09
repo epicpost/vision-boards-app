@@ -30,13 +30,16 @@ import { CreateBoardDialog } from "@/components/epicpost/CreateBoardDialog";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
+  fetchPostTemplate,
   fetchPostTemplates,
   getTemplateMedia,
+  postTemplateQueryKey,
   postTemplatesQueryKey,
   type TemplateMediaType,
   type PostTemplate,
   type PostTemplateFeedResponse,
 } from "@/lib/post-templates";
+import { TemplateRequirements } from "@/components/epicpost/TemplateRequirements";
 import {
   boardsQueryKey,
   fetchBoards,
@@ -260,7 +263,14 @@ function PinDetail() {
   });
   const cachedTemplates = cachedFeeds.flatMap(([, feed]) => feed?.data ?? []);
   const templates = uniqueTemplates([...cachedTemplates, ...(defaultFeedQuery.data?.data ?? [])]);
-  const template = templates.find((item) => item.id === pinId);
+  // Fetch the full single-template contract (input/output requirements, slots)
+  // directly so the page can render the requirements panel even when the feed
+  // cache is empty (e.g. opening the detail URL cold).
+  const detailQuery = useQuery({
+    queryKey: postTemplateQueryKey(pinId),
+    queryFn: () => fetchPostTemplate(pinId),
+  });
+  const template = detailQuery.data ?? templates.find((item) => item.id === pinId);
   const shareUrl =
     typeof window !== "undefined" ? window.location.href : `/template/${pinId}`;
   const shareTitle = template?.title ?? "Check out this template on EpicPost";
@@ -872,6 +882,8 @@ function PinDetail() {
                     <button className="self-end mt-2 text-sm font-bold text-foreground hover:underline">
                       See less
                     </button>
+
+                    {template ? <TemplateRequirements template={template} /> : null}
 
                     {template?.comments.length ? (
                       <div className="mt-6 space-y-3">
