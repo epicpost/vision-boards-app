@@ -886,13 +886,6 @@ function PinDetail() {
 
                     {template ? <TemplateRequirements template={template} /> : null}
 
-                    {template ? (
-                      <RemixComposer
-                        template={template}
-                        onRequireAuth={() => setIsAuthOpen(true)}
-                      />
-                    ) : null}
-
                     {template?.comments.length ? (
                       <div className="mt-6 space-y-3">
                         {template.comments.slice(0, 3).map((comment) => (
@@ -915,33 +908,41 @@ function PinDetail() {
                       </div>
                     ) : null}
 
-                    <div className="mt-auto pt-6">
-                      <div className="flex items-center gap-2 h-14 rounded-[28px] bg-secondary px-5">
-                        <input
-                          type="text"
-                          placeholder="Add a comment to start the conversation"
-                          className="flex-1 bg-transparent outline-none text-foreground placeholder:text-muted-foreground text-[15px]"
-                        />
-                        <button
-                          aria-label="Emoji"
-                          className="h-9 w-9 rounded-full hover:bg-background/60 flex items-center justify-center"
-                        >
-                          <Smile className="h-5 w-5 text-foreground" />
-                        </button>
-                        <button
-                          aria-label="Sticker"
-                          className="h-9 w-9 rounded-full hover:bg-background/60 flex items-center justify-center"
-                        >
-                          <Sticker className="h-5 w-5 text-foreground" />
-                        </button>
-                        <button
-                          aria-label="Image"
-                          className="h-9 w-9 rounded-full hover:bg-background/60 flex items-center justify-center"
-                        >
-                          <ImageIcon className="h-5 w-5 text-foreground" />
-                        </button>
+                    {template &&
+                    (!template.capabilities || template.capabilities.supports_remix) ? (
+                      <RemixComposer
+                        template={template}
+                        onRequireAuth={() => setIsAuthOpen(true)}
+                      />
+                    ) : (
+                      <div className="mt-auto pt-6">
+                        <div className="flex items-center gap-2 h-14 rounded-[28px] bg-secondary px-5">
+                          <input
+                            type="text"
+                            placeholder="Add a comment to start the conversation"
+                            className="flex-1 bg-transparent outline-none text-foreground placeholder:text-muted-foreground text-[15px]"
+                          />
+                          <button
+                            aria-label="Emoji"
+                            className="h-9 w-9 rounded-full hover:bg-background/60 flex items-center justify-center"
+                          >
+                            <Smile className="h-5 w-5 text-foreground" />
+                          </button>
+                          <button
+                            aria-label="Sticker"
+                            className="h-9 w-9 rounded-full hover:bg-background/60 flex items-center justify-center"
+                          >
+                            <Sticker className="h-5 w-5 text-foreground" />
+                          </button>
+                          <button
+                            aria-label="Image"
+                            className="h-9 w-9 rounded-full hover:bg-background/60 flex items-center justify-center"
+                          >
+                            <ImageIcon className="h-5 w-5 text-foreground" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </article>
