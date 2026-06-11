@@ -112,6 +112,18 @@ export interface VideoRequirements {
   scene_roles: string[];
 }
 
+export interface TemplateCapabilities {
+  supports_ai_generation: boolean;
+  supports_remix: boolean;
+  supports_asset_replacement: boolean;
+  supports_text_rewrite: boolean;
+  supports_brand_adaptation: boolean;
+  supports_aspect_ratio_conversion: boolean;
+  supports_language_adaptation: boolean;
+  supports_batch_generation: boolean;
+  supports_variants: boolean;
+}
+
 export interface CarouselRequirements {
   slides_min: number;
   slides_max: number;
@@ -153,6 +165,7 @@ export interface PostTemplate {
   input_image_count?: number | null;
   render_engine?: string;
   render_mode?: string;
+  capabilities?: TemplateCapabilities;
   input_requirements?: InputRequirements;
   output_spec?: ImageOutputSpec | null;
   video_output_spec?: VideoOutputSpec | null;

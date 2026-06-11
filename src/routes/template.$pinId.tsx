@@ -40,6 +40,7 @@ import {
   type PostTemplateFeedResponse,
 } from "@/lib/post-templates";
 import { TemplateRequirements } from "@/components/epicpost/TemplateRequirements";
+import { RemixComposer } from "@/components/epicpost/RemixComposer";
 import {
   boardsQueryKey,
   fetchBoards,
@@ -884,6 +885,13 @@ function PinDetail() {
                     </button>
 
                     {template ? <TemplateRequirements template={template} /> : null}
+
+                    {template ? (
+                      <RemixComposer
+                        template={template}
+                        onRequireAuth={() => setIsAuthOpen(true)}
+                      />
+                    ) : null}
 
                     {template?.comments.length ? (
                       <div className="mt-6 space-y-3">
