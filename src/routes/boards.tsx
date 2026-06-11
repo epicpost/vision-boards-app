@@ -6,8 +6,12 @@ import { Sidebar } from "@/components/epicpost/Sidebar";
 import { TopBar } from "@/components/epicpost/TopBar";
 import { MobileNav } from "@/components/epicpost/MobileNav";
 import { CreateBoardDialog } from "@/components/epicpost/CreateBoardDialog";
+import { TemplateCard } from "@/components/epicpost/TemplateCard";
 import { pins } from "@/components/epicpost/pins-data";
 import { boardsQueryKey, fetchBoards, type Board } from "@/lib/boards";
+import { fetchLikedTemplates, likedTemplatesQueryKey } from "@/lib/likes";
+import { getTemplateMedia, type PostTemplate } from "@/lib/post-templates";
+import { getAccessToken } from "@/lib/auth";
 
 export const Route = createFileRoute("/boards")({
   head: () => ({
@@ -93,10 +97,85 @@ function BoardCardSkeleton() {
 const TABS = [
   { key: "remixes", label: "Remixes" },
   { key: "boards", label: "Boards" },
+  { key: "likes", label: "Likes" },
 ] as const;
+
+type TabKey = (typeof TABS)[number]["key"];
+
+function templateToPin(template: PostTemplate, index: number) {
+  const media = getTemplateMedia(template);
+
+  return {
+    id: template.id,
+    src: media.url,
+    mediaType: media.type,
+    width: media.width,
+    height: media.height,
+    fallbackHeight: 460 + (index % 4) * 40,
+    title: template.title,
+  };
+}
+
+function LikesGrid() {
+  const likesQuery = useQuery({
+    queryKey: likedTemplatesQueryKey(),
+    queryFn: () => fetchLikedTemplates(),
+    enabled: Boolean(getAccessToken()),
+  });
+  const liked = likesQuery.data?.data ?? [];
+
+  if (likesQuery.isLoading) {
+    return (
+      <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-3 [column-fill:_balance]">
+        {Array.from({ length: 10 }, (_, index) => (
+          <div
+            key={index}
+            className="mb-3 break-inside-avoid rounded-[16px] bg-secondary animate-pulse"
+            style={{ height: 260 + (index % 4) * 40 }}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  if (likesQuery.isError) {
+    return (
+      <div className="flex min-h-[260px] flex-col items-center justify-center text-center">
+        <h2 className="text-xl font-semibold text-foreground">Likes did not load</h2>
+        <p className="mt-2 max-w-sm text-sm text-muted-foreground">{likesQuery.error.message}</p>
+        <button
+          onClick={() => void likesQuery.refetch()}
+          className="mt-5 rounded-full bg-foreground px-5 py-2 text-sm font-semibold text-background transition hover:bg-foreground/90"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  if (!liked.length) {
+    return (
+      <div className="flex min-h-[260px] flex-col items-center justify-center text-center">
+        <h2 className="text-xl font-semibold text-foreground">No likes yet</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Tap the heart on a template to find it here later.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-3 [column-fill:_balance]">
+      {liked.map((template, index) => (
+        <TemplateCard key={template.id} pin={templateToPin(template, index)} />
+      ))}
+    </div>
+  );
+}
 
 function BoardsPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabKey>("boards");
   const boardsQuery = useQuery({
     queryKey: boardsQueryKey(),
     queryFn: () => fetchBoards(),
@@ -118,8 +197,9 @@ function BoardsPage() {
               {TABS.map((t) => (
                 <button
                   key={t.key}
+                  onClick={() => setActiveTab(t.key)}
                   className={`pb-2 text-[17px] font-semibold transition ${
-                    t.key === "boards"
+                    t.key === activeTab
                       ? "text-foreground border-b-[2px] border-foreground"
                       : "text-foreground/80 hover:text-foreground"
                   }`}
@@ -138,7 +218,14 @@ function BoardsPage() {
             </div>
           </nav>
 
-          {boardsQuery.isLoading ? (
+          {activeTab === "likes" ? (
+            <LikesGrid />
+          ) : activeTab === "remixes" ? (
+            <div className="flex min-h-[260px] flex-col items-center justify-center text-center">
+              <h2 className="text-xl font-semibold text-foreground">No remixes yet</h2>
+              <p className="mt-2 text-sm text-muted-foreground">Remix a template to see it here.</p>
+            </div>
+          ) : boardsQuery.isLoading ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8">
               {Array.from({ length: 8 }, (_, index) => (
                 <BoardCardSkeleton key={index} />

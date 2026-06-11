@@ -48,6 +48,7 @@ import {
   unsaveTemplateFromBoard,
   type Board,
 } from "@/lib/boards";
+import { likedTemplatesQueryKey, likeTemplate, unlikeTemplate } from "@/lib/likes";
 import { getAccessToken } from "@/lib/auth";
 import { useEffect, useMemo, useState } from "react";
 
@@ -241,6 +242,19 @@ function PinDetail() {
       toast.error(error instanceof Error ? error.message : "Could not save template.");
     },
   });
+  const likeMutation = useMutation({
+    mutationFn: (liked: boolean) => (liked ? likeTemplate(pinId) : unlikeTemplate(pinId)),
+    onSuccess: (state) => {
+      // Reconcile the detail cache with the server's authoritative count/state.
+      queryClient.setQueryData<PostTemplate | undefined>(postTemplateQueryKey(pinId), (cached) =>
+        cached ? { ...cached, is_liked: state.is_liked, likes_count: state.likes_count } : cached,
+      );
+      void queryClient.invalidateQueries({ queryKey: likedTemplatesQueryKey() });
+    },
+    onError: (error: unknown) => {
+      toast.error(error instanceof Error ? error.message : "Could not update like.");
+    },
+  });
   const boards = useMemo(() => boardsQuery.data?.data ?? [], [boardsQuery.data]);
   const filteredBoards = useMemo(() => {
     const query = boardSearch.trim().toLowerCase();
@@ -272,8 +286,7 @@ function PinDetail() {
     queryFn: () => fetchPostTemplate(pinId),
   });
   const template = detailQuery.data ?? templates.find((item) => item.id === pinId);
-  const shareUrl =
-    typeof window !== "undefined" ? window.location.href : `/template/${pinId}`;
+  const shareUrl = typeof window !== "undefined" ? window.location.href : `/template/${pinId}`;
   const shareTitle = template?.title ?? "Check out this template on EpicPost";
   const shareTargets = useMemo(
     () => [
@@ -539,16 +552,38 @@ function PinDetail() {
                   <div className="p-6 md:p-8 flex flex-col">
                     <div className="flex items-center justify-between mb-6">
                       <div className="flex items-center gap-1">
-                        <button className="flex items-center gap-1 px-2 h-10 rounded-full hover:bg-secondary transition">
-                          <Heart className="h-6 w-6 text-foreground" strokeWidth={2.2} />
+                        <button
+                          type="button"
+                          aria-label={template?.is_liked ? "Unlike" : "Like"}
+                          aria-pressed={Boolean(template?.is_liked)}
+                          disabled={likeMutation.isPending}
+                          onClick={() => {
+                            if (!isSignedIn) {
+                              setIsAuthOpen(true);
+                              return;
+                            }
+                            likeMutation.mutate(!template?.is_liked);
+                          }}
+                          className="flex items-center gap-1 px-2 h-10 rounded-full hover:bg-secondary transition disabled:opacity-60"
+                        >
+                          <Heart
+                            className={`h-6 w-6 transition ${
+                              template?.is_liked ? "text-[#e60023]" : "text-foreground"
+                            }`}
+                            fill={template?.is_liked ? "currentColor" : "none"}
+                            strokeWidth={2.2}
+                          />
                           <span className="text-sm font-semibold text-foreground">
                             {template?.likes_count ?? 0}
                           </span>
                         </button>
-                        <Popover open={isShareOpen} onOpenChange={(open) => {
-                          setIsShareOpen(open);
-                          if (!open) setShareSearch("");
-                        }}>
+                        <Popover
+                          open={isShareOpen}
+                          onOpenChange={(open) => {
+                            setIsShareOpen(open);
+                            if (!open) setShareSearch("");
+                          }}
+                        >
                           <PopoverTrigger asChild>
                             <button
                               aria-label="Share"
@@ -574,7 +609,9 @@ function PinDetail() {
                                       rel="noreferrer"
                                       className="flex flex-1 flex-col items-center gap-2 text-center"
                                     >
-                                      <span className={`flex h-14 w-14 items-center justify-center rounded-full ${target.bg}`}>
+                                      <span
+                                        className={`flex h-14 w-14 items-center justify-center rounded-full ${target.bg}`}
+                                      >
                                         {target.icon}
                                       </span>
                                       <span className="text-[13px] font-medium text-foreground">
@@ -588,7 +625,9 @@ function PinDetail() {
                                       onClick={target.onClick}
                                       className="flex flex-1 flex-col items-center gap-2 text-center"
                                     >
-                                      <span className={`flex h-14 w-14 items-center justify-center rounded-full ${target.bg}`}>
+                                      <span
+                                        className={`flex h-14 w-14 items-center justify-center rounded-full ${target.bg}`}
+                                      >
                                         {target.icon}
                                       </span>
                                       <span className="text-[13px] font-medium text-foreground">

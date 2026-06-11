@@ -146,6 +146,7 @@ export interface PostTemplate {
   preview_height: number | null;
   likes_count: number;
   is_saved: boolean;
+  is_liked?: boolean;
   is_remixed: boolean;
   assets: TemplateAsset[];
   board_id: string | null;
