@@ -150,103 +150,96 @@ export function TemplateRequirements({ template }: { template: PostTemplate }) {
   if (!input && !image && !video) return null;
 
   return (
-    <section className="mt-6 rounded-[16px] border border-border p-5">
-      <h2 className="mb-1 text-lg font-bold text-foreground">Requirements</h2>
-      <p className="mb-5 text-sm text-muted-foreground">
-        What this template needs and what it produces.
-      </p>
-
-      <div className="space-y-6">
-        {/* What it produces */}
-        {(aspectRatios.length > 0 || formats.length > 0 || video) && (
-          <Section icon={<FileType2 className="h-4 w-4" />} title="Output">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {aspectRatios.length > 0 && (
-                <div className="rounded-[14px] border border-border p-3">
-                  <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                    <Ratio className="h-3.5 w-3.5" /> Aspect ratios
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {aspectRatios.map((ratio) => (
-                      <Chip key={ratio}>{ratio}</Chip>
-                    ))}
-                  </div>
+    <section className="mt-6 space-y-6">
+      {/* What it produces */}
+      {(aspectRatios.length > 0 || formats.length > 0 || video) && (
+        <Section icon={<FileType2 className="h-4 w-4" />} title="Output">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {aspectRatios.length > 0 && (
+              <div className="rounded-[14px] border border-border p-3">
+                <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                  <Ratio className="h-3.5 w-3.5" /> Aspect ratios
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {aspectRatios.map((ratio) => (
+                    <Chip key={ratio}>{ratio}</Chip>
+                  ))}
                 </div>
-              )}
-              {formats.length > 0 && (
-                <div className="rounded-[14px] border border-border p-3">
-                  <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                    <FileType2 className="h-3.5 w-3.5" /> File formats
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {formats.map((format) => (
-                      <Chip key={format}>{format}</Chip>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            {video && (
-              <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                <Chip>
-                  {video.duration_min_seconds}–{video.duration_max_seconds}s
-                </Chip>
-                <Chip>{video.fps} fps</Chip>
-                {video.has_captions && (
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <Captions className="h-3.5 w-3.5" /> captions
-                  </span>
-                )}
-                {video.has_music_slot && (
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <Music className="h-3.5 w-3.5" /> music
-                  </span>
-                )}
               </div>
             )}
-          </Section>
-        )}
-
-        {/* Assets */}
-        {assets.length > 0 && (
-          <Section icon={<ImageIcon className="h-4 w-4" />} title="Assets">
-            <div className="space-y-2">
-              {assets.map((asset) => (
-                <AssetRow key={asset.key} asset={asset} />
-              ))}
-            </div>
-          </Section>
-        )}
-
-        {/* Video clips */}
-        {videoReq && (
-          <Section icon={<Clapperboard className="h-4 w-4" />} title="Video clips">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Chip>{countRange(videoReq.clips_min, videoReq.clips_max)} clips</Chip>
+            {formats.length > 0 && (
+              <div className="rounded-[14px] border border-border p-3">
+                <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                  <FileType2 className="h-3.5 w-3.5" /> File formats
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {formats.map((format) => (
+                    <Chip key={format}>{format}</Chip>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          {video && (
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
               <Chip>
-                {videoReq.clip_duration_min_seconds}–{videoReq.clip_duration_max_seconds}s each
+                {video.duration_min_seconds}–{video.duration_max_seconds}s
               </Chip>
-              {videoReq.requires_audio && <Chip>audio required</Chip>}
-              {videoReq.supports_subtitles && (
+              <Chip>{video.fps} fps</Chip>
+              {video.has_captions && (
                 <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                  <Captions className="h-3.5 w-3.5" /> subtitles
+                  <Captions className="h-3.5 w-3.5" /> captions
+                </span>
+              )}
+              {video.has_music_slot && (
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  <Music className="h-3.5 w-3.5" /> music
                 </span>
               )}
             </div>
-          </Section>
-        )}
+          )}
+        </Section>
+      )}
 
-        {/* Text */}
-        {texts.length > 0 && (
-          <Section icon={<Type className="h-4 w-4" />} title="Text">
-            <div className="space-y-2">
-              {texts.map((text) => (
-                <TextRow key={text.key} text={text} />
-              ))}
-            </div>
-          </Section>
-        )}
-      </div>
+      {/* Assets */}
+      {assets.length > 0 && (
+        <Section icon={<ImageIcon className="h-4 w-4" />} title="Assets">
+          <div className="space-y-2">
+            {assets.map((asset) => (
+              <AssetRow key={asset.key} asset={asset} />
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* Video clips */}
+      {videoReq && (
+        <Section icon={<Clapperboard className="h-4 w-4" />} title="Video clips">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Chip>{countRange(videoReq.clips_min, videoReq.clips_max)} clips</Chip>
+            <Chip>
+              {videoReq.clip_duration_min_seconds}–{videoReq.clip_duration_max_seconds}s each
+            </Chip>
+            {videoReq.requires_audio && <Chip>audio required</Chip>}
+            {videoReq.supports_subtitles && (
+              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <Captions className="h-3.5 w-3.5" /> subtitles
+              </span>
+            )}
+          </div>
+        </Section>
+      )}
+
+      {/* Text */}
+      {texts.length > 0 && (
+        <Section icon={<Type className="h-4 w-4" />} title="Text">
+          <div className="space-y-2">
+            {texts.map((text) => (
+              <TextRow key={text.key} text={text} />
+            ))}
+          </div>
+        </Section>
+      )}
     </section>
   );
 }
