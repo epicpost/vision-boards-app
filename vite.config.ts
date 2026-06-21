@@ -9,26 +9,17 @@ import { nitro } from "nitro/vite";
 
 // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
 // @cloudflare/vite-plugin builds from this — wrangler.jsonc main alone is insufficient.
-// export default defineConfig({
-//   tanstackStart: {
-//     server: { entry: "server" },
-//   },
-
-//   vite: {
-//     plugins: [
-//       nitro({
-//         preset: "vercel",
-//       }),
-//     ],
-//   },
-// });
-
 export default defineConfig({
-  nitro: process.env.VERCEL ? true : false,
-
   tanstackStart: {
-    server: {
-      entry: "server",
-    },
+    server: { entry: "server" },
+  },
+
+  vite: {
+    plugins: [
+      nitro({
+        preset: "vercel",
+      }),
+    ],
   },
 });
+
