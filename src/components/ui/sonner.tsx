@@ -3,10 +3,15 @@ import { CheckCircle2, Info, XCircle } from "lucide-react";
 
 type ToasterProps = React.ComponentProps<typeof Sonner>;
 
-const Toaster = ({ ...props }: ToasterProps) => {
+const Toaster = ({ className, style, ...props }: ToasterProps) => {
   return (
     <Sonner
-      className="toaster group"
+      className={`toaster group [--toast-center-offset:0px] md:[--toast-center-offset:36px] ${className ?? ""}`}
+      style={{
+        ...style,
+        left: "calc(50% + var(--toast-center-offset))",
+        transform: "translateX(-50%)",
+      }}
       icons={{
         success: <CheckCircle2 className="h-5 w-5" />,
         error: <XCircle className="h-5 w-5" />,
