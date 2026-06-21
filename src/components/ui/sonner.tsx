@@ -13,16 +13,17 @@ const Toaster = ({ ...props }: ToasterProps) => {
         info: <Info className="h-5 w-5" />,
       }}
       toastOptions={{
+        unstyled: true,
         classNames: {
           toast:
-            "group toast group-[.toaster]:rounded-[18px] group-[.toaster]:border-0 group-[.toaster]:bg-[#2d2c2a] group-[.toaster]:px-5 group-[.toaster]:py-4 group-[.toaster]:text-white group-[.toaster]:shadow-[0_12px_36px_rgba(0,0,0,0.28)]",
-          title: "group-[.toast]:text-[17px] group-[.toast]:font-semibold group-[.toast]:text-white",
-          description: "group-[.toast]:text-white/80",
-          icon: "group-[.toast]:text-white",
+            "group toast flex items-center gap-3 rounded-[18px] border-0 bg-[#2d2c2a] px-5 py-4 text-white shadow-[0_12px_36px_rgba(0,0,0,0.28)]",
+          title: "text-[17px] font-semibold leading-tight text-white",
+          description: "text-white/80",
+          icon: "text-white",
           actionButton:
-            "group-[.toast]:rounded-[14px] group-[.toast]:bg-white group-[.toast]:px-4 group-[.toast]:py-2 group-[.toast]:font-semibold group-[.toast]:text-black hover:group-[.toast]:bg-white/90",
+            "rounded-[14px] bg-white px-4 py-2 font-semibold text-black hover:bg-white/90",
           cancelButton:
-            "group-[.toast]:rounded-[14px] group-[.toast]:bg-white/10 group-[.toast]:px-4 group-[.toast]:py-2 group-[.toast]:font-semibold group-[.toast]:text-white hover:group-[.toast]:bg-white/15",
+            "rounded-[14px] bg-white/10 px-4 py-2 font-semibold text-white hover:bg-white/15",
         },
       }}
       {...props}
