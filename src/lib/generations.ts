@@ -133,6 +133,39 @@ export async function remixTemplate(params: RemixParams): Promise<GenerationResu
   return response.json() as Promise<GenerationResult>;
 }
 
+export interface RemixUploadParams {
+  templateId: string;
+  files: File[];
+  caption?: string;
+  aspectRatio?: string;
+}
+
+export async function remixTemplateUpload(
+  params: RemixUploadParams,
+): Promise<GenerationResult> {
+  const token = requireToken("remix templates");
+
+  const form = new FormData();
+  form.append("template_id", params.templateId);
+  if (params.caption) form.append("caption", params.caption);
+  if (params.aspectRatio) form.append("aspect_ratio", params.aspectRatio);
+  params.files.forEach((file) => form.append("images", file, file.name));
+
+  const response = await fetch(new URL("/api/v1/generations/remix-upload", API_BASE_URL), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: form,
+  });
+
+  if (!response.ok) {
+    await throwApiError(response, "Remix request");
+  }
+
+  return response.json() as Promise<GenerationResult>;
+}
+
 export async function fetchGenerationResult(generationId: string): Promise<GenerationResult> {
   const token = requireToken("view generations");
 

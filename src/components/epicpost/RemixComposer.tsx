@@ -10,8 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { getAccessToken } from "@/lib/auth";
 import {
-  remixTemplate,
-  uploadAssetFiles,
+  remixTemplateUpload,
   waitForGeneration,
   type GenerationResult,
 } from "@/lib/generations";
@@ -23,7 +22,7 @@ interface AttachedImage {
   previewUrl: string;
 }
 
-type Phase = "idle" | "uploading" | "generating";
+type Phase = "idle" | "sending" | "generating";
 
 const FALLBACK_ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const FALLBACK_MAX_IMAGES = 10;
@@ -78,8 +77,8 @@ export function RemixComposer({
   if (template.capabilities && !template.capabilities.supports_remix) return null;
 
   const hint = isBusy
-    ? phase === "uploading"
-      ? "Uploading images..."
+    ? phase === "sending"
+      ? "Sending images..."
       : "Generating your remix..."
     : images.length < minImages
       ? `Attach ${minImages - images.length} more image${minImages - images.length > 1 ? "s" : ""} to remix`
@@ -123,17 +122,15 @@ export function RemixComposer({
     }
 
     try {
-      setPhase("uploading");
-      const uploaded = await uploadAssetFiles(images.map((image) => image.file));
-
-      setPhase("generating");
-      const initial = await remixTemplate({
+      setPhase("sending");
+      const initial = await remixTemplateUpload({
         templateId: template.id,
-        assetIds: uploaded.map((asset) => asset.asset_id),
+        files: images.map((image) => image.file),
         caption: caption.trim() || undefined,
         aspectRatio:
           template.output_spec?.default_aspect_ratio ?? template.aspect_ratio ?? undefined,
       });
+      setPhase("generating");
       const settled = await waitForGeneration(initial);
 
       if (settled.status !== "completed" || settled.assets.length === 0) {
