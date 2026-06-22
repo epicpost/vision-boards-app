@@ -3,7 +3,18 @@ import { useMutation } from "@tanstack/react-query";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HexColorInput, HexColorPicker } from "react-colorful";
-import { Image as ImageIcon, Link2, Loader2, Plus, Trash2, Upload, X } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Image as ImageIcon,
+  Link2,
+  Loader2,
+  Plus,
+  Search,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Sidebar } from "@/components/epicpost/Sidebar";
 import { TopBar } from "@/components/epicpost/TopBar";
@@ -306,6 +317,7 @@ function BrandKitEditor({
   const [images, setImages] = useState<BrandImage[]>(initial.images);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [deletingLogo, setDeletingLogo] = useState(false);
   const [deletingImageIds, setDeletingImageIds] = useState<Set<string>>(new Set());
 
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -426,16 +438,19 @@ function BrandKitEditor({
 
   async function handleRemoveLogo() {
     const kitId = draftKitIdRef.current;
-    // Nothing persisted yet — just clear the local selection.
-    if (!kitId) {
-      setLogoAssetId(null);
-      setLogoUrl(null);
-      return;
-    }
+    setDeletingLogo(true);
     try {
+      // Nothing persisted yet: just clear the local selection.
+      if (!kitId) {
+        setLogoAssetId(null);
+        setLogoUrl(null);
+        return;
+      }
       applyUpdatedKit(await removeBrandLogo(kitId));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Couldn't remove the logo.");
+    } finally {
+      setDeletingLogo(false);
     }
   }
 
@@ -531,13 +546,26 @@ function BrandKitEditor({
               <SectionLabel>Logo</SectionLabel>
               <button
                 onClick={() => logoInputRef.current?.click()}
-                disabled={uploadingLogo}
-                className="mt-3 flex aspect-square w-full items-center justify-center overflow-hidden rounded-[16px] border border-border bg-secondary text-muted-foreground transition hover:border-foreground/40 hover:text-foreground disabled:opacity-50"
+                disabled={uploadingLogo || deletingLogo}
+                className="relative mt-3 flex aspect-square w-full items-center justify-center overflow-hidden rounded-[16px] border border-border bg-secondary text-muted-foreground transition hover:border-foreground/40 hover:text-foreground disabled:opacity-50"
               >
                 {uploadingLogo ? (
                   <Loader2 className="h-6 w-6 animate-spin" />
                 ) : logoUrl ? (
-                  <img src={logoUrl} alt="Brand logo" className="h-full w-full object-contain" />
+                  <>
+                    <img
+                      src={logoUrl}
+                      alt="Brand logo"
+                      className={`h-full w-full object-contain transition ${
+                        deletingLogo ? "scale-105 opacity-35 grayscale" : ""
+                      }`}
+                    />
+                    {deletingLogo ? (
+                      <div className="absolute inset-0 flex items-center justify-center bg-background/30">
+                        <Loader2 className="h-6 w-6 animate-spin text-foreground" />
+                      </div>
+                    ) : null}
+                  </>
                 ) : (
                   <span className="flex flex-col items-center gap-1.5 text-sm font-semibold">
                     <Upload className="h-5 w-5" />
@@ -548,7 +576,8 @@ function BrandKitEditor({
               {logoUrl ? (
                 <button
                   onClick={() => void handleRemoveLogo()}
-                  className="mt-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
+                  disabled={deletingLogo}
+                  className="mt-2 text-sm font-semibold text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Remove
                 </button>
@@ -566,14 +595,12 @@ function BrandKitEditor({
               <SectionLabel>Fonts</SectionLabel>
               <div className="mt-3 grid grid-cols-2 gap-3">
                 <FontSlot
-                  preview="Aa"
                   fontFamily={fontPrimary}
                   value={fontPrimary}
                   onChange={setFontPrimary}
                   placeholder="Headline font"
                 />
                 <FontSlot
-                  preview="Aa"
                   fontFamily={fontSecondary}
                   value={fontSecondary}
                   onChange={setFontSecondary}
@@ -832,34 +859,177 @@ function normalizeHexColor(value: string) {
   return hex.toLowerCase();
 }
 
+type FontCategory = "sans-serif" | "serif" | "display" | "monospace" | "handwriting";
+
+type FontOption = { name: string; category: FontCategory };
+
+const FONT_OPTIONS: FontOption[] = [
+  { name: "Roboto", category: "sans-serif" },
+  { name: "Open Sans", category: "sans-serif" },
+  { name: "Inter", category: "sans-serif" },
+  { name: "Lato", category: "sans-serif" },
+  { name: "Montserrat", category: "sans-serif" },
+  { name: "Poppins", category: "sans-serif" },
+  { name: "Roboto Condensed", category: "sans-serif" },
+  { name: "Oswald", category: "display" },
+  { name: "Noto Sans", category: "sans-serif" },
+  { name: "Raleway", category: "sans-serif" },
+  { name: "Nunito", category: "sans-serif" },
+  { name: "Work Sans", category: "sans-serif" },
+  { name: "DM Sans", category: "sans-serif" },
+  { name: "Rubik", category: "sans-serif" },
+  { name: "Manrope", category: "sans-serif" },
+  { name: "Quicksand", category: "sans-serif" },
+  { name: "Karla", category: "sans-serif" },
+  { name: "Merriweather", category: "serif" },
+  { name: "Playfair Display", category: "serif" },
+  { name: "Lora", category: "serif" },
+  { name: "PT Serif", category: "serif" },
+  { name: "Noto Serif", category: "serif" },
+  { name: "Roboto Slab", category: "serif" },
+  { name: "Bitter", category: "serif" },
+  { name: "EB Garamond", category: "serif" },
+  { name: "Cormorant Garamond", category: "serif" },
+  { name: "Bebas Neue", category: "display" },
+  { name: "Anton", category: "display" },
+  { name: "Lobster", category: "display" },
+  { name: "Pacifico", category: "handwriting" },
+  { name: "Dancing Script", category: "handwriting" },
+  { name: "Caveat", category: "handwriting" },
+  { name: "JetBrains Mono", category: "monospace" },
+  { name: "Roboto Mono", category: "monospace" },
+  { name: "Source Code Pro", category: "monospace" },
+  { name: "Space Mono", category: "monospace" },
+  { name: "IBM Plex Mono", category: "monospace" },
+];
+
+const GOOGLE_FONTS_LINK_ID = "brand-kit-google-fonts";
+
+// Load all picker fonts once so each option (and the preview) renders in its own typeface.
+function ensureGoogleFontsLoaded() {
+  if (typeof document === "undefined") return;
+  if (document.getElementById(GOOGLE_FONTS_LINK_ID)) return;
+  const families = FONT_OPTIONS.map(
+    (font) => `family=${font.name.trim().replace(/\s+/g, "+")}`,
+  ).join("&");
+  const link = document.createElement("link");
+  link.id = GOOGLE_FONTS_LINK_ID;
+  link.rel = "stylesheet";
+  link.href = `https://fonts.googleapis.com/css2?${families}&display=swap`;
+  document.head.appendChild(link);
+}
+
 function FontSlot({
-  preview,
   fontFamily,
   value,
   onChange,
   placeholder,
 }: {
-  preview: string;
   fontFamily: string;
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
 }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    if (open) ensureGoogleFontsLoaded();
+  }, [open]);
+
+  const results = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return FONT_OPTIONS;
+    return FONT_OPTIONS.filter((font) => font.name.toLowerCase().includes(q));
+  }, [query]);
+
+  function handleSelect(name: string) {
+    onChange(name);
+    setOpen(false);
+    setQuery("");
+  }
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (!next) setQuery("");
+  }
+
   return (
-    <div className="rounded-[16px] border border-border px-4 py-3">
-      <div
-        className="text-3xl font-bold text-foreground"
-        style={{ fontFamily: fontFamily || undefined }}
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="group relative flex w-full flex-col items-start rounded-[16px] border border-border px-4 py-3 text-left transition hover:border-foreground/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <span
+            className="text-3xl font-bold text-foreground"
+            style={{ fontFamily: fontFamily || undefined }}
+          >
+            Aa
+          </span>
+          <span className="mt-2 truncate text-sm font-semibold text-foreground">
+            {value || <span className="text-muted-foreground">{placeholder}</span>}
+          </span>
+          <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-muted-foreground opacity-0 transition group-hover:opacity-100 group-data-[state=open]:opacity-100" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        sideOffset={8}
+        className="w-[var(--radix-popover-trigger-width)] min-w-[240px] rounded-[16px] p-0"
       >
-        {preview}
-      </div>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="mt-2 w-full bg-transparent text-sm font-semibold text-foreground outline-none placeholder:text-muted-foreground"
-      />
-    </div>
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
+          <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search fonts..."
+            className="w-full bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground"
+          />
+        </div>
+        <div className="max-h-[280px] overflow-y-auto py-1">
+          {value && (
+            <button
+              type="button"
+              onClick={() => handleSelect("")}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-muted-foreground transition hover:bg-accent"
+            >
+              <X className="h-4 w-4 shrink-0" />
+              Clear selection
+            </button>
+          )}
+          {results.length === 0 ? (
+            <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+              No fonts found
+            </div>
+          ) : (
+            results.map((font) => {
+              const selected = font.name === value;
+              return (
+                <button
+                  key={font.name}
+                  type="button"
+                  onClick={() => handleSelect(font.name)}
+                  className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-accent"
+                >
+                  <span
+                    className="truncate text-lg text-foreground"
+                    style={{ fontFamily: `'${font.name}', ${font.category}` }}
+                  >
+                    {font.name}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{font.category}</span>
+                    {selected && <Check className="h-4 w-4 text-foreground" />}
+                  </span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
