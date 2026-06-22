@@ -652,16 +652,14 @@ function BrandKitEditor({
           ) : null}
         </div>
         <div className="flex items-center gap-3">
-          {hasUnsavedChanges || saveMutation.isPending ? (
-            <button
-              onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending}
-              className="flex h-11 items-center gap-2 rounded-full bg-foreground px-6 text-[15px] font-semibold text-background transition hover:opacity-90 disabled:opacity-50"
-            >
-              {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {kit ? "Save changes" : "Create brand kit"}
-            </button>
-          ) : null}
+          <button
+            onClick={() => saveMutation.mutate()}
+            disabled={!hasUnsavedChanges || saveMutation.isPending}
+            className="flex h-11 items-center gap-2 rounded-full bg-foreground px-6 text-[15px] font-semibold text-background transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {kit ? "Save changes" : "Create brand kit"}
+          </button>
         </div>
       </div>
     </div>

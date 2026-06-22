@@ -29,6 +29,7 @@ import { SignupDialog } from "@/components/epicpost/SignupDialog";
 import { CreateBoardDialog } from "@/components/epicpost/CreateBoardDialog";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   fetchPostTemplate,
   fetchPostTemplates,
@@ -52,7 +53,76 @@ import { likedTemplatesQueryKey, likeTemplate, unlikeTemplate } from "@/lib/like
 import { getAccessToken } from "@/lib/auth";
 import { useEffect, useMemo, useState } from "react";
 
+const APP_BASE_URL = import.meta.env.VITE_APP_BASE_URL ?? "https://www.epicpost.app";
+const DEFAULT_SHARE_TITLE = "EpicPost — Remixable Social Media Templates";
+const DEFAULT_SHARE_DESCRIPTION =
+  "Discover curated social media templates, remix them with your own assets, and create daily posts, reels, stories, and visuals faster with AI.";
+
+function absoluteUrl(value: string) {
+  try {
+    return new URL(value, APP_BASE_URL).toString();
+  } catch {
+    return value;
+  }
+}
+
+function getTemplateShareMeta(template: PostTemplate | null, pinId: string) {
+  const media = template ? getTemplateMedia(template) : null;
+  const title = template?.title ? `${template.title} | EpicPost` : DEFAULT_SHARE_TITLE;
+  const description = template?.description || template?.title || DEFAULT_SHARE_DESCRIPTION;
+  const url = absoluteUrl(`/template/${pinId}`);
+  const imageUrl = media?.type === "image" && media.url ? absoluteUrl(media.url) : null;
+
+  return {
+    title,
+    description,
+    url,
+    imageUrl,
+    imageWidth: media?.width,
+    imageHeight: media?.height,
+  };
+}
+
+function templateShareMetaTags(template: PostTemplate | null, pinId: string) {
+  const meta = getTemplateShareMeta(template, pinId);
+  const tags = [
+    { title: meta.title },
+    { name: "description", content: meta.description },
+    { property: "og:title", content: meta.title },
+    { property: "og:description", content: meta.description },
+    { property: "og:type", content: "article" },
+    { property: "og:url", content: meta.url },
+    { name: "twitter:card", content: meta.imageUrl ? "summary_large_image" : "summary" },
+    { name: "twitter:title", content: meta.title },
+    { name: "twitter:description", content: meta.description },
+  ];
+
+  if (meta.imageUrl) {
+    tags.push(
+      { property: "og:image", content: meta.imageUrl },
+      { property: "og:image:secure_url", content: meta.imageUrl },
+      { property: "og:image:alt", content: meta.title },
+      { name: "twitter:image", content: meta.imageUrl },
+      { name: "twitter:image:alt", content: meta.title },
+    );
+
+    if (meta.imageWidth) {
+      tags.push({ property: "og:image:width", content: String(meta.imageWidth) });
+    }
+    if (meta.imageHeight) {
+      tags.push({ property: "og:image:height", content: String(meta.imageHeight) });
+    }
+  }
+
+  return tags;
+}
+
 export const Route = createFileRoute("/template/$pinId")({
+  loader: async ({ params }) => fetchPostTemplate(params.pinId).catch(() => null),
+  head: ({ loaderData, params }) => ({
+    meta: templateShareMetaTags(loaderData ?? null, params.pinId),
+    links: [{ rel: "canonical", href: absoluteUrl(`/template/${params.pinId}`) }],
+  }),
   component: PinDetail,
 });
 
@@ -198,6 +268,7 @@ function showRemovedToast() {
 
 function PinDetail() {
   const { pinId } = Route.useParams();
+  const loaderTemplate = Route.useLoaderData();
   const queryClient = useQueryClient();
   const router = useRouter();
   const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
@@ -286,7 +357,8 @@ function PinDetail() {
     queryKey: postTemplateQueryKey(pinId),
     queryFn: () => fetchPostTemplate(pinId),
   });
-  const template = detailQuery.data ?? templates.find((item) => item.id === pinId);
+  const template =
+    detailQuery.data ?? loaderTemplate ?? templates.find((item) => item.id === pinId);
   const shareUrl = typeof window !== "undefined" ? window.location.href : `/template/${pinId}`;
   const shareTitle = template?.title ?? "Check out this template on EpicPost";
   const shareTargets = useMemo(
@@ -374,6 +446,7 @@ function PinDetail() {
   const canShowNextMedia = selectedMediaIndex < previewMedia.length - 1;
   const sidePins = relatedTemplates.slice(0, 10);
   const belowPins = relatedTemplates.slice(10).concat(relatedTemplates.slice(0, 10));
+  const isTemplateLoading = !template && (detailQuery.isLoading || defaultFeedQuery.isLoading);
 
   function showPreviousMedia() {
     setSelectedMediaIndex((index) => Math.max(0, index - 1));
@@ -496,11 +569,15 @@ function PinDetail() {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex min-h-[480px] w-full items-center justify-center px-6 text-center text-sm font-semibold text-muted-foreground">
-                        {defaultFeedQuery.isLoading
-                          ? "Loading template..."
-                          : "Template preview unavailable"}
-                      </div>
+                      <>
+                        {isTemplateLoading ? (
+                          <TemplatePreviewSkeleton />
+                        ) : (
+                          <div className="flex min-h-[480px] w-full items-center justify-center px-6 text-center text-sm font-semibold text-muted-foreground">
+                            Template preview unavailable
+                          </div>
+                        )}
+                      </>
                     )}
                     {canShowPreviousMedia ? (
                       <Button
@@ -551,443 +628,456 @@ function PinDetail() {
 
                   {/* Details side */}
                   <div className="p-6 md:p-8 flex flex-col">
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          aria-label={template?.is_liked ? "Unlike" : "Like"}
-                          aria-pressed={Boolean(template?.is_liked)}
-                          disabled={likeMutation.isPending}
-                          onClick={() => {
-                            if (!isSignedIn) {
-                              setIsAuthOpen(true);
-                              return;
-                            }
-                            likeMutation.mutate(!template?.is_liked);
-                          }}
-                          className="flex items-center gap-1 px-2 h-10 rounded-full hover:bg-secondary transition disabled:opacity-60"
-                        >
-                          <Heart
-                            className={`h-6 w-6 transition ${
-                              template?.is_liked ? "text-[#e60023]" : "text-foreground"
-                            }`}
-                            fill={template?.is_liked ? "currentColor" : "none"}
-                            strokeWidth={2.2}
-                          />
-                          <span className="text-sm font-semibold text-foreground">
-                            {template?.likes_count ?? 0}
-                          </span>
-                        </button>
-                        <Popover
-                          open={isShareOpen}
-                          onOpenChange={(open) => {
-                            setIsShareOpen(open);
-                            if (!open) setShareSearch("");
-                          }}
-                        >
-                          <PopoverTrigger asChild>
+                    {isTemplateLoading ? (
+                      <TemplateDetailsSkeleton />
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="flex items-center gap-1">
                             <button
-                              aria-label="Share"
+                              type="button"
+                              aria-label={template?.is_liked ? "Unlike" : "Like"}
+                              aria-pressed={Boolean(template?.is_liked)}
+                              disabled={likeMutation.isPending}
+                              onClick={() => {
+                                if (!isSignedIn) {
+                                  setIsAuthOpen(true);
+                                  return;
+                                }
+                                likeMutation.mutate(!template?.is_liked);
+                              }}
+                              className="flex items-center gap-1 px-2 h-10 rounded-full hover:bg-secondary transition disabled:opacity-60"
+                            >
+                              <Heart
+                                className={`h-6 w-6 transition ${
+                                  template?.is_liked ? "text-[#e60023]" : "text-foreground"
+                                }`}
+                                fill={template?.is_liked ? "currentColor" : "none"}
+                                strokeWidth={2.2}
+                              />
+                              <span className="text-sm font-semibold text-foreground">
+                                {template?.likes_count ?? 0}
+                              </span>
+                            </button>
+                            <Popover
+                              open={isShareOpen}
+                              onOpenChange={(open) => {
+                                setIsShareOpen(open);
+                                if (!open) setShareSearch("");
+                              }}
+                            >
+                              <PopoverTrigger asChild>
+                                <button
+                                  aria-label="Share"
+                                  className="h-10 w-10 rounded-full hover:bg-secondary flex items-center justify-center transition"
+                                >
+                                  <Upload className="h-5 w-5 text-foreground" strokeWidth={2.2} />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent
+                                align="center"
+                                sideOffset={10}
+                                className="w-[min(calc(100vw-24px),360px)] overflow-hidden rounded-[20px] border-0 bg-background p-0 text-foreground shadow-[0_12px_36px_rgba(0,0,0,0.18)]"
+                              >
+                                <div className="max-h-[min(72vh,560px)] overflow-y-auto px-4 pb-4 pt-4">
+                                  <h3 className="mb-4 text-center text-xl font-bold">Share</h3>
+                                  <div className="mb-4 flex items-start justify-between gap-2">
+                                    {shareTargets.map((target) =>
+                                      target.href ? (
+                                        <a
+                                          key={target.key}
+                                          href={target.href}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="flex flex-1 flex-col items-center gap-2 text-center"
+                                        >
+                                          <span
+                                            className={`flex h-14 w-14 items-center justify-center rounded-full ${target.bg}`}
+                                          >
+                                            {target.icon}
+                                          </span>
+                                          <span className="text-[13px] font-medium text-foreground">
+                                            {target.label}
+                                          </span>
+                                        </a>
+                                      ) : (
+                                        <button
+                                          key={target.key}
+                                          type="button"
+                                          onClick={target.onClick}
+                                          className="flex flex-1 flex-col items-center gap-2 text-center"
+                                        >
+                                          <span
+                                            className={`flex h-14 w-14 items-center justify-center rounded-full ${target.bg}`}
+                                          >
+                                            {target.icon}
+                                          </span>
+                                          <span className="text-[13px] font-medium text-foreground">
+                                            {target.label}
+                                          </span>
+                                        </button>
+                                      ),
+                                    )}
+                                  </div>
+
+                                  <div className="mb-4 h-px bg-border" />
+
+                                  <label className="mb-4 flex h-12 items-center gap-2 rounded-[16px] bg-input px-4 transition focus-within:ring-2 focus-within:ring-ring">
+                                    <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
+                                    <input
+                                      type="search"
+                                      placeholder="Search by name or email"
+                                      value={shareSearch}
+                                      onChange={(event) => setShareSearch(event.target.value)}
+                                      className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
+                                    />
+                                  </label>
+
+                                  {filteredRecipients.length === 0 ? (
+                                    <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                                      No people match your search.
+                                    </p>
+                                  ) : (
+                                    <div className="space-y-1">
+                                      {filteredRecipients.map((recipient) => (
+                                        <div
+                                          key={recipient.id}
+                                          className="flex items-center gap-3 rounded-[14px] px-2 py-2"
+                                        >
+                                          <div className="h-12 w-12 shrink-0 rounded-full bg-gradient-to-br from-rose-300 to-amber-200" />
+                                          <div className="min-w-0 flex-1">
+                                            <p className="truncate text-base font-semibold text-foreground">
+                                              {recipient.name}
+                                            </p>
+                                            <p className="truncate text-sm text-muted-foreground">
+                                              {recipient.handle}
+                                            </p>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              if (!isSignedIn) {
+                                                setIsShareOpen(false);
+                                                setIsAuthOpen(true);
+                                                return;
+                                              }
+                                              toast.success(`Sent to ${recipient.name}`);
+                                            }}
+                                            className="h-10 shrink-0 rounded-full bg-secondary px-5 text-sm font-semibold text-foreground transition hover:brightness-95"
+                                          >
+                                            Send
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                            <button
+                              aria-label="More"
                               className="h-10 w-10 rounded-full hover:bg-secondary flex items-center justify-center transition"
                             >
-                              <Upload className="h-5 w-5 text-foreground" strokeWidth={2.2} />
+                              <MoreHorizontal
+                                className="h-6 w-6 text-foreground"
+                                strokeWidth={2.2}
+                              />
                             </button>
-                          </PopoverTrigger>
-                          <PopoverContent
-                            align="center"
-                            sideOffset={10}
-                            className="w-[min(calc(100vw-24px),360px)] overflow-hidden rounded-[20px] border-0 bg-background p-0 text-foreground shadow-[0_12px_36px_rgba(0,0,0,0.18)]"
-                          >
-                            <div className="max-h-[min(72vh,560px)] overflow-y-auto px-4 pb-4 pt-4">
-                              <h3 className="mb-4 text-center text-xl font-bold">Share</h3>
-                              <div className="mb-4 flex items-start justify-between gap-2">
-                                {shareTargets.map((target) =>
-                                  target.href ? (
-                                    <a
-                                      key={target.key}
-                                      href={target.href}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="flex flex-1 flex-col items-center gap-2 text-center"
-                                    >
-                                      <span
-                                        className={`flex h-14 w-14 items-center justify-center rounded-full ${target.bg}`}
-                                      >
-                                        {target.icon}
-                                      </span>
-                                      <span className="text-[13px] font-medium text-foreground">
-                                        {target.label}
-                                      </span>
-                                    </a>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Popover
+                              open={isSaveOpen}
+                              onOpenChange={(open) => {
+                                if (open && !isSignedIn) {
+                                  setIsAuthOpen(true);
+                                  return;
+                                }
+                                setIsSaveOpen(open);
+                                if (!open) setBoardSearch("");
+                              }}
+                            >
+                              <PopoverTrigger asChild>
+                                <button className="flex items-center gap-1 h-10 px-3 rounded-full hover:bg-secondary transition text-sm font-semibold text-foreground">
+                                  <span className="md:hidden">Save</span>
+                                  <span className="hidden md:inline">
+                                    {selectedBoard?.name ??
+                                      (template?.board_id && template.board_name
+                                        ? template.board_name
+                                        : "Save to board")}
+                                  </span>
+                                  <ChevronRight className="h-4 w-4 rotate-90" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent
+                                align="end"
+                                sideOffset={10}
+                                className="w-[min(calc(100vw-24px),360px)] overflow-hidden rounded-[20px] border-0 bg-background p-0 text-foreground shadow-[0_12px_36px_rgba(0,0,0,0.18)]"
+                              >
+                                <div className="max-h-[min(72vh,560px)] overflow-y-auto px-4 pb-24 pt-4">
+                                  <h3 className="mb-4 text-center text-xl font-bold">Save</h3>
+                                  <label className="mb-4 flex h-12 items-center gap-2 rounded-[16px] bg-input px-4 transition focus-within:ring-2 focus-within:ring-ring">
+                                    <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
+                                    <input
+                                      type="search"
+                                      placeholder="Search"
+                                      value={boardSearch}
+                                      onChange={(event) => setBoardSearch(event.target.value)}
+                                      className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
+                                    />
+                                  </label>
+
+                                  {boardsQuery.isLoading ? (
+                                    <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                                      Loading boards...
+                                    </p>
+                                  ) : boardsQuery.isError ? (
+                                    <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                                      {boardsQuery.error instanceof Error
+                                        ? boardsQuery.error.message
+                                        : "Could not load boards."}
+                                    </p>
+                                  ) : filteredBoards.length === 0 ? (
+                                    <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                                      {boardSearch
+                                        ? "No boards match your search."
+                                        : "No boards yet."}
+                                    </p>
                                   ) : (
-                                    <button
-                                      key={target.key}
-                                      type="button"
-                                      onClick={target.onClick}
-                                      className="flex flex-1 flex-col items-center gap-2 text-center"
-                                    >
-                                      <span
-                                        className={`flex h-14 w-14 items-center justify-center rounded-full ${target.bg}`}
-                                      >
-                                        {target.icon}
-                                      </span>
-                                      <span className="text-[13px] font-medium text-foreground">
-                                        {target.label}
-                                      </span>
-                                    </button>
-                                  ),
-                                )}
-                              </div>
+                                    <>
+                                      {topChoices.length > 0 && (
+                                        <>
+                                          <p className="mb-2 px-2 text-[13px] font-medium text-muted-foreground">
+                                            Top choices
+                                          </p>
+                                          <div className="space-y-2">
+                                            {topChoices.map((board) => (
+                                              <BoardRow
+                                                key={board.id}
+                                                board={board}
+                                                saving={
+                                                  saveMutation.isPending &&
+                                                  saveMutation.variables === board.id
+                                                }
+                                                selected={board.id === currentBoardId}
+                                                onSelect={() => saveMutation.mutate(board.id)}
+                                              />
+                                            ))}
+                                          </div>
+                                        </>
+                                      )}
 
-                              <div className="mb-4 h-px bg-border" />
-
-                              <label className="mb-4 flex h-12 items-center gap-2 rounded-[16px] bg-input px-4 transition focus-within:ring-2 focus-within:ring-ring">
-                                <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
-                                <input
-                                  type="search"
-                                  placeholder="Search by name or email"
-                                  value={shareSearch}
-                                  onChange={(event) => setShareSearch(event.target.value)}
-                                  className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
-                                />
-                              </label>
-
-                              {filteredRecipients.length === 0 ? (
-                                <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                                  No people match your search.
-                                </p>
-                              ) : (
-                                <div className="space-y-1">
-                                  {filteredRecipients.map((recipient) => (
-                                    <div
-                                      key={recipient.id}
-                                      className="flex items-center gap-3 rounded-[14px] px-2 py-2"
-                                    >
-                                      <div className="h-12 w-12 shrink-0 rounded-full bg-gradient-to-br from-rose-300 to-amber-200" />
-                                      <div className="min-w-0 flex-1">
-                                        <p className="truncate text-base font-semibold text-foreground">
-                                          {recipient.name}
-                                        </p>
-                                        <p className="truncate text-sm text-muted-foreground">
-                                          {recipient.handle}
-                                        </p>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          if (!isSignedIn) {
-                                            setIsShareOpen(false);
-                                            setIsAuthOpen(true);
-                                            return;
-                                          }
-                                          toast.success(`Sent to ${recipient.name}`);
-                                        }}
-                                        className="h-10 shrink-0 rounded-full bg-secondary px-5 text-sm font-semibold text-foreground transition hover:brightness-95"
-                                      >
-                                        Send
-                                      </button>
-                                    </div>
-                                  ))}
+                                      {otherBoards.length > 0 && (
+                                        <>
+                                          <p className="mb-2 mt-4 px-2 text-[13px] font-medium text-muted-foreground">
+                                            All boards
+                                          </p>
+                                          <div className="space-y-2">
+                                            {otherBoards.map((board) => (
+                                              <BoardRow
+                                                key={board.id}
+                                                board={board}
+                                                saving={
+                                                  saveMutation.isPending &&
+                                                  saveMutation.variables === board.id
+                                                }
+                                                selected={board.id === currentBoardId}
+                                                onSelect={() => saveMutation.mutate(board.id)}
+                                              />
+                                            ))}
+                                          </div>
+                                        </>
+                                      )}
+                                    </>
+                                  )}
                                 </div>
-                              )}
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                        <button
-                          aria-label="More"
-                          className="h-10 w-10 rounded-full hover:bg-secondary flex items-center justify-center transition"
-                        >
-                          <MoreHorizontal className="h-6 w-6 text-foreground" strokeWidth={2.2} />
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Popover
-                          open={isSaveOpen}
-                          onOpenChange={(open) => {
-                            if (open && !isSignedIn) {
-                              setIsAuthOpen(true);
-                              return;
-                            }
-                            setIsSaveOpen(open);
-                            if (!open) setBoardSearch("");
-                          }}
-                        >
-                          <PopoverTrigger asChild>
-                            <button className="flex items-center gap-1 h-10 px-3 rounded-full hover:bg-secondary transition text-sm font-semibold text-foreground">
-                              <span className="md:hidden">Save</span>
-                              <span className="hidden md:inline">
-                                {selectedBoard?.name ??
-                                  (template?.board_id && template.board_name
-                                    ? template.board_name
-                                    : "Save to board")}
-                              </span>
-                              <ChevronRight className="h-4 w-4 rotate-90" />
-                            </button>
-                          </PopoverTrigger>
-                          <PopoverContent
-                            align="end"
-                            sideOffset={10}
-                            className="w-[min(calc(100vw-24px),360px)] overflow-hidden rounded-[20px] border-0 bg-background p-0 text-foreground shadow-[0_12px_36px_rgba(0,0,0,0.18)]"
-                          >
-                            <div className="max-h-[min(72vh,560px)] overflow-y-auto px-4 pb-24 pt-4">
-                              <h3 className="mb-4 text-center text-xl font-bold">Save</h3>
-                              <label className="mb-4 flex h-12 items-center gap-2 rounded-[16px] bg-input px-4 transition focus-within:ring-2 focus-within:ring-ring">
-                                <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
-                                <input
-                                  type="search"
-                                  placeholder="Search"
-                                  value={boardSearch}
-                                  onChange={(event) => setBoardSearch(event.target.value)}
-                                  className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
-                                />
-                              </label>
-
-                              {boardsQuery.isLoading ? (
-                                <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                                  Loading boards...
-                                </p>
-                              ) : boardsQuery.isError ? (
-                                <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                                  {boardsQuery.error instanceof Error
-                                    ? boardsQuery.error.message
-                                    : "Could not load boards."}
-                                </p>
-                              ) : filteredBoards.length === 0 ? (
-                                <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                                  {boardSearch ? "No boards match your search." : "No boards yet."}
-                                </p>
-                              ) : (
-                                <>
-                                  {topChoices.length > 0 && (
-                                    <>
-                                      <p className="mb-2 px-2 text-[13px] font-medium text-muted-foreground">
-                                        Top choices
-                                      </p>
-                                      <div className="space-y-2">
-                                        {topChoices.map((board) => (
-                                          <BoardRow
-                                            key={board.id}
-                                            board={board}
-                                            saving={
-                                              saveMutation.isPending &&
-                                              saveMutation.variables === board.id
-                                            }
-                                            selected={board.id === currentBoardId}
-                                            onSelect={() => saveMutation.mutate(board.id)}
-                                          />
-                                        ))}
-                                      </div>
-                                    </>
-                                  )}
-
-                                  {otherBoards.length > 0 && (
-                                    <>
-                                      <p className="mb-2 mt-4 px-2 text-[13px] font-medium text-muted-foreground">
-                                        All boards
-                                      </p>
-                                      <div className="space-y-2">
-                                        {otherBoards.map((board) => (
-                                          <BoardRow
-                                            key={board.id}
-                                            board={board}
-                                            saving={
-                                              saveMutation.isPending &&
-                                              saveMutation.variables === board.id
-                                            }
-                                            selected={board.id === currentBoardId}
-                                            onSelect={() => saveMutation.mutate(board.id)}
-                                          />
-                                        ))}
-                                      </div>
-                                    </>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                            <div className="absolute inset-x-0 bottom-0 rounded-b-[20px] bg-background/95 px-4 py-3 shadow-[0_-8px_22px_rgba(0,0,0,0.08)] backdrop-blur transition hover:bg-secondary">
+                                <div className="absolute inset-x-0 bottom-0 rounded-b-[20px] bg-background/95 px-4 py-3 shadow-[0_-8px_22px_rgba(0,0,0,0.08)] backdrop-blur transition hover:bg-secondary">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setIsSaveOpen(false);
+                                      setIsCreateBoardOpen(true);
+                                    }}
+                                    className="flex h-16 w-full items-center gap-3 px-2 text-left font-semibold"
+                                  >
+                                    <span className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-secondary">
+                                      <Plus className="h-6 w-6 text-foreground" />
+                                    </span>
+                                    <span className="text-base">Create board</span>
+                                  </button>
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                            {isSaved ? (
                               <button
                                 type="button"
                                 onClick={() => {
-                                  setIsSaveOpen(false);
-                                  setIsCreateBoardOpen(true);
+                                  if (!isSignedIn) {
+                                    setIsAuthOpen(true);
+                                    return;
+                                  }
+                                  setIsSaveOpen(true);
                                 }}
-                                className="flex h-16 w-full items-center gap-3 px-2 text-left font-semibold"
+                                className="h-11 px-5 rounded-[14px] bg-foreground text-background font-bold text-base hover:brightness-110 transition"
                               >
-                                <span className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-secondary">
-                                  <Plus className="h-6 w-6 text-foreground" />
-                                </span>
-                                <span className="text-base">Create board</span>
+                                Saved
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!isSignedIn) {
+                                    setIsAuthOpen(true);
+                                    return;
+                                  }
+                                  setIsSaveOpen(true);
+                                }}
+                                className="h-11 px-5 rounded-full bg-primary text-primary-foreground font-bold text-base hover:brightness-90 transition"
+                              >
+                                Save
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 mb-5">
+                          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-rose-300 to-amber-200 shrink-0" />
+                          <p className="text-sm font-semibold text-foreground">
+                            EpicPost{" "}
+                            <span className="text-muted-foreground font-normal">
+                              • Public template feed
+                            </span>
+                          </p>
+                        </div>
+
+                        {showMediaPreviews && (
+                          <div className="flex items-center gap-2 mb-5">
+                            <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto py-1">
+                              {previewMedia.map((asset, i) => (
+                                <button
+                                  key={asset.id}
+                                  type="button"
+                                  onClick={() => setSelectedMediaIndex(i)}
+                                  className={`h-14 w-14 shrink-0 overflow-hidden rounded-[14px] transition ${
+                                    i === selectedMediaIndex
+                                      ? "ring-2 ring-foreground"
+                                      : "opacity-90 hover:opacity-100"
+                                  }`}
+                                >
+                                  {asset.type === "video" ? (
+                                    <video
+                                      src={asset.url}
+                                      muted
+                                      playsInline
+                                      preload="metadata"
+                                      className="h-full w-full object-cover"
+                                    />
+                                  ) : (
+                                    <img
+                                      src={asset.url}
+                                      alt=""
+                                      className="h-full w-full object-cover"
+                                    />
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                            <button className="h-10 w-10 shrink-0 rounded-full hover:bg-secondary flex items-center justify-center">
+                              <ChevronRight className="h-5 w-5 text-foreground" />
+                            </button>
+                          </div>
+                        )}
+
+                        <h2 className="text-lg font-bold text-foreground mb-2">Description</h2>
+                        <p className="text-[15px] text-foreground leading-relaxed">
+                          {template?.description ??
+                            template?.title ??
+                            "This public template is not available in the current feed."}
+                        </p>
+                        {template?.tags.length ? (
+                          <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1">
+                            {template.tags.map((tag) => (
+                              <a
+                                key={tag}
+                                href={`/?search=${encodeURIComponent(tag)}`}
+                                className="text-[15px] font-semibold text-[oklch(0.55_0.22_260)] hover:underline"
+                              >
+                                #{tag}
+                              </a>
+                            ))}
+                          </div>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => setShowRequiredInfo((isShown) => !isShown)}
+                          className="self-end mt-2 text-sm font-bold text-foreground hover:underline"
+                        >
+                          {showRequiredInfo ? "Hide required info" : "Show required info"}
+                        </button>
+
+                        {template && showRequiredInfo ? (
+                          <TemplateRequirements template={template} />
+                        ) : null}
+
+                        {template?.comments.length ? (
+                          <div className="mt-6 space-y-3">
+                            {template.comments.slice(0, 3).map((comment) => (
+                              <div key={comment.id} className="flex gap-3">
+                                {comment.avatar_url ? (
+                                  <img
+                                    src={comment.avatar_url}
+                                    alt=""
+                                    className="h-8 w-8 rounded-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="h-8 w-8 rounded-full bg-secondary" />
+                                )}
+                                <p className="text-sm text-foreground">
+                                  <span className="font-semibold">
+                                    {comment.username ?? "Guest"}
+                                  </span>{" "}
+                                  {comment.comment}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        {template &&
+                        (!template.capabilities || template.capabilities.supports_remix) ? (
+                          <RemixComposer
+                            template={template}
+                            onRequireAuth={() => setIsAuthOpen(true)}
+                          />
+                        ) : (
+                          <div className="mt-auto pt-6">
+                            <div className="flex items-center gap-2 h-14 rounded-[28px] bg-secondary px-5">
+                              <input
+                                type="text"
+                                placeholder="Add a comment to start the conversation"
+                                className="flex-1 bg-transparent outline-none text-foreground placeholder:text-muted-foreground text-[15px]"
+                              />
+                              <button
+                                aria-label="Emoji"
+                                className="h-9 w-9 rounded-full hover:bg-background/60 flex items-center justify-center"
+                              >
+                                <Smile className="h-5 w-5 text-foreground" />
+                              </button>
+                              <button
+                                aria-label="Sticker"
+                                className="h-9 w-9 rounded-full hover:bg-background/60 flex items-center justify-center"
+                              >
+                                <Sticker className="h-5 w-5 text-foreground" />
+                              </button>
+                              <button
+                                aria-label="Image"
+                                className="h-9 w-9 rounded-full hover:bg-background/60 flex items-center justify-center"
+                              >
+                                <ImageIcon className="h-5 w-5 text-foreground" />
                               </button>
                             </div>
-                          </PopoverContent>
-                        </Popover>
-                        {isSaved ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!isSignedIn) {
-                                setIsAuthOpen(true);
-                                return;
-                              }
-                              setIsSaveOpen(true);
-                            }}
-                            className="h-11 px-5 rounded-[14px] bg-foreground text-background font-bold text-base hover:brightness-110 transition"
-                          >
-                            Saved
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!isSignedIn) {
-                                setIsAuthOpen(true);
-                                return;
-                              }
-                              setIsSaveOpen(true);
-                            }}
-                            className="h-11 px-5 rounded-full bg-primary text-primary-foreground font-bold text-base hover:brightness-90 transition"
-                          >
-                            Save
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 mb-5">
-                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-rose-300 to-amber-200 shrink-0" />
-                      <p className="text-sm font-semibold text-foreground">
-                        EpicPost{" "}
-                        <span className="text-muted-foreground font-normal">
-                          • Public template feed
-                        </span>
-                      </p>
-                    </div>
-
-                    {showMediaPreviews && (
-                      <div className="flex items-center gap-2 mb-5">
-                        <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto py-1">
-                          {previewMedia.map((asset, i) => (
-                            <button
-                              key={asset.id}
-                              type="button"
-                              onClick={() => setSelectedMediaIndex(i)}
-                              className={`h-14 w-14 shrink-0 overflow-hidden rounded-[14px] transition ${
-                                i === selectedMediaIndex
-                                  ? "ring-2 ring-foreground"
-                                  : "opacity-90 hover:opacity-100"
-                              }`}
-                            >
-                              {asset.type === "video" ? (
-                                <video
-                                  src={asset.url}
-                                  muted
-                                  playsInline
-                                  preload="metadata"
-                                  className="h-full w-full object-cover"
-                                />
-                              ) : (
-                                <img
-                                  src={asset.url}
-                                  alt=""
-                                  className="h-full w-full object-cover"
-                                />
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                        <button className="h-10 w-10 shrink-0 rounded-full hover:bg-secondary flex items-center justify-center">
-                          <ChevronRight className="h-5 w-5 text-foreground" />
-                        </button>
-                      </div>
-                    )}
-
-                    <h2 className="text-lg font-bold text-foreground mb-2">Description</h2>
-                    <p className="text-[15px] text-foreground leading-relaxed">
-                      {template?.description ??
-                        template?.title ??
-                        "This public template is not available in the current feed."}
-                    </p>
-                    {template?.tags.length ? (
-                      <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1">
-                        {template.tags.map((tag) => (
-                          <a
-                            key={tag}
-                            href={`/?search=${encodeURIComponent(tag)}`}
-                            className="text-[15px] font-semibold text-[oklch(0.55_0.22_260)] hover:underline"
-                          >
-                            #{tag}
-                          </a>
-                        ))}
-                      </div>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => setShowRequiredInfo((isShown) => !isShown)}
-                      className="self-end mt-2 text-sm font-bold text-foreground hover:underline"
-                    >
-                      {showRequiredInfo ? "Hide required info" : "Show required info"}
-                    </button>
-
-                    {template && showRequiredInfo ? (
-                      <TemplateRequirements template={template} />
-                    ) : null}
-
-                    {template?.comments.length ? (
-                      <div className="mt-6 space-y-3">
-                        {template.comments.slice(0, 3).map((comment) => (
-                          <div key={comment.id} className="flex gap-3">
-                            {comment.avatar_url ? (
-                              <img
-                                src={comment.avatar_url}
-                                alt=""
-                                className="h-8 w-8 rounded-full object-cover"
-                              />
-                            ) : (
-                              <div className="h-8 w-8 rounded-full bg-secondary" />
-                            )}
-                            <p className="text-sm text-foreground">
-                              <span className="font-semibold">{comment.username ?? "Guest"}</span>{" "}
-                              {comment.comment}
-                            </p>
                           </div>
-                        ))}
-                      </div>
-                    ) : null}
-
-                    {template &&
-                    (!template.capabilities || template.capabilities.supports_remix) ? (
-                      <RemixComposer
-                        template={template}
-                        onRequireAuth={() => setIsAuthOpen(true)}
-                      />
-                    ) : (
-                      <div className="mt-auto pt-6">
-                        <div className="flex items-center gap-2 h-14 rounded-[28px] bg-secondary px-5">
-                          <input
-                            type="text"
-                            placeholder="Add a comment to start the conversation"
-                            className="flex-1 bg-transparent outline-none text-foreground placeholder:text-muted-foreground text-[15px]"
-                          />
-                          <button
-                            aria-label="Emoji"
-                            className="h-9 w-9 rounded-full hover:bg-background/60 flex items-center justify-center"
-                          >
-                            <Smile className="h-5 w-5 text-foreground" />
-                          </button>
-                          <button
-                            aria-label="Sticker"
-                            className="h-9 w-9 rounded-full hover:bg-background/60 flex items-center justify-center"
-                          >
-                            <Sticker className="h-5 w-5 text-foreground" />
-                          </button>
-                          <button
-                            aria-label="Image"
-                            className="h-9 w-9 rounded-full hover:bg-background/60 flex items-center justify-center"
-                          >
-                            <ImageIcon className="h-5 w-5 text-foreground" />
-                          </button>
-                        </div>
-                      </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -1015,6 +1105,62 @@ function PinDetail() {
       <MobileNav />
       <SignupDialog open={isAuthOpen} onOpenChange={setIsAuthOpen} />
       <CreateBoardDialog open={isCreateBoardOpen} onOpenChange={setIsCreateBoardOpen} />
+    </div>
+  );
+}
+
+function TemplatePreviewSkeleton() {
+  return (
+    <div className="flex min-h-[480px] w-full items-center justify-center px-6 py-16">
+      <div className="w-full max-w-[360px]">
+        <Skeleton className="aspect-[4/5] w-full rounded-[24px]" />
+        <div className="mt-4 flex items-center justify-center gap-2">
+          <Skeleton className="h-2 w-8 rounded-full" />
+          <Skeleton className="h-2 w-2 rounded-full" />
+          <Skeleton className="h-2 w-2 rounded-full" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TemplateDetailsSkeleton() {
+  return (
+    <div className="flex min-h-[480px] flex-1 flex-col">
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-10 w-20 rounded-full" />
+          <Skeleton className="h-10 w-10 rounded-full" />
+          <Skeleton className="h-10 w-10 rounded-full" />
+        </div>
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-10 w-32 rounded-full" />
+          <Skeleton className="h-11 w-20 rounded-full" />
+        </div>
+      </div>
+
+      <div className="mb-8 flex items-center gap-3">
+        <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+        <div className="min-w-0 flex-1">
+          <Skeleton className="h-5 w-48 max-w-full rounded-full" />
+          <Skeleton className="mt-2 h-4 w-32 rounded-full" />
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <Skeleton className="h-8 w-40 rounded-full" />
+        <Skeleton className="h-5 w-full rounded-full" />
+        <Skeleton className="h-5 w-5/6 rounded-full" />
+        <Skeleton className="h-5 w-2/3 rounded-full" />
+      </div>
+
+      <div className="mt-5 flex justify-end">
+        <Skeleton className="h-5 w-36 rounded-full" />
+      </div>
+
+      <div className="mt-auto pt-6">
+        <Skeleton className="h-14 w-full rounded-[28px]" />
+      </div>
     </div>
   );
 }
