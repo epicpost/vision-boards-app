@@ -1,5 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { Sidebar } from "@/components/epicpost/Sidebar";
 import { TopBar } from "@/components/epicpost/TopBar";
@@ -14,11 +19,16 @@ import {
   fetchPostTemplates,
   getTemplateMedia,
   postTemplatesQueryKey,
+  type PostTemplateFeedResponse,
   type PostTemplateFeedParams,
 } from "@/lib/post-templates";
 import { recordSearch, searchMenuQueryKey } from "@/lib/search-menu";
 
 const ALL_CATEGORY_ID = "all";
+
+function getNextTemplatesPageParam(lastPage: PostTemplateFeedResponse) {
+  return lastPage.pagination.has_more ? (lastPage.pagination.next_cursor ?? undefined) : undefined;
+}
 
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>): { search?: string; board?: string } => {
@@ -42,6 +52,7 @@ function Index() {
   const activeBoardId = routeSearch?.board ?? "";
   const [searchInput, setSearchInput] = useState(search);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const boardCategoriesQuery = useQuery({
     queryKey: ["board-feed-categories"],
     queryFn: fetchBoardFeedCategories,
@@ -67,7 +78,11 @@ function Index() {
   useEffect(() => {
     if (!boardCategoriesQuery.isSuccess || boardCategoriesQuery.isPlaceholderData) return;
     writeCachedBoardFeedCategories(boardCategoriesQuery.data);
-  }, [boardCategoriesQuery.data, boardCategoriesQuery.isSuccess, boardCategoriesQuery.isPlaceholderData]);
+  }, [
+    boardCategoriesQuery.data,
+    boardCategoriesQuery.isSuccess,
+    boardCategoriesQuery.isPlaceholderData,
+  ]);
   const feedCategories = useMemo(
     () => [
       { id: ALL_CATEGORY_ID, label: "All" },
@@ -86,11 +101,29 @@ function Index() {
     [activeCategory, feedCategories],
   );
 
-  const templatesQuery = useQuery({
+  const templatesQuery = useInfiniteQuery({
     queryKey: postTemplatesQueryKey(feedParams),
-    queryFn: () => fetchPostTemplates(feedParams),
+    queryFn: ({ pageParam }) => fetchPostTemplates({ ...feedParams, cursor: pageParam }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: getNextTemplatesPageParam,
     placeholderData: keepPreviousData,
   });
+  const fetchNextTemplatesPage = templatesQuery.fetchNextPage;
+  const hasNextTemplatesPage = templatesQuery.hasNextPage;
+  const isFetchingNextTemplatesPage = templatesQuery.isFetchingNextPage;
+  const templates = useMemo(() => {
+    const seen = new Set<string>();
+
+    return (
+      templatesQuery.data?.pages
+        .flatMap((page) => page.data)
+        .filter((template) => {
+          if (seen.has(template.id)) return false;
+          seen.add(template.id);
+          return true;
+        }) ?? []
+    );
+  }, [templatesQuery.data]);
 
   // If the active board disappears from the list (e.g. deleted), fall back to All.
   useEffect(() => {
@@ -113,13 +146,69 @@ function Index() {
 
         const nextParams: PostTemplateFeedParams =
           category.id === ALL_CATEGORY_ID ? {} : { board: category.id };
-        void queryClient.prefetchQuery({
+        void queryClient.prefetchInfiniteQuery({
           queryKey: postTemplatesQueryKey(nextParams),
-          queryFn: () => fetchPostTemplates(nextParams),
+          queryFn: ({ pageParam }) => fetchPostTemplates({ ...nextParams, cursor: pageParam }),
+          initialPageParam: undefined as string | undefined,
+          getNextPageParam: getNextTemplatesPageParam,
         });
       });
     }
   }, [activeCategoryIndex, feedCategories, queryClient, search]);
+
+  useEffect(() => {
+    if (!hasNextTemplatesPage || isFetchingNextTemplatesPage) return;
+
+    const sentinel = loadMoreRef.current;
+    if (!sentinel) return;
+
+    const preloadDistance = Math.max(window.innerHeight * 3, 2400);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        void fetchNextTemplatesPage();
+      },
+      { root: null, rootMargin: `0px 0px ${preloadDistance}px 0px`, threshold: 0 },
+    );
+
+    observer.observe(sentinel);
+
+    return () => observer.disconnect();
+  }, [fetchNextTemplatesPage, hasNextTemplatesPage, isFetchingNextTemplatesPage, templates.length]);
+
+  useEffect(() => {
+    if (!hasNextTemplatesPage) return;
+
+    let frame = 0;
+
+    const maybeLoadMore = () => {
+      frame = 0;
+      if (!hasNextTemplatesPage || isFetchingNextTemplatesPage) return;
+
+      const documentElement = document.documentElement;
+      const remainingScroll = documentElement.scrollHeight - (window.scrollY + window.innerHeight);
+      const preloadDistance = Math.max(window.innerHeight * 3, 2400);
+
+      if (remainingScroll <= preloadDistance) {
+        void fetchNextTemplatesPage();
+      }
+    };
+
+    const scheduleLoadCheck = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(maybeLoadMore);
+    };
+
+    scheduleLoadCheck();
+    window.addEventListener("scroll", scheduleLoadCheck, { passive: true });
+    window.addEventListener("resize", scheduleLoadCheck);
+
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", scheduleLoadCheck);
+      window.removeEventListener("resize", scheduleLoadCheck);
+    };
+  }, [fetchNextTemplatesPage, hasNextTemplatesPage, isFetchingNextTemplatesPage, templates.length]);
 
   useEffect(() => {
     setSearchInput(search);
@@ -148,16 +237,14 @@ function Index() {
     if (templatesQuery.isPending || templatesQuery.isError) return;
 
     recordedSearchRef.current = query;
-    const firstPreview = templatesQuery.data?.data[0]
-      ? getTemplateMedia(templatesQuery.data.data[0]).url
-      : null;
+    const firstPreview = templates[0] ? getTemplateMedia(templates[0]).url : null;
 
     recordSearch(query, firstPreview)
       .then(() => queryClient.invalidateQueries({ queryKey: searchMenuQueryKey }))
       .catch(() => {
         // Recording history is best-effort; ignore failures.
       });
-  }, [search, templatesQuery.data, templatesQuery.isPending, templatesQuery.isError, queryClient]);
+  }, [search, templates, templatesQuery.isPending, templatesQuery.isError, queryClient]);
 
   const selectCategory = (categoryId: string) => {
     setSearchInput("");
@@ -207,12 +294,14 @@ function Index() {
         <main onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
           <h1 className="sr-only">Pinterest — Discover ideas you'll love</h1>
           <TemplateGrid
-            templates={templatesQuery.data?.data ?? []}
+            templates={templates}
             isLoading={templatesQuery.isLoading}
+            isFetchingMore={isFetchingNextTemplatesPage}
             isError={templatesQuery.isError}
             onRetry={() => void templatesQuery.refetch()}
             search={search.trim()}
           />
+          <div ref={loadMoreRef} className="h-px" aria-hidden="true" />
         </main>
       </div>
       <MobileNav />

@@ -7,6 +7,13 @@ import { toast } from "sonner";
 import { Sidebar } from "@/components/epicpost/Sidebar";
 import { TopBar } from "@/components/epicpost/TopBar";
 import { MobileNav } from "@/components/epicpost/MobileNav";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { AUTH_SESSION_CHANGED_EVENT, hasAuthSession, requestAuthDialog } from "@/lib/auth";
 import { uploadAssetFiles } from "@/lib/generations";
 import {
@@ -147,33 +154,84 @@ function KitSwitcher({
   selectedId: string | "new" | null;
   onSelect: (id: string | "new") => void;
 }) {
+  const [importOpen, setImportOpen] = useState(false);
+  const [websiteUrl, setWebsiteUrl] = useState("");
+
+  function handleImportSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalizedUrl = websiteUrl.trim();
+    if (!normalizedUrl) return;
+
+    setWebsiteUrl("");
+    setImportOpen(false);
+  }
+
   return (
-    <div className="mb-6 flex flex-wrap items-center gap-2">
-      {kits.map((kit) => (
+    <>
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        {kits.map((kit) => (
+          <button
+            key={kit.id}
+            onClick={() => onSelect(kit.id)}
+            className={`h-10 rounded-full px-4 text-[15px] font-semibold transition ${
+              selectedId === kit.id
+                ? "bg-foreground text-background"
+                : "bg-secondary text-foreground hover:bg-accent"
+            }`}
+          >
+            {kit.name || "Untitled"}
+          </button>
+        ))}
         <button
-          key={kit.id}
-          onClick={() => onSelect(kit.id)}
-          className={`h-10 rounded-full px-4 text-[15px] font-semibold transition ${
-            selectedId === kit.id
-              ? "bg-foreground text-background"
-              : "bg-secondary text-foreground hover:bg-accent"
-          }`}
+          onClick={() => setImportOpen(true)}
+          className="flex h-10 items-center gap-1.5 rounded-full bg-foreground px-4 text-[15px] font-semibold text-background transition hover:opacity-90"
         >
-          {kit.name || "Untitled"}
+          <Link2 className="h-4 w-4" strokeWidth={2.4} />
+          Import from URL
         </button>
-      ))}
-      <button
-        onClick={() => onSelect("new")}
-        className={`flex h-10 items-center gap-1.5 rounded-full px-4 text-[15px] font-semibold transition ${
-          selectedId === "new"
-            ? "bg-foreground text-background"
-            : "bg-secondary text-foreground hover:bg-accent"
-        }`}
-      >
-        <Plus className="h-4 w-4" strokeWidth={2.4} />
-        New kit
-      </button>
-    </div>
+      </div>
+
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent className="max-w-md rounded-[20px] p-6">
+          <DialogHeader>
+            <DialogTitle>Import from URL</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleImportSubmit}>
+            <label className="text-sm font-semibold text-muted-foreground" htmlFor="brand-url">
+              Website URL
+            </label>
+            <div className="mt-2 flex h-12 items-center gap-2 rounded-[16px] border border-border bg-background px-4 focus-within:ring-2 focus-within:ring-ring">
+              <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <input
+                id="brand-url"
+                type="url"
+                value={websiteUrl}
+                onChange={(event) => setWebsiteUrl(event.target.value)}
+                placeholder="https://yourbrand.com"
+                className="min-w-0 flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
+                autoFocus
+              />
+            </div>
+            <DialogFooter className="mt-6 gap-2 sm:space-x-0">
+              <button
+                type="button"
+                onClick={() => setImportOpen(false)}
+                className="h-11 rounded-full bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:bg-accent"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!websiteUrl.trim()}
+                className="h-11 rounded-full bg-foreground px-5 text-[15px] font-semibold text-background transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Import
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

@@ -30,12 +30,14 @@ function PinSkeleton({ index }: { index: number }) {
 export function TemplateGrid({
   templates,
   isLoading,
+  isFetchingMore,
   isError,
   onRetry,
   search,
 }: {
   templates: PostTemplate[];
   isLoading: boolean;
+  isFetchingMore?: boolean;
   isError: boolean;
   onRetry: () => void;
   search?: string;
@@ -75,11 +77,20 @@ export function TemplateGrid({
   return (
     <div className="px-3 md:px-6 pb-10">
       <div className="columns-2 sm:columns-2 md:columns-3 lg:columns-4 xl:columns-5 2xl:columns-6 gap-3 [column-fill:_balance]">
-        {isLoading
-          ? Array.from({ length: 12 }, (_, index) => <PinSkeleton key={index} index={index} />)
-          : templates.map((template, index) => (
+        {isLoading ? (
+          Array.from({ length: 12 }, (_, index) => <PinSkeleton key={index} index={index} />)
+        ) : (
+          <>
+            {templates.map((template, index) => (
               <TemplateCard key={template.id} pin={templateToPin(template, index)} />
             ))}
+            {isFetchingMore
+              ? Array.from({ length: 8 }, (_, index) => (
+                  <PinSkeleton key={`next-page-${index}`} index={templates.length + index} />
+                ))
+              : null}
+          </>
+        )}
       </div>
     </div>
   );

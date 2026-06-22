@@ -186,6 +186,7 @@ export interface PostTemplateFeedResponse {
 export interface PostTemplateFeedParams {
   search?: string;
   board?: string;
+  cursor?: string;
 }
 
 export const postTemplatesQueryKey = ({ search, board }: PostTemplateFeedParams = {}) =>
@@ -248,6 +249,9 @@ export async function fetchPostTemplates(
     url.searchParams.set("board", params.board);
   } else if (normalizedSearch) {
     url.searchParams.set("search", normalizedSearch);
+  }
+  if (params.cursor) {
+    url.searchParams.set("cursor", params.cursor);
   }
 
   // Optional auth: when signed in, send the access token so the feed includes
