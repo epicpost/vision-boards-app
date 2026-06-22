@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Download, ExternalLink, Lock, Loader2 } from "lucide-react";
+import { Download, ExternalLink, Loader2 } from "lucide-react";
 import { Sidebar } from "@/components/epicpost/Sidebar";
 import { TopBar } from "@/components/epicpost/TopBar";
 import { MobileNav } from "@/components/epicpost/MobileNav";
-import { CreateBoardDialog } from "@/components/epicpost/CreateBoardDialog";
-import { TemplateCard } from "@/components/epicpost/TemplateCard";
 import {
   Dialog,
   DialogContent,
@@ -14,29 +12,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { pins } from "@/components/epicpost/pins-data";
-import { boardsQueryKey, fetchBoards, type Board } from "@/lib/boards";
 import { fetchRemixes, remixesQueryKey, type RemixGenerationItem } from "@/lib/generations";
-import { fetchLikedTemplates, likedTemplatesQueryKey } from "@/lib/likes";
-import { getTemplateMedia, type PostTemplate } from "@/lib/post-templates";
 import { getAccessToken } from "@/lib/auth";
 
-export const Route = createFileRoute("/boards")({
+export const Route = createFileRoute("/remixes")({
   head: () => ({
     meta: [
-      { title: "Your saved ideas — Boards" },
-      { name: "description", content: "Browse your saved boards and collections." },
+      { title: "Your saved ideas — Remixes" },
+      { name: "description", content: "Browse and download your generated remixes." },
     ],
   }),
-  component: BoardsPage,
+  component: RemixesPage,
 });
-
-function take(start: number, count: number) {
-  return Array.from({ length: count }, (_, i) => {
-    const pin = pins[(start + i) % pins.length];
-    return pin?.src ?? "";
-  });
-}
 
 function formatUpdatedAt(updatedAt: string | null) {
   if (!updatedAt) return "";
@@ -56,129 +43,6 @@ function formatUpdatedAt(updatedAt: string | null) {
   if (diffDays < 31) return `${Math.floor(diffDays / 7)}w`;
 
   return `${Math.floor(diffDays / 30)}mo`;
-}
-
-function BoardCard({ board }: { board: Board }) {
-  const thumbs = board.preview_assets.map((asset) => asset.url);
-  const fallbackThumbs = take(board.id.length % pins.length, 3);
-  const [main, ...rest] = [...thumbs, ...fallbackThumbs].slice(0, 3);
-  const updated = formatUpdatedAt(board.updated_at);
-
-  return (
-    <Link to="/" search={{ board: board.id }} className="group block">
-      <div className="relative overflow-hidden rounded-[20px] bg-secondary aspect-[4/3]">
-        <div className="flex h-full w-full gap-px">
-          <div className="relative h-full w-2/3">
-            <img src={main} alt="" className="h-full w-full object-cover" />
-          </div>
-          <div className="flex h-full w-1/3 flex-col gap-px">
-            {rest.map((src, i) => (
-              <img key={i} src={src} alt="" className="h-1/2 w-full object-cover" />
-            ))}
-          </div>
-        </div>
-        {board.is_secret && (
-          <span className="absolute left-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-background/95 shadow">
-            <Lock className="h-4 w-4 text-foreground" strokeWidth={2.5} />
-          </span>
-        )}
-      </div>
-      <h3 className="mt-3 px-1 text-[17px] font-bold text-foreground truncate">{board.name}</h3>
-      <p className="px-1 text-sm text-muted-foreground">
-        {board.template_count} {board.template_count === 1 ? "Template" : "Templates"}
-        {updated ? ` · ${updated}` : ""}
-      </p>
-    </Link>
-  );
-}
-
-function BoardCardSkeleton() {
-  return (
-    <div className="block">
-      <div className="aspect-[4/3] rounded-[20px] bg-secondary animate-pulse" />
-      <div className="mt-3 mx-1 h-5 w-2/3 rounded bg-secondary animate-pulse" />
-      <div className="mt-2 mx-1 h-4 w-1/3 rounded bg-secondary animate-pulse" />
-    </div>
-  );
-}
-
-const TABS = [
-  { key: "remixes", label: "Remixes" },
-  { key: "boards", label: "Boards" },
-  { key: "likes", label: "Likes" },
-] as const;
-
-type TabKey = (typeof TABS)[number]["key"];
-
-function templateToPin(template: PostTemplate, index: number) {
-  const media = getTemplateMedia(template);
-
-  return {
-    id: template.id,
-    src: media.url,
-    mediaType: media.type,
-    width: media.width,
-    height: media.height,
-    fallbackHeight: 460 + (index % 4) * 40,
-    title: template.title,
-  };
-}
-
-function LikesGrid() {
-  const likesQuery = useQuery({
-    queryKey: likedTemplatesQueryKey(),
-    queryFn: () => fetchLikedTemplates(),
-    enabled: Boolean(getAccessToken()),
-  });
-  const liked = likesQuery.data?.data ?? [];
-
-  if (likesQuery.isLoading) {
-    return (
-      <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-3 [column-fill:_balance]">
-        {Array.from({ length: 10 }, (_, index) => (
-          <div
-            key={index}
-            className="mb-3 break-inside-avoid rounded-[16px] bg-secondary animate-pulse"
-            style={{ height: 260 + (index % 4) * 40 }}
-          />
-        ))}
-      </div>
-    );
-  }
-
-  if (likesQuery.isError) {
-    return (
-      <div className="flex min-h-[260px] flex-col items-center justify-center text-center">
-        <h2 className="text-xl font-semibold text-foreground">Likes did not load</h2>
-        <p className="mt-2 max-w-sm text-sm text-muted-foreground">{likesQuery.error.message}</p>
-        <button
-          onClick={() => void likesQuery.refetch()}
-          className="mt-5 rounded-full bg-foreground px-5 py-2 text-sm font-semibold text-background transition hover:bg-foreground/90"
-        >
-          Try again
-        </button>
-      </div>
-    );
-  }
-
-  if (!liked.length) {
-    return (
-      <div className="flex min-h-[260px] flex-col items-center justify-center text-center">
-        <h2 className="text-xl font-semibold text-foreground">No likes yet</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Tap the heart on a template to find it here later.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-3 [column-fill:_balance]">
-      {liked.map((template, index) => (
-        <TemplateCard key={template.id} pin={templateToPin(template, index)} />
-      ))}
-    </div>
-  );
 }
 
 function remixAspectRatio(remix: RemixGenerationItem) {
@@ -419,110 +283,44 @@ function RemixesGrid() {
   );
 }
 
-function BoardsPage() {
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabKey>("boards");
-  const boardsQuery = useQuery({
-    queryKey: boardsQueryKey(),
-    queryFn: () => fetchBoards(),
-  });
-  const boards = boardsQuery.data?.data ?? [];
-
+function RemixesPage() {
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
       <div className="md:pl-[72px] pb-16 md:pb-0">
         <TopBar showTabs={false} />
         <main className="px-4 md:px-8 pt-2 pb-12 max-w-[1600px] mx-auto">
-          <div className="flex items-start justify-between gap-6 mb-6">
-            <h1 className="text-3xl font-bold text-foreground tracking-tight">Your saved ideas</h1>
+          <div className="mb-6 flex items-start justify-between gap-6">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Your saved ideas</h1>
           </div>
 
-          <nav className="flex items-center justify-between gap-6 border-b border-transparent mb-6">
+          <nav className="mb-6 flex items-center justify-between gap-6 border-b border-transparent">
             <div className="flex items-center gap-6">
-              {TABS.map((t) =>
-                t.key === "remixes" ? (
-                  <Link
-                    key={t.key}
-                    to="/remixes"
-                    className="pb-2 text-[17px] font-semibold text-foreground/80 transition hover:text-foreground"
-                  >
-                    {t.label}
-                  </Link>
-                ) : t.key === "likes" ? (
-                  <Link
-                    key={t.key}
-                    to="/likes"
-                    className="pb-2 text-[17px] font-semibold text-foreground/80 transition hover:text-foreground"
-                  >
-                    {t.label}
-                  </Link>
-                ) : (
-                  <button
-                    key={t.key}
-                    onClick={() => setActiveTab(t.key)}
-                    className={`pb-2 text-[17px] font-semibold transition ${
-                      t.key === activeTab
-                        ? "text-foreground border-b-[2px] border-foreground"
-                        : "text-foreground/80 hover:text-foreground"
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ),
-              )}
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                onClick={() => setIsCreateOpen(true)}
-                className="rounded-full bg-[#e60023] hover:bg-[#ad081b] transition text-white px-5 h-11 text-[15px] font-semibold"
+              <Link
+                to="/remixes"
+                className="border-b-[2px] border-foreground pb-2 text-[17px] font-semibold text-foreground transition"
               >
-                Create
-              </button>
+                Remixes
+              </Link>
+              <Link
+                to="/boards"
+                className="pb-2 text-[17px] font-semibold text-foreground/80 transition hover:text-foreground"
+              >
+                Boards
+              </Link>
+              <Link
+                to="/likes"
+                className="pb-2 text-[17px] font-semibold text-foreground/80 transition hover:text-foreground"
+              >
+                Likes
+              </Link>
             </div>
           </nav>
 
-          {activeTab === "likes" ? (
-            <LikesGrid />
-          ) : activeTab === "remixes" ? (
-            <RemixesGrid />
-          ) : boardsQuery.isLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8">
-              {Array.from({ length: 8 }, (_, index) => (
-                <BoardCardSkeleton key={index} />
-              ))}
-            </div>
-          ) : boardsQuery.isError ? (
-            <div className="flex min-h-[260px] flex-col items-center justify-center text-center">
-              <h2 className="text-xl font-semibold text-foreground">Boards did not load</h2>
-              <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-                {boardsQuery.error.message}
-              </p>
-              <button
-                onClick={() => void boardsQuery.refetch()}
-                className="mt-5 rounded-full bg-foreground px-5 py-2 text-sm font-semibold text-background transition hover:bg-foreground/90"
-              >
-                Try again
-              </button>
-            </div>
-          ) : boards.length ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8">
-              {boards.map((b) => (
-                <BoardCard key={b.id} board={b} />
-              ))}
-            </div>
-          ) : (
-            <div className="flex min-h-[260px] flex-col items-center justify-center text-center">
-              <h2 className="text-xl font-semibold text-foreground">No boards yet</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Create a board to start organizing saved ideas.
-              </p>
-            </div>
-          )}
+          <RemixesGrid />
         </main>
       </div>
       <MobileNav />
-      <CreateBoardDialog open={isCreateOpen} onOpenChange={setIsCreateOpen} />
     </div>
   );
 }

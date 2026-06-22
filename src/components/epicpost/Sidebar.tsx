@@ -10,7 +10,7 @@ import { SettingsSupportMenu } from "./SettingsSupportMenu";
 
 const items = [
   { icon: Home, label: "Home", to: "/" as const },
-  { icon: LayoutGrid, label: "Saved", to: "/boards" as const },
+  { icon: LayoutGrid, label: "Saved", to: "/remixes" as const },
   { icon: Palette, label: "Brand Kit", to: "/brand-kit" as const },
   { icon: Plus, label: "Create" },
   { icon: Bell, label: "Notifications" },
@@ -107,7 +107,7 @@ export function Sidebar() {
               <div
                 aria-label={it.label}
                 className={`flex h-12 w-12 items-center justify-center rounded-[16px] transition ${
-                  pathname === it.to
+                  pathname === it.to || (it.to === "/remixes" && pathname === "/boards")
                     ? "bg-foreground text-background"
                     : "hover:bg-secondary text-foreground"
                 }`}

@@ -713,10 +713,102 @@ function SignedOutState() {
 
 function LoadingState() {
   return (
-    <div className="flex items-center justify-center rounded-[20px] border border-border bg-card px-6 py-20 text-muted-foreground">
-      <Loader2 className="h-6 w-6 animate-spin" />
+    <div className="animate-pulse" aria-label="Loading brand kit">
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <SkeletonBlock className="h-10 w-28 rounded-full" />
+        <SkeletonBlock className="h-10 w-24 rounded-full" />
+        <SkeletonBlock className="h-10 w-32 rounded-full" />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="flex flex-col gap-4 lg:col-span-2">
+          <Card>
+            <SkeletonBlock className="h-9 w-64 max-w-full rounded-lg" />
+            <div className="mt-4 flex items-center gap-2">
+              <SkeletonBlock className="h-4 w-4 rounded" />
+              <SkeletonBlock className="h-5 w-48 max-w-full rounded-lg" />
+            </div>
+          </Card>
+
+          <div className="grid gap-4 sm:grid-cols-[200px_1fr]">
+            <Card className="flex flex-col">
+              <SkeletonBlock className="h-4 w-12 rounded" />
+              <SkeletonBlock className="mt-3 aspect-square w-full rounded-[16px]" />
+              <SkeletonBlock className="mx-auto mt-3 h-4 w-16 rounded" />
+            </Card>
+
+            <Card>
+              <SkeletonBlock className="h-4 w-12 rounded" />
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <SkeletonBlock className="h-24 rounded-[16px]" />
+                <SkeletonBlock className="h-24 rounded-[16px]" />
+              </div>
+            </Card>
+          </div>
+
+          <Card>
+            <SkeletonBlock className="h-4 w-14 rounded" />
+            <div className="mt-4 flex flex-wrap items-start gap-4">
+              {Array.from({ length: 5 }, (_, index) => (
+                <div key={index} className="flex flex-col items-center gap-2">
+                  <SkeletonBlock className="h-14 w-14 rounded-full" />
+                  <SkeletonBlock className="h-3 w-14 rounded" />
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Card>
+              <SkeletonBlock className="h-4 w-20 rounded" />
+              <SkeletonBlock className="mt-4 h-5 w-full rounded-lg" />
+              <SkeletonBlock className="mt-3 h-5 w-3/4 rounded-lg" />
+            </Card>
+
+            <Card>
+              <SkeletonBlock className="h-4 w-24 rounded" />
+              <div className="mt-4 flex flex-wrap gap-2">
+                <SkeletonBlock className="h-8 w-20 rounded-full" />
+                <SkeletonBlock className="h-8 w-24 rounded-full" />
+                <SkeletonBlock className="h-8 w-16 rounded-full" />
+              </div>
+              <SkeletonBlock className="mt-4 h-5 w-48 max-w-full rounded-lg" />
+            </Card>
+          </div>
+
+          <Card>
+            <SkeletonBlock className="h-4 w-24 rounded" />
+            <SkeletonBlock className="mt-4 h-5 w-72 max-w-full rounded-lg" />
+          </Card>
+        </div>
+
+        <div className="lg:col-span-1">
+          <Card>
+            <SkeletonBlock className="h-4 w-14 rounded" />
+            <SkeletonBlock className="mt-3 h-32 w-full rounded-[16px]" />
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <SkeletonBlock className="aspect-square rounded-[14px]" />
+              <SkeletonBlock className="aspect-square rounded-[14px]" />
+              <SkeletonBlock className="aspect-square rounded-[14px]" />
+              <SkeletonBlock className="aspect-square rounded-[14px]" />
+            </div>
+          </Card>
+        </div>
+      </div>
+
+      <div className="mt-8 flex items-center justify-between gap-3 border-t border-border bg-background py-4">
+        <SkeletonBlock className="h-11 w-24 rounded-full" />
+        <div className="flex items-center gap-3">
+          <SkeletonBlock className="h-11 w-20 rounded-full" />
+          <SkeletonBlock className="h-11 w-36 rounded-full" />
+        </div>
+      </div>
     </div>
   );
+}
+
+function SkeletonBlock({ className }: { className: string }) {
+  return <div className={`bg-secondary ${className}`} />;
 }
 
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {

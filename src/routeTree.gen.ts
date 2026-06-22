@@ -10,6 +10,8 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as RemixesRouteImport } from './routes/remixes'
+import { Route as LikesRouteImport } from './routes/likes'
 import { Route as BrandKitRouteImport } from './routes/brand-kit'
 import { Route as BoardsRouteImport } from './routes/boards'
 import { Route as IndexRouteImport } from './routes/index'
@@ -19,6 +21,16 @@ import { Route as AuthMagicLinkConfirmRouteImport } from './routes/auth/magic-li
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RemixesRoute = RemixesRouteImport.update({
+  id: '/remixes',
+  path: '/remixes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LikesRoute = LikesRouteImport.update({
+  id: '/likes',
+  path: '/likes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BrandKitRoute = BrandKitRouteImport.update({
@@ -51,6 +63,8 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/boards': typeof BoardsRoute
   '/brand-kit': typeof BrandKitRoute
+  '/likes': typeof LikesRoute
+  '/remixes': typeof RemixesRoute
   '/settings': typeof SettingsRoute
   '/template/$pinId': typeof TemplatePinIdRoute
   '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
@@ -59,6 +73,8 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/boards': typeof BoardsRoute
   '/brand-kit': typeof BrandKitRoute
+  '/likes': typeof LikesRoute
+  '/remixes': typeof RemixesRoute
   '/settings': typeof SettingsRoute
   '/template/$pinId': typeof TemplatePinIdRoute
   '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
@@ -68,6 +84,8 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/boards': typeof BoardsRoute
   '/brand-kit': typeof BrandKitRoute
+  '/likes': typeof LikesRoute
+  '/remixes': typeof RemixesRoute
   '/settings': typeof SettingsRoute
   '/template/$pinId': typeof TemplatePinIdRoute
   '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
@@ -78,6 +96,8 @@ export interface FileRouteTypes {
     | '/'
     | '/boards'
     | '/brand-kit'
+    | '/likes'
+    | '/remixes'
     | '/settings'
     | '/template/$pinId'
     | '/auth/magic-link/confirm'
@@ -86,6 +106,8 @@ export interface FileRouteTypes {
     | '/'
     | '/boards'
     | '/brand-kit'
+    | '/likes'
+    | '/remixes'
     | '/settings'
     | '/template/$pinId'
     | '/auth/magic-link/confirm'
@@ -94,6 +116,8 @@ export interface FileRouteTypes {
     | '/'
     | '/boards'
     | '/brand-kit'
+    | '/likes'
+    | '/remixes'
     | '/settings'
     | '/template/$pinId'
     | '/auth/magic-link/confirm'
@@ -103,6 +127,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BoardsRoute: typeof BoardsRoute
   BrandKitRoute: typeof BrandKitRoute
+  LikesRoute: typeof LikesRoute
+  RemixesRoute: typeof RemixesRoute
   SettingsRoute: typeof SettingsRoute
   TemplatePinIdRoute: typeof TemplatePinIdRoute
   AuthMagicLinkConfirmRoute: typeof AuthMagicLinkConfirmRoute
@@ -115,6 +141,20 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/remixes': {
+      id: '/remixes'
+      path: '/remixes'
+      fullPath: '/remixes'
+      preLoaderRoute: typeof RemixesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/likes': {
+      id: '/likes'
+      path: '/likes'
+      fullPath: '/likes'
+      preLoaderRoute: typeof LikesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/brand-kit': {
@@ -159,6 +199,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BoardsRoute: BoardsRoute,
   BrandKitRoute: BrandKitRoute,
+  LikesRoute: LikesRoute,
+  RemixesRoute: RemixesRoute,
   SettingsRoute: SettingsRoute,
   TemplatePinIdRoute: TemplatePinIdRoute,
   AuthMagicLinkConfirmRoute: AuthMagicLinkConfirmRoute,
