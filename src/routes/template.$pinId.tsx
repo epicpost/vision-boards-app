@@ -53,7 +53,7 @@ import {
 } from "@/lib/boards";
 import { likedTemplatesQueryKey, likeTemplate, unlikeTemplate } from "@/lib/likes";
 import { getAccessToken } from "@/lib/auth";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 const APP_BASE_URL = import.meta.env.VITE_APP_BASE_URL ?? "https://www.epicpost.app";
 const DEFAULT_SHARE_TITLE = "EpicPost — Remixable Social Media Templates";
@@ -219,6 +219,258 @@ function BoardRow({
         board.is_secret && <Lock className="h-5 w-5 shrink-0 text-foreground" />
       )}
     </button>
+  );
+}
+
+type ShareTarget = {
+  key: string;
+  label: string;
+  bg: string;
+  icon: ReactNode;
+  href?: string;
+  onClick?: () => void;
+};
+
+type ShareRecipient = { id: string; name: string; handle: string };
+
+// Reusable Share popover — rendered both in the detail header and the
+// fullscreen viewer (each with its own open state and trigger).
+function SharePopover({
+  open,
+  onOpenChange,
+  align = "center",
+  trigger,
+  shareTargets,
+  recipients,
+  search,
+  onSearchChange,
+  onSend,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  align?: "start" | "center" | "end";
+  trigger: ReactNode;
+  shareTargets: ShareTarget[];
+  recipients: ShareRecipient[];
+  search: string;
+  onSearchChange: (value: string) => void;
+  onSend: (recipient: ShareRecipient) => void;
+}) {
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverContent
+        align={align}
+        sideOffset={10}
+        className="w-[min(calc(100vw-24px),360px)] overflow-hidden rounded-[20px] border-0 bg-background p-0 text-foreground shadow-[0_12px_36px_rgba(0,0,0,0.18)]"
+      >
+        <div className="max-h-[min(72vh,560px)] overflow-y-auto px-4 pb-4 pt-4">
+          <h3 className="mb-4 text-center text-xl font-bold">Share</h3>
+          <div className="mb-4 flex items-start justify-between gap-2">
+            {shareTargets.map((target) =>
+              target.href ? (
+                <a
+                  key={target.key}
+                  href={target.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex flex-1 flex-col items-center gap-2 text-center"
+                >
+                  <span
+                    className={`flex h-14 w-14 items-center justify-center rounded-full ${target.bg}`}
+                  >
+                    {target.icon}
+                  </span>
+                  <span className="text-[13px] font-medium text-foreground">{target.label}</span>
+                </a>
+              ) : (
+                <button
+                  key={target.key}
+                  type="button"
+                  onClick={target.onClick}
+                  className="flex flex-1 flex-col items-center gap-2 text-center"
+                >
+                  <span
+                    className={`flex h-14 w-14 items-center justify-center rounded-full ${target.bg}`}
+                  >
+                    {target.icon}
+                  </span>
+                  <span className="text-[13px] font-medium text-foreground">{target.label}</span>
+                </button>
+              ),
+            )}
+          </div>
+
+          <div className="mb-4 h-px bg-border" />
+
+          <label className="mb-4 flex h-12 items-center gap-2 rounded-[16px] bg-input px-4 transition focus-within:ring-2 focus-within:ring-ring">
+            <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <input
+              type="search"
+              placeholder="Search by name or email"
+              value={search}
+              onChange={(event) => onSearchChange(event.target.value)}
+              className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
+            />
+          </label>
+
+          {recipients.length === 0 ? (
+            <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+              No people match your search.
+            </p>
+          ) : (
+            <div className="space-y-1">
+              {recipients.map((recipient) => (
+                <div
+                  key={recipient.id}
+                  className="flex items-center gap-3 rounded-[14px] px-2 py-2"
+                >
+                  <div className="h-12 w-12 shrink-0 rounded-full bg-gradient-to-br from-rose-300 to-amber-200" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-base font-semibold text-foreground">
+                      {recipient.name}
+                    </p>
+                    <p className="truncate text-sm text-muted-foreground">{recipient.handle}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onSend(recipient)}
+                    className="h-10 shrink-0 rounded-full bg-secondary px-5 text-sm font-semibold text-foreground transition hover:brightness-95"
+                  >
+                    Send
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// Reusable Save-to-board popover — shared by the detail header and the
+// fullscreen viewer.
+function SaveToBoardPopover({
+  open,
+  onOpenChange,
+  align = "end",
+  trigger,
+  isLoading,
+  isError,
+  errorMessage,
+  isEmpty,
+  boardSearch,
+  onBoardSearchChange,
+  topChoices,
+  otherBoards,
+  savingBoardId,
+  currentBoardId,
+  onSelectBoard,
+  onCreateBoard,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  align?: "start" | "center" | "end";
+  trigger: ReactNode;
+  isLoading: boolean;
+  isError: boolean;
+  errorMessage: string;
+  isEmpty: boolean;
+  boardSearch: string;
+  onBoardSearchChange: (value: string) => void;
+  topChoices: Board[];
+  otherBoards: Board[];
+  savingBoardId: string | null;
+  currentBoardId: string | null;
+  onSelectBoard: (boardId: string) => void;
+  onCreateBoard: () => void;
+}) {
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverContent
+        align={align}
+        sideOffset={10}
+        className="w-[min(calc(100vw-24px),360px)] overflow-hidden rounded-[20px] border-0 bg-background p-0 text-foreground shadow-[0_12px_36px_rgba(0,0,0,0.18)]"
+      >
+        <div className="max-h-[min(72vh,560px)] overflow-y-auto px-4 pb-24 pt-4">
+          <h3 className="mb-4 text-center text-xl font-bold">Save</h3>
+          <label className="mb-4 flex h-12 items-center gap-2 rounded-[16px] bg-input px-4 transition focus-within:ring-2 focus-within:ring-ring">
+            <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <input
+              type="search"
+              placeholder="Search"
+              value={boardSearch}
+              onChange={(event) => onBoardSearchChange(event.target.value)}
+              className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
+            />
+          </label>
+
+          {isLoading ? (
+            <p className="px-2 py-6 text-center text-sm text-muted-foreground">Loading boards...</p>
+          ) : isError ? (
+            <p className="px-2 py-6 text-center text-sm text-muted-foreground">{errorMessage}</p>
+          ) : isEmpty ? (
+            <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+              {boardSearch ? "No boards match your search." : "No boards yet."}
+            </p>
+          ) : (
+            <>
+              {topChoices.length > 0 && (
+                <>
+                  <p className="mb-2 px-2 text-[13px] font-medium text-muted-foreground">
+                    Top choices
+                  </p>
+                  <div className="space-y-2">
+                    {topChoices.map((board) => (
+                      <BoardRow
+                        key={board.id}
+                        board={board}
+                        saving={savingBoardId === board.id}
+                        selected={board.id === currentBoardId}
+                        onSelect={() => onSelectBoard(board.id)}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {otherBoards.length > 0 && (
+                <>
+                  <p className="mb-2 mt-4 px-2 text-[13px] font-medium text-muted-foreground">
+                    All boards
+                  </p>
+                  <div className="space-y-2">
+                    {otherBoards.map((board) => (
+                      <BoardRow
+                        key={board.id}
+                        board={board}
+                        saving={savingBoardId === board.id}
+                        selected={board.id === currentBoardId}
+                        onSelect={() => onSelectBoard(board.id)}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </div>
+        <div className="absolute inset-x-0 bottom-0 rounded-b-[20px] bg-background/95 px-4 py-3 shadow-[0_-8px_22px_rgba(0,0,0,0.08)] backdrop-blur transition hover:bg-secondary">
+          <button
+            type="button"
+            onClick={onCreateBoard}
+            className="flex h-16 w-full items-center gap-3 px-2 text-left font-semibold"
+          >
+            <span className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-secondary">
+              <Plus className="h-6 w-6 text-foreground" />
+            </span>
+            <span className="text-base">Create board</span>
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
