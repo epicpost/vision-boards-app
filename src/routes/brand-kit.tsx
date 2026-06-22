@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { HexColorInput, HexColorPicker } from "react-colorful";
 import { Image as ImageIcon, Link2, Loader2, Plus, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { Sidebar } from "@/components/epicpost/Sidebar";
@@ -14,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AUTH_SESSION_CHANGED_EVENT, hasAuthSession, requestAuthDialog } from "@/lib/auth";
 import { uploadAssetFiles } from "@/lib/generations";
 import {
@@ -43,6 +45,19 @@ export const Route = createFileRoute("/brand-kit")({
 });
 
 const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
+const DEFAULT_NEW_COLOR = "#888888";
+const HEX_COLOR_PATTERN = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+function areArraysEqual<T>(first: T[], second: T[]) {
+  return first.length === second.length && first.every((value, index) => value === second[index]);
+}
+
+function areImagesEqual(first: BrandImage[], second: BrandImage[]) {
+  return areArraysEqual(
+    first.map((image) => image.asset_id),
+    second.map((image) => image.asset_id),
+  );
+}
 
 function BrandKitPage() {
   const queryClient = useQueryClient();
@@ -281,20 +296,18 @@ function BrandKitEditor({
   const logoInputRef = useRef<HTMLInputElement>(null);
   const imagesInputRef = useRef<HTMLInputElement>(null);
 
-  function reset() {
-    setName(initial.name);
-    setWebsiteUrl(initial.websiteUrl);
-    setFontPrimary(initial.fontPrimary);
-    setFontSecondary(initial.fontSecondary);
-    setOneLiner(initial.oneLiner);
-    setToneOfVoice(initial.toneOfVoice);
-    setPalette(initial.palette);
-    setBrandValues(initial.brandValues);
-    setValueDraft("");
-    setLogoAssetId(initial.logoAssetId);
-    setLogoUrl(initial.logoUrl);
-    setImages(initial.images);
-  }
+  const hasUnsavedChanges =
+    name !== initial.name ||
+    websiteUrl !== initial.websiteUrl ||
+    fontPrimary !== initial.fontPrimary ||
+    fontSecondary !== initial.fontSecondary ||
+    oneLiner !== initial.oneLiner ||
+    toneOfVoice !== initial.toneOfVoice ||
+    logoAssetId !== initial.logoAssetId ||
+    logoUrl !== initial.logoUrl ||
+    !areArraysEqual(palette, initial.palette) ||
+    !areArraysEqual(brandValues, initial.brandValues) ||
+    !areImagesEqual(images, initial.images);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -495,13 +508,7 @@ function BrandKitEditor({
                   onRemove={() => removeSwatch(index)}
                 />
               ))}
-              <button
-                onClick={() => setPalette((current) => [...current, "#888888"])}
-                className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-dashed border-border text-muted-foreground transition hover:border-foreground/40 hover:text-foreground"
-                aria-label="Add color"
-              >
-                <Plus className="h-5 w-5" />
-              </button>
+              <AddColorButton onAdd={(hex) => setPalette((current) => [...current, hex])} />
             </div>
           </Card>
 
@@ -645,20 +652,16 @@ function BrandKitEditor({
           ) : null}
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={reset}
-            className="h-11 rounded-full bg-secondary px-5 text-[15px] font-semibold text-foreground hover:bg-accent"
-          >
-            Reset
-          </button>
-          <button
-            onClick={() => saveMutation.mutate()}
-            disabled={saveMutation.isPending}
-            className="flex h-11 items-center gap-2 rounded-full bg-foreground px-6 text-[15px] font-semibold text-background transition hover:opacity-90 disabled:opacity-50"
-          >
-            {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {kit ? "Save changes" : "Create brand kit"}
-          </button>
+          {hasUnsavedChanges || saveMutation.isPending ? (
+            <button
+              onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending}
+              className="flex h-11 items-center gap-2 rounded-full bg-foreground px-6 text-[15px] font-semibold text-background transition hover:opacity-90 disabled:opacity-50"
+            >
+              {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {kit ? "Save changes" : "Create brand kit"}
+            </button>
+          ) : null}
         </div>
       </div>
     </div>
@@ -675,6 +678,22 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return <div className="text-sm font-semibold text-muted-foreground">{children}</div>;
+}
+
+function isHexColor(value: string) {
+  return HEX_COLOR_PATTERN.test(value.trim());
+}
+
+function normalizeHexColor(value: string) {
+  const hex = value.trim();
+  if (hex.length === 4) {
+    return `#${hex
+      .slice(1)
+      .split("")
+      .map((char) => char + char)
+      .join("")}`.toLowerCase();
+  }
+  return hex.toLowerCase();
 }
 
 function FontSlot({
@@ -717,7 +736,7 @@ function Swatch({
   onChange: (value: string) => void;
   onRemove: () => void;
 }) {
-  const valid = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(hex);
+  const valid = isHexColor(hex);
   return (
     <div className="group flex flex-col items-center gap-1.5">
       <div className="relative">
@@ -747,6 +766,68 @@ function Swatch({
         className="w-16 bg-transparent text-center text-xs font-semibold text-muted-foreground outline-none"
       />
     </div>
+  );
+}
+
+function AddColorButton({ onAdd }: { onAdd: (value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [hex, setHex] = useState(DEFAULT_NEW_COLOR);
+  const valid = isHexColor(hex);
+  const pickerColor = valid ? normalizeHexColor(hex) : DEFAULT_NEW_COLOR;
+
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen);
+    if (nextOpen) setHex(DEFAULT_NEW_COLOR);
+  }
+
+  function handleAdd() {
+    if (!valid) return;
+    onAdd(normalizeHexColor(hex));
+    setOpen(false);
+  }
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-dashed border-border text-muted-foreground transition hover:border-foreground/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          aria-label="Add color"
+        >
+          <Plus className="h-5 w-5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" sideOffset={8} className="w-[236px] rounded-[16px] p-3">
+        <HexColorPicker
+          color={pickerColor}
+          onChange={setHex}
+          style={{ width: "100%", height: 190 }}
+        />
+        <div className="mt-3 flex items-center gap-2">
+          <HexColorInput
+            color={hex}
+            onChange={setHex}
+            prefixed
+            aria-label="Hex color"
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                handleAdd();
+              }
+            }}
+            className="min-w-0 flex-1 rounded-full border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-foreground/40"
+          />
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={!valid}
+            className="h-9 rounded-full bg-foreground px-4 text-sm font-semibold text-background transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Add
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
