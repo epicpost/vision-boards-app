@@ -401,8 +401,8 @@ function BrandKitEditor({
 
   return (
     <div>
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="flex flex-col gap-4 lg:col-span-2">
+      <div className="grid gap-3 lg:grid-cols-3">
+        <div className="flex flex-col gap-3 lg:col-span-2">
           {/* Header — name + website */}
           <Card>
             <input
@@ -423,7 +423,7 @@ function BrandKitEditor({
           </Card>
 
           {/* Logo + Fonts */}
-          <div className="grid gap-4 sm:grid-cols-[200px_1fr]">
+          <div className="grid gap-3 sm:grid-cols-[200px_1fr]">
             <Card className="flex flex-col">
               <SectionLabel>Logo</SectionLabel>
               <button
@@ -506,7 +506,7 @@ function BrandKitEditor({
           </Card>
 
           {/* One liner + Brand values */}
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2">
             <Card>
               <SectionLabel>One liner</SectionLabel>
               <textarea
@@ -778,8 +778,8 @@ function LoadingState() {
         <SkeletonBlock className="h-10 w-32 rounded-full" />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="flex flex-col gap-4 lg:col-span-2">
+      <div className="grid gap-3 lg:grid-cols-3">
+        <div className="flex flex-col gap-3 lg:col-span-2">
           <Card>
             <SkeletonBlock className="h-9 w-64 max-w-full rounded-lg" />
             <div className="mt-4 flex items-center gap-2">
@@ -788,7 +788,7 @@ function LoadingState() {
             </div>
           </Card>
 
-          <div className="grid gap-4 sm:grid-cols-[200px_1fr]">
+          <div className="grid gap-3 sm:grid-cols-[200px_1fr]">
             <Card className="flex flex-col">
               <SkeletonBlock className="h-4 w-12 rounded" />
               <SkeletonBlock className="mt-3 aspect-square w-full rounded-[16px]" />
@@ -816,7 +816,7 @@ function LoadingState() {
             </div>
           </Card>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2">
             <Card>
               <SkeletonBlock className="h-4 w-20 rounded" />
               <SkeletonBlock className="mt-4 h-5 w-full rounded-lg" />
