@@ -10,14 +10,20 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as BrandKitRouteImport } from './routes/brand-kit'
 import { Route as BoardsRouteImport } from './routes/boards'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as PinPinIdRouteImport } from './routes/template.$pinId'
+import { Route as TemplatePinIdRouteImport } from './routes/template.$pinId'
 import { Route as AuthMagicLinkConfirmRouteImport } from './routes/auth/magic-link/confirm'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BrandKitRoute = BrandKitRouteImport.update({
+  id: '/brand-kit',
+  path: '/brand-kit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BoardsRoute = BoardsRouteImport.update({
@@ -30,7 +36,7 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PinPinIdRoute = PinPinIdRouteImport.update({
+const TemplatePinIdRoute = TemplatePinIdRouteImport.update({
   id: '/template/$pinId',
   path: '/template/$pinId',
   getParentRoute: () => rootRouteImport,
@@ -44,23 +50,26 @@ const AuthMagicLinkConfirmRoute = AuthMagicLinkConfirmRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/boards': typeof BoardsRoute
+  '/brand-kit': typeof BrandKitRoute
   '/settings': typeof SettingsRoute
-  '/template/$pinId': typeof PinPinIdRoute
+  '/template/$pinId': typeof TemplatePinIdRoute
   '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/boards': typeof BoardsRoute
+  '/brand-kit': typeof BrandKitRoute
   '/settings': typeof SettingsRoute
-  '/template/$pinId': typeof PinPinIdRoute
+  '/template/$pinId': typeof TemplatePinIdRoute
   '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/boards': typeof BoardsRoute
+  '/brand-kit': typeof BrandKitRoute
   '/settings': typeof SettingsRoute
-  '/template/$pinId': typeof PinPinIdRoute
+  '/template/$pinId': typeof TemplatePinIdRoute
   '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
 }
 export interface FileRouteTypes {
@@ -68,15 +77,23 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/boards'
+    | '/brand-kit'
     | '/settings'
     | '/template/$pinId'
     | '/auth/magic-link/confirm'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/boards' | '/settings' | '/template/$pinId' | '/auth/magic-link/confirm'
+  to:
+    | '/'
+    | '/boards'
+    | '/brand-kit'
+    | '/settings'
+    | '/template/$pinId'
+    | '/auth/magic-link/confirm'
   id:
     | '__root__'
     | '/'
     | '/boards'
+    | '/brand-kit'
     | '/settings'
     | '/template/$pinId'
     | '/auth/magic-link/confirm'
@@ -85,8 +102,9 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BoardsRoute: typeof BoardsRoute
+  BrandKitRoute: typeof BrandKitRoute
   SettingsRoute: typeof SettingsRoute
-  PinPinIdRoute: typeof PinPinIdRoute
+  TemplatePinIdRoute: typeof TemplatePinIdRoute
   AuthMagicLinkConfirmRoute: typeof AuthMagicLinkConfirmRoute
 }
 
@@ -97,6 +115,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/brand-kit': {
+      id: '/brand-kit'
+      path: '/brand-kit'
+      fullPath: '/brand-kit'
+      preLoaderRoute: typeof BrandKitRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/boards': {
@@ -117,7 +142,7 @@ declare module '@tanstack/react-router' {
       id: '/template/$pinId'
       path: '/template/$pinId'
       fullPath: '/template/$pinId'
-      preLoaderRoute: typeof PinPinIdRouteImport
+      preLoaderRoute: typeof TemplatePinIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/magic-link/confirm': {
@@ -133,10 +158,21 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BoardsRoute: BoardsRoute,
+  BrandKitRoute: BrandKitRoute,
   SettingsRoute: SettingsRoute,
-  PinPinIdRoute: PinPinIdRoute,
+  TemplatePinIdRoute: TemplatePinIdRoute,
   AuthMagicLinkConfirmRoute: AuthMagicLinkConfirmRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
