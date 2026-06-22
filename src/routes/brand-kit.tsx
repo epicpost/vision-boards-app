@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AUTH_SESSION_CHANGED_EVENT, hasAuthSession, requestAuthDialog } from "@/lib/auth";
-import { uploadAssetFiles } from "@/lib/generations";
 import {
   type BrandImage,
   type BrandKit,
@@ -28,7 +27,11 @@ import {
   deleteBrandKit,
   fetchBrandKits,
   paletteToColors,
+  removeBrandImage,
+  removeBrandLogo,
   updateBrandKit,
+  uploadBrandImage,
+  uploadBrandLogo,
 } from "@/lib/brand-kit";
 
 export const Route = createFileRoute("/brand-kit")({
@@ -295,6 +298,10 @@ function BrandKitEditor({
 
   const logoInputRef = useRef<HTMLInputElement>(null);
   const imagesInputRef = useRef<HTMLInputElement>(null);
+  // When uploading onto a brand-new (unsaved) kit we auto-create the profile
+  // first; this remembers its id so a second upload before the remount doesn't
+  // create a duplicate.
+  const draftKitIdRef = useRef<string | null>(kit?.id ?? null);
 
   const hasUnsavedChanges =
     name !== initial.name ||
@@ -351,6 +358,41 @@ function BrandKitEditor({
     },
   });
 
+  function currentInput(): BrandKitInput {
+    return {
+      name: name.trim() || "Untitled",
+      colors: paletteToColors(palette),
+      font_family: fontPrimary.trim() || null,
+      secondary_font_family: fontSecondary.trim() || null,
+      logo_asset_id: logoAssetId,
+      image_asset_ids: images.map((img) => img.asset_id),
+      one_liner: oneLiner.trim() || null,
+      brand_values: brandValues,
+      tone_of_voice: toneOfVoice.trim() || null,
+      website_url: websiteUrl.trim() || null,
+    };
+  }
+
+  // Uploads are profile-scoped, so make sure a profile exists first. For a
+  // brand-new kit this persists the in-progress form as a draft and returns its
+  // id (the upload then attaches to it).
+  async function ensureKitId(): Promise<string> {
+    if (draftKitIdRef.current) return draftKitIdRef.current;
+    const created = await createBrandKit(currentInput());
+    draftKitIdRef.current = created.id;
+    return created.id;
+  }
+
+  function applyUpdatedKit(updated: BrandKit) {
+    draftKitIdRef.current = updated.id;
+    setLogoAssetId(updated.logo_asset_id);
+    setLogoUrl(updated.logo_url);
+    setImages(updated.images);
+    // Push into the cache; for a new kit this switches selection (remount with a
+    // fresh baseline), for an existing kit it just refreshes the data in place.
+    onSaved(updated);
+  }
+
   async function handleLogoFiles(fileList: FileList | null) {
     const file = fileList?.[0];
     if (!file) return;
@@ -360,14 +402,28 @@ function BrandKitEditor({
     }
     setUploadingLogo(true);
     try {
-      const [asset] = await uploadAssetFiles([file]);
-      setLogoAssetId(asset.asset_id);
-      setLogoUrl(asset.url);
+      const kitId = await ensureKitId();
+      applyUpdatedKit(await uploadBrandLogo(kitId, file));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Logo upload failed.");
     } finally {
       setUploadingLogo(false);
       if (logoInputRef.current) logoInputRef.current.value = "";
+    }
+  }
+
+  async function handleRemoveLogo() {
+    const kitId = draftKitIdRef.current;
+    // Nothing persisted yet — just clear the local selection.
+    if (!kitId) {
+      setLogoAssetId(null);
+      setLogoUrl(null);
+      return;
+    }
+    try {
+      applyUpdatedKit(await removeBrandLogo(kitId));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't remove the logo.");
     }
   }
 
@@ -380,16 +436,31 @@ function BrandKitEditor({
     }
     setUploadingImages(true);
     try {
-      const assets = await uploadAssetFiles(files);
-      setImages((current) => [
-        ...current,
-        ...assets.map((a) => ({ asset_id: a.asset_id, url: a.url })),
-      ]);
+      const kitId = await ensureKitId();
+      // One request per file; each returns the full updated profile.
+      let updated: BrandKit | null = null;
+      for (const file of files) {
+        updated = await uploadBrandImage(kitId, file);
+      }
+      if (updated) applyUpdatedKit(updated);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Image upload failed.");
     } finally {
       setUploadingImages(false);
       if (imagesInputRef.current) imagesInputRef.current.value = "";
+    }
+  }
+
+  async function handleRemoveImage(assetId: string) {
+    const kitId = draftKitIdRef.current;
+    if (!kitId) {
+      setImages((current) => current.filter((i) => i.asset_id !== assetId));
+      return;
+    }
+    try {
+      applyUpdatedKit(await removeBrandImage(kitId, assetId));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't remove the image.");
     }
   }
 
@@ -457,10 +528,7 @@ function BrandKitEditor({
               </button>
               {logoUrl ? (
                 <button
-                  onClick={() => {
-                    setLogoAssetId(null);
-                    setLogoUrl(null);
-                  }}
+                  onClick={() => void handleRemoveLogo()}
                   className="mt-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
                 >
                   Remove
@@ -608,11 +676,13 @@ function BrandKitEditor({
                     key={image.asset_id}
                     className="group relative aspect-square overflow-hidden rounded-[14px] border border-border bg-secondary"
                   >
-                    <img src={image.url} alt="" className="h-full w-full object-cover" />
+                    <img
+                      src={image.thumbnail_url ?? image.preview_url ?? image.url}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
                     <button
-                      onClick={() =>
-                        setImages((current) => current.filter((i) => i.asset_id !== image.asset_id))
-                      }
+                      onClick={() => void handleRemoveImage(image.asset_id)}
                       aria-label="Remove image"
                       className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-background/90 text-foreground opacity-0 transition group-hover:opacity-100"
                     >

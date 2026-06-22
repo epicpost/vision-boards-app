@@ -8,6 +8,8 @@ import { API_BASE_URL } from "@/lib/post-templates";
 export interface BrandImage {
   asset_id: string;
   url: string;
+  preview_url?: string | null;
+  thumbnail_url?: string | null;
 }
 
 export interface BrandKit {
@@ -19,6 +21,7 @@ export interface BrandKit {
   secondary_font_family: string | null;
   logo_asset_id: string | null;
   logo_url: string | null;
+  logo_preview_url: string | null;
   image_asset_ids: string[];
   images: BrandImage[];
   one_liner: string | null;
@@ -182,4 +185,84 @@ export async function deleteBrandKit(id: string): Promise<void> {
   if (!response.ok) {
     await throwApiError(response, "Delete brand kit");
   }
+}
+
+// ── logo + gallery image uploads (profile-scoped, stored on S3) ───────────────
+// These hit the brand-kit endpoints, which fan a single upload out into S3
+// renditions (logo: original.png + preview.webp; image: original.jpg +
+// preview/thumbnail.webp) and return the updated profile.
+
+export async function uploadBrandLogo(id: string, file: File): Promise<BrandKit> {
+  const token = requireToken("upload a logo");
+
+  const body = new FormData();
+  body.append("file", file);
+
+  const response = await fetch(new URL(`/api/v1/me/brand-profiles/${id}/logo`, API_BASE_URL), {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}` },
+    body,
+  });
+
+  if (!response.ok) {
+    await throwApiError(response, "Logo upload");
+  }
+
+  const payload = (await response.json()) as { data: BrandKit };
+  return payload.data;
+}
+
+export async function removeBrandLogo(id: string): Promise<BrandKit> {
+  const token = requireToken("remove the logo");
+
+  const response = await fetch(new URL(`/api/v1/me/brand-profiles/${id}/logo`, API_BASE_URL), {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    await throwApiError(response, "Remove logo");
+  }
+
+  const payload = (await response.json()) as { data: BrandKit };
+  return payload.data;
+}
+
+export async function uploadBrandImage(id: string, file: File): Promise<BrandKit> {
+  const token = requireToken("upload an image");
+
+  const body = new FormData();
+  body.append("file", file);
+
+  const response = await fetch(new URL(`/api/v1/me/brand-profiles/${id}/images`, API_BASE_URL), {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body,
+  });
+
+  if (!response.ok) {
+    await throwApiError(response, "Image upload");
+  }
+
+  const payload = (await response.json()) as { data: BrandKit };
+  return payload.data;
+}
+
+export async function removeBrandImage(id: string, assetId: string): Promise<BrandKit> {
+  const token = requireToken("remove an image");
+
+  const response = await fetch(
+    new URL(`/api/v1/me/brand-profiles/${id}/images/${assetId}`, API_BASE_URL),
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+
+  if (!response.ok) {
+    await throwApiError(response, "Remove image");
+  }
+
+  const payload = (await response.json()) as { data: BrandKit };
+  return payload.data;
 }
