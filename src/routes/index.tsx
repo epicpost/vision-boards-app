@@ -42,16 +42,26 @@ function Index() {
   const activeBoardId = routeSearch?.board ?? "";
   const [searchInput, setSearchInput] = useState(search);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-  const cachedBoardCategories = useMemo(() => readCachedBoardFeedCategories(), []);
   const boardCategoriesQuery = useQuery({
     queryKey: ["board-feed-categories"],
     queryFn: fetchBoardFeedCategories,
     staleTime: 60_000,
-    // Show the cached list instantly, but treat it as stale so we always
-    // refetch in the background on mount and pick up any board changes.
-    initialData: cachedBoardCategories,
-    initialDataUpdatedAt: 0,
   });
+
+  // Seed the query with the locally cached list once on the client so the next
+  // page open renders instantly. Reading localStorage during render would make
+  // the first client paint diverge from the server HTML and trigger a React
+  // hydration mismatch (error #418), so we do it after mount instead. The query
+  // still refetches in the background to pick up any board changes.
+  useEffect(() => {
+    if (boardCategoriesQuery.data !== undefined) return;
+    const cached = readCachedBoardFeedCategories();
+    if (cached) {
+      queryClient.setQueryData(["board-feed-categories"], cached);
+    }
+    // Run once on mount; intentionally not reacting to query data changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Persist the freshest board list so the next page open can render it instantly.
   useEffect(() => {
