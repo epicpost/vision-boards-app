@@ -6,6 +6,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
+import { Loader2 } from "lucide-react";
 import { Sidebar } from "@/components/epicpost/Sidebar";
 import { TopBar } from "@/components/epicpost/TopBar";
 import { TemplateGrid } from "@/components/epicpost/TemplateGrid";
@@ -25,6 +26,8 @@ import {
 import { recordSearch, searchMenuQueryKey } from "@/lib/search-menu";
 
 const ALL_CATEGORY_ID = "all";
+const PULL_REFRESH_THRESHOLD = 72;
+const PULL_REFRESH_MAX_DISTANCE = 104;
 
 function getNextTemplatesPageParam(lastPage: PostTemplateFeedResponse) {
   return lastPage.pagination.has_more ? (lastPage.pagination.next_cursor ?? undefined) : undefined;
@@ -51,7 +54,11 @@ function Index() {
   const search = routeSearch?.search ?? "";
   const activeBoardId = routeSearch?.board ?? "";
   const [searchInput, setSearchInput] = useState(search);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isPullRefreshing, setIsPullRefreshing] = useState(false);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const pullDistanceRef = useRef(0);
+  const isPullingToRefreshRef = useRef(false);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const boardCategoriesQuery = useQuery({
     queryKey: ["board-feed-categories"],
@@ -259,11 +266,60 @@ function Index() {
   const handleTouchStart = (event: TouchEvent<HTMLElement>) => {
     const touch = event.touches[0];
     touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    pullDistanceRef.current = 0;
+    isPullingToRefreshRef.current = false;
+  };
+
+  const handlePullRefresh = async () => {
+    if (isPullRefreshing) return;
+
+    setIsPullRefreshing(true);
+    setPullDistance(PULL_REFRESH_THRESHOLD);
+    try {
+      await Promise.all([templatesQuery.refetch(), boardCategoriesQuery.refetch()]);
+    } finally {
+      setIsPullRefreshing(false);
+      setPullDistance(0);
+      pullDistanceRef.current = 0;
+      isPullingToRefreshRef.current = false;
+    }
+  };
+
+  const handleTouchMove = (event: TouchEvent<HTMLElement>) => {
+    const start = touchStartRef.current;
+    if (!start || isPullRefreshing) return;
+    if (window.scrollY > 2) return;
+    if (!window.matchMedia("(max-width: 767px)").matches) return;
+
+    const touch = event.touches[0];
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+
+    if (deltaY <= 0) return;
+    if (!isPullingToRefreshRef.current && deltaY < 12) return;
+    if (Math.abs(deltaX) > deltaY * 0.75) return;
+
+    isPullingToRefreshRef.current = true;
+    const nextDistance = Math.min((deltaY - 12) * 0.6, PULL_REFRESH_MAX_DISTANCE);
+    pullDistanceRef.current = Math.max(0, nextDistance);
+    setPullDistance(pullDistanceRef.current);
   };
 
   const handleTouchEnd = (event: TouchEvent<HTMLElement>) => {
     const start = touchStartRef.current;
     touchStartRef.current = null;
+
+    if (isPullingToRefreshRef.current) {
+      if (pullDistanceRef.current >= PULL_REFRESH_THRESHOLD) {
+        void handlePullRefresh();
+      } else {
+        setPullDistance(0);
+        pullDistanceRef.current = 0;
+        isPullingToRefreshRef.current = false;
+      }
+      return;
+    }
+
     if (!start || search.trim()) return;
 
     const touch = event.changedTouches[0];
@@ -279,6 +335,13 @@ function Index() {
     }
   };
 
+  const handleTouchCancel = () => {
+    touchStartRef.current = null;
+    pullDistanceRef.current = 0;
+    isPullingToRefreshRef.current = false;
+    if (!isPullRefreshing) setPullDistance(0);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
@@ -291,8 +354,33 @@ function Index() {
           categories={feedCategories}
           onCategoryChange={selectCategory}
         />
-        <main onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+        <main
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchCancel}
+        >
           <h1 className="sr-only">Pinterest — Discover ideas you'll love</h1>
+          <div
+            className="pointer-events-none sticky top-[84px] z-20 flex h-0 justify-center md:hidden"
+            aria-hidden={!isPullRefreshing && pullDistance === 0}
+          >
+            <div
+              className="mt-2 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-[opacity,transform]"
+              style={{
+                opacity: isPullRefreshing || pullDistance > 0 ? 1 : 0,
+                transform: `translateY(${Math.max(pullDistance - 48, 0)}px) scale(${
+                  isPullRefreshing || pullDistance >= PULL_REFRESH_THRESHOLD ? 1 : 0.88
+                })`,
+              }}
+            >
+              <Loader2
+                className={`h-5 w-5 text-foreground ${
+                  isPullRefreshing || pullDistance >= PULL_REFRESH_THRESHOLD ? "animate-spin" : ""
+                }`}
+              />
+            </div>
+          </div>
           <TemplateGrid
             templates={templates}
             isLoading={templatesQuery.isLoading}

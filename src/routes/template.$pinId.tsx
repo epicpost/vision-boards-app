@@ -685,6 +685,12 @@ function PinDetail() {
   }, [shareRecipients, shareSearch]);
   const currentBoardId = savedBoardId ?? template?.board_id ?? null;
   const isSaved = Boolean(currentBoardId);
+  const savingBoardId = saveMutation.isPending ? (saveMutation.variables ?? null) : null;
+  const boardsErrorMessage =
+    boardsQuery.error instanceof Error ? boardsQuery.error.message : "Could not load boards.";
+  const saveButtonLabel =
+    selectedBoard?.name ??
+    (template?.board_id && template.board_name ? template.board_name : "Save to board");
   const relatedTemplates = templates.filter((item) => item.id !== pinId);
   const previewMedia = useMemo<PreviewMedia[]>(() => {
     if (!template) return [];
@@ -737,6 +743,30 @@ function PinDetail() {
     setIsFullscreen(false);
     setFsShareOpen(false);
     setFsSaveOpen(false);
+  }
+
+  function handleSendRecipient(recipient: ShareRecipient) {
+    if (!isSignedIn) {
+      setIsShareOpen(false);
+      setFsShareOpen(false);
+      setIsAuthOpen(true);
+      return;
+    }
+    toast.success(`Sent to ${recipient.name}`);
+  }
+
+  function openCreateBoard() {
+    setIsSaveOpen(false);
+    setFsSaveOpen(false);
+    setIsCreateBoardOpen(true);
+  }
+
+  function requireAuthToSave(): boolean {
+    if (!isSignedIn) {
+      setIsAuthOpen(true);
+      return false;
+    }
+    return true;
   }
 
   // Reset zoom whenever the active media changes (or the viewer closes).
@@ -888,6 +918,7 @@ function PinDetail() {
                         <div className="absolute bottom-4 right-4 flex flex-col gap-2">
                           <button
                             aria-label="Expand"
+                            onClick={openFullscreen}
                             className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-background shadow-md transition hover:bg-secondary"
                           >
                             <Maximize2 className="h-5 w-5 text-foreground" />
@@ -908,6 +939,7 @@ function PinDetail() {
                         <div className="absolute bottom-4 right-4 flex flex-col gap-2">
                           <button
                             aria-label="Expand"
+                            onClick={openFullscreen}
                             className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-background shadow-md transition hover:bg-secondary"
                           >
                             <Maximize2 className="h-5 w-5 text-foreground" />
@@ -1005,121 +1037,27 @@ function PinDetail() {
                                 {template?.likes_count ?? 0}
                               </span>
                             </button>
-                            <Popover
+                            <SharePopover
                               open={isShareOpen}
                               onOpenChange={(open) => {
                                 setIsShareOpen(open);
                                 if (!open) setShareSearch("");
                               }}
-                            >
-                              <PopoverTrigger asChild>
+                              align="center"
+                              shareTargets={shareTargets}
+                              recipients={filteredRecipients}
+                              search={shareSearch}
+                              onSearchChange={setShareSearch}
+                              onSend={handleSendRecipient}
+                              trigger={
                                 <button
                                   aria-label="Share"
                                   className="h-10 w-10 rounded-full hover:bg-secondary flex items-center justify-center transition"
                                 >
                                   <Upload className="h-5 w-5 text-foreground" strokeWidth={2.2} />
                                 </button>
-                              </PopoverTrigger>
-                              <PopoverContent
-                                align="center"
-                                sideOffset={10}
-                                className="w-[min(calc(100vw-24px),360px)] overflow-hidden rounded-[20px] border-0 bg-background p-0 text-foreground shadow-[0_12px_36px_rgba(0,0,0,0.18)]"
-                              >
-                                <div className="max-h-[min(72vh,560px)] overflow-y-auto px-4 pb-4 pt-4">
-                                  <h3 className="mb-4 text-center text-xl font-bold">Share</h3>
-                                  <div className="mb-4 flex items-start justify-between gap-2">
-                                    {shareTargets.map((target) =>
-                                      target.href ? (
-                                        <a
-                                          key={target.key}
-                                          href={target.href}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="flex flex-1 flex-col items-center gap-2 text-center"
-                                        >
-                                          <span
-                                            className={`flex h-14 w-14 items-center justify-center rounded-full ${target.bg}`}
-                                          >
-                                            {target.icon}
-                                          </span>
-                                          <span className="text-[13px] font-medium text-foreground">
-                                            {target.label}
-                                          </span>
-                                        </a>
-                                      ) : (
-                                        <button
-                                          key={target.key}
-                                          type="button"
-                                          onClick={target.onClick}
-                                          className="flex flex-1 flex-col items-center gap-2 text-center"
-                                        >
-                                          <span
-                                            className={`flex h-14 w-14 items-center justify-center rounded-full ${target.bg}`}
-                                          >
-                                            {target.icon}
-                                          </span>
-                                          <span className="text-[13px] font-medium text-foreground">
-                                            {target.label}
-                                          </span>
-                                        </button>
-                                      ),
-                                    )}
-                                  </div>
-
-                                  <div className="mb-4 h-px bg-border" />
-
-                                  <label className="mb-4 flex h-12 items-center gap-2 rounded-[16px] bg-input px-4 transition focus-within:ring-2 focus-within:ring-ring">
-                                    <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
-                                    <input
-                                      type="search"
-                                      placeholder="Search by name or email"
-                                      value={shareSearch}
-                                      onChange={(event) => setShareSearch(event.target.value)}
-                                      className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
-                                    />
-                                  </label>
-
-                                  {filteredRecipients.length === 0 ? (
-                                    <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                                      No people match your search.
-                                    </p>
-                                  ) : (
-                                    <div className="space-y-1">
-                                      {filteredRecipients.map((recipient) => (
-                                        <div
-                                          key={recipient.id}
-                                          className="flex items-center gap-3 rounded-[14px] px-2 py-2"
-                                        >
-                                          <div className="h-12 w-12 shrink-0 rounded-full bg-gradient-to-br from-rose-300 to-amber-200" />
-                                          <div className="min-w-0 flex-1">
-                                            <p className="truncate text-base font-semibold text-foreground">
-                                              {recipient.name}
-                                            </p>
-                                            <p className="truncate text-sm text-muted-foreground">
-                                              {recipient.handle}
-                                            </p>
-                                          </div>
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              if (!isSignedIn) {
-                                                setIsShareOpen(false);
-                                                setIsAuthOpen(true);
-                                                return;
-                                              }
-                                              toast.success(`Sent to ${recipient.name}`);
-                                            }}
-                                            className="h-10 shrink-0 rounded-full bg-secondary px-5 text-sm font-semibold text-foreground transition hover:brightness-95"
-                                          >
-                                            Send
-                                          </button>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              </PopoverContent>
-                            </Popover>
+                              }
+                            />
                             <button
                               aria-label="More"
                               className="h-10 w-10 rounded-full hover:bg-secondary flex items-center justify-center transition"
@@ -1131,7 +1069,7 @@ function PinDetail() {
                             </button>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Popover
+                            <SaveToBoardPopover
                               open={isSaveOpen}
                               onOpenChange={(open) => {
                                 if (open && !isSignedIn) {
@@ -1141,118 +1079,27 @@ function PinDetail() {
                                 setIsSaveOpen(open);
                                 if (!open) setBoardSearch("");
                               }}
-                            >
-                              <PopoverTrigger asChild>
+                              align="end"
+                              isLoading={boardsQuery.isLoading}
+                              isError={boardsQuery.isError}
+                              errorMessage={boardsErrorMessage}
+                              isEmpty={filteredBoards.length === 0}
+                              boardSearch={boardSearch}
+                              onBoardSearchChange={setBoardSearch}
+                              topChoices={topChoices}
+                              otherBoards={otherBoards}
+                              savingBoardId={savingBoardId}
+                              currentBoardId={currentBoardId}
+                              onSelectBoard={(boardId) => saveMutation.mutate(boardId)}
+                              onCreateBoard={openCreateBoard}
+                              trigger={
                                 <button className="flex items-center gap-1 h-10 px-3 rounded-full hover:bg-secondary transition text-sm font-semibold text-foreground">
                                   <span className="md:hidden">Save</span>
-                                  <span className="hidden md:inline">
-                                    {selectedBoard?.name ??
-                                      (template?.board_id && template.board_name
-                                        ? template.board_name
-                                        : "Save to board")}
-                                  </span>
+                                  <span className="hidden md:inline">{saveButtonLabel}</span>
                                   <ChevronRight className="h-4 w-4 rotate-90" />
                                 </button>
-                              </PopoverTrigger>
-                              <PopoverContent
-                                align="end"
-                                sideOffset={10}
-                                className="w-[min(calc(100vw-24px),360px)] overflow-hidden rounded-[20px] border-0 bg-background p-0 text-foreground shadow-[0_12px_36px_rgba(0,0,0,0.18)]"
-                              >
-                                <div className="max-h-[min(72vh,560px)] overflow-y-auto px-4 pb-24 pt-4">
-                                  <h3 className="mb-4 text-center text-xl font-bold">Save</h3>
-                                  <label className="mb-4 flex h-12 items-center gap-2 rounded-[16px] bg-input px-4 transition focus-within:ring-2 focus-within:ring-ring">
-                                    <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
-                                    <input
-                                      type="search"
-                                      placeholder="Search"
-                                      value={boardSearch}
-                                      onChange={(event) => setBoardSearch(event.target.value)}
-                                      className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
-                                    />
-                                  </label>
-
-                                  {boardsQuery.isLoading ? (
-                                    <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                                      Loading boards...
-                                    </p>
-                                  ) : boardsQuery.isError ? (
-                                    <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                                      {boardsQuery.error instanceof Error
-                                        ? boardsQuery.error.message
-                                        : "Could not load boards."}
-                                    </p>
-                                  ) : filteredBoards.length === 0 ? (
-                                    <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                                      {boardSearch
-                                        ? "No boards match your search."
-                                        : "No boards yet."}
-                                    </p>
-                                  ) : (
-                                    <>
-                                      {topChoices.length > 0 && (
-                                        <>
-                                          <p className="mb-2 px-2 text-[13px] font-medium text-muted-foreground">
-                                            Top choices
-                                          </p>
-                                          <div className="space-y-2">
-                                            {topChoices.map((board) => (
-                                              <BoardRow
-                                                key={board.id}
-                                                board={board}
-                                                saving={
-                                                  saveMutation.isPending &&
-                                                  saveMutation.variables === board.id
-                                                }
-                                                selected={board.id === currentBoardId}
-                                                onSelect={() => saveMutation.mutate(board.id)}
-                                              />
-                                            ))}
-                                          </div>
-                                        </>
-                                      )}
-
-                                      {otherBoards.length > 0 && (
-                                        <>
-                                          <p className="mb-2 mt-4 px-2 text-[13px] font-medium text-muted-foreground">
-                                            All boards
-                                          </p>
-                                          <div className="space-y-2">
-                                            {otherBoards.map((board) => (
-                                              <BoardRow
-                                                key={board.id}
-                                                board={board}
-                                                saving={
-                                                  saveMutation.isPending &&
-                                                  saveMutation.variables === board.id
-                                                }
-                                                selected={board.id === currentBoardId}
-                                                onSelect={() => saveMutation.mutate(board.id)}
-                                              />
-                                            ))}
-                                          </div>
-                                        </>
-                                      )}
-                                    </>
-                                  )}
-                                </div>
-                                <div className="absolute inset-x-0 bottom-0 rounded-b-[20px] bg-background/95 px-4 py-3 shadow-[0_-8px_22px_rgba(0,0,0,0.08)] backdrop-blur transition hover:bg-secondary">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setIsSaveOpen(false);
-                                      setIsCreateBoardOpen(true);
-                                    }}
-                                    className="flex h-16 w-full items-center gap-3 px-2 text-left font-semibold"
-                                  >
-                                    <span className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-secondary">
-                                      <Plus className="h-6 w-6 text-foreground" />
-                                    </span>
-                                    <span className="text-base">Create board</span>
-                                  </button>
-                                </div>
-                              </PopoverContent>
-                            </Popover>
+                              }
+                            />
                             {isSaved ? (
                               <button
                                 type="button"
@@ -1451,6 +1298,170 @@ function PinDetail() {
       <MobileNav />
       <SignupDialog open={isAuthOpen} onOpenChange={setIsAuthOpen} />
       <CreateBoardDialog open={isCreateBoardOpen} onOpenChange={setIsCreateBoardOpen} />
+
+      {isFullscreen && selectedMedia ? (
+        <div
+          className="fixed inset-0 z-50 flex flex-col bg-black/90 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Media viewer"
+        >
+          {/* Top bar: close (left) + share/save (right) */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between p-4">
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={closeFullscreen}
+              className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-[14px] bg-white text-foreground shadow-md transition hover:bg-secondary"
+            >
+              <X className="h-5 w-5" strokeWidth={2.4} />
+            </button>
+
+            <div className="pointer-events-auto flex items-center gap-2 rounded-[16px] bg-white/95 p-1.5 shadow-md backdrop-blur">
+              <SharePopover
+                open={fsShareOpen}
+                onOpenChange={(open) => {
+                  setFsShareOpen(open);
+                  if (!open) setShareSearch("");
+                }}
+                align="end"
+                shareTargets={shareTargets}
+                recipients={filteredRecipients}
+                search={shareSearch}
+                onSearchChange={setShareSearch}
+                onSend={handleSendRecipient}
+                trigger={
+                  <button className="flex h-10 items-center gap-1.5 rounded-[12px] px-3 text-sm font-semibold text-foreground transition hover:bg-secondary">
+                    Share
+                    <Upload className="h-4 w-4" strokeWidth={2.2} />
+                  </button>
+                }
+              />
+              <span className="h-6 w-px bg-border" />
+              <SaveToBoardPopover
+                open={fsSaveOpen}
+                onOpenChange={(open) => {
+                  if (open && !isSignedIn) {
+                    setIsAuthOpen(true);
+                    return;
+                  }
+                  setFsSaveOpen(open);
+                  if (!open) setBoardSearch("");
+                }}
+                align="end"
+                isLoading={boardsQuery.isLoading}
+                isError={boardsQuery.isError}
+                errorMessage={boardsErrorMessage}
+                isEmpty={filteredBoards.length === 0}
+                boardSearch={boardSearch}
+                onBoardSearchChange={setBoardSearch}
+                topChoices={topChoices}
+                otherBoards={otherBoards}
+                savingBoardId={savingBoardId}
+                currentBoardId={currentBoardId}
+                onSelectBoard={(boardId) => saveMutation.mutate(boardId)}
+                onCreateBoard={openCreateBoard}
+                trigger={
+                  <button className="flex h-10 max-w-[160px] items-center gap-1 rounded-[12px] px-3 text-sm font-semibold text-foreground transition hover:bg-secondary">
+                    <span className="truncate">{saveButtonLabel}</span>
+                    <ChevronRight className="h-4 w-4 shrink-0 rotate-90" />
+                  </button>
+                }
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (!requireAuthToSave()) return;
+                  setFsSaveOpen(true);
+                }}
+                className="h-10 rounded-[12px] bg-primary px-5 text-sm font-bold text-primary-foreground transition hover:brightness-90"
+              >
+                {isSaved ? "Saved" : "Save"}
+              </button>
+            </div>
+          </div>
+
+          {/* Carousel rail (other images) */}
+          {previewMedia.length > 1 ? (
+            <div className="absolute left-4 top-1/2 z-10 flex max-h-[80vh] -translate-y-1/2 flex-col gap-2 overflow-y-auto py-2">
+              {previewMedia.map((item, index) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  aria-label={`Show media ${index + 1}`}
+                  aria-current={index === selectedMediaIndex}
+                  onClick={() => setSelectedMediaIndex(index)}
+                  className={`h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border-2 transition ${
+                    index === selectedMediaIndex
+                      ? "border-white"
+                      : "border-transparent opacity-70 hover:opacity-100"
+                  }`}
+                >
+                  {item.type === "video" ? (
+                    <video
+                      src={item.url}
+                      muted
+                      playsInline
+                      preload="metadata"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <img src={item.url} alt="" className="h-full w-full object-cover" />
+                  )}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {/* Centered media */}
+          <div className="flex h-full w-full items-center justify-center overflow-auto p-6">
+            {selectedMedia.type === "video" ? (
+              <video
+                key={selectedMedia.id}
+                src={selectedMedia.url}
+                controls
+                muted
+                loop
+                playsInline
+                autoPlay
+                style={{ transform: `scale(${zoom})` }}
+                className="max-h-[88vh] max-w-[88vw] origin-center object-contain transition-transform duration-150"
+              />
+            ) : (
+              <img
+                key={selectedMedia.id}
+                src={selectedMedia.url}
+                alt={template?.title ?? "Template"}
+                style={{ transform: `scale(${zoom})` }}
+                className="max-h-[88vh] max-w-[88vw] origin-center object-contain transition-transform duration-150"
+              />
+            )}
+          </div>
+
+          {/* Zoom controls */}
+          <div className="absolute bottom-4 right-4 z-10 flex flex-col overflow-hidden rounded-[14px] bg-white shadow-md">
+            <button
+              type="button"
+              aria-label="Zoom in"
+              onClick={zoomIn}
+              disabled={zoom >= ZOOM_MAX}
+              className="flex h-11 w-11 items-center justify-center text-foreground transition hover:bg-secondary disabled:opacity-40"
+            >
+              <Plus className="h-5 w-5" strokeWidth={2.4} />
+            </button>
+            <span className="h-px w-full bg-border" />
+            <button
+              type="button"
+              aria-label="Zoom out"
+              onClick={zoomOut}
+              disabled={zoom <= ZOOM_MIN}
+              className="flex h-11 w-11 items-center justify-center text-foreground transition hover:bg-secondary disabled:opacity-40"
+            >
+              <Minus className="h-5 w-5" strokeWidth={2.4} />
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
