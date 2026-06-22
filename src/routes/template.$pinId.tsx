@@ -209,6 +209,7 @@ function PinDetail() {
   const [boardSearch, setBoardSearch] = useState("");
   const [savedBoardId, setSavedBoardId] = useState<string | null>(null);
   const [isFirstMediaLoaded, setIsFirstMediaLoaded] = useState(false);
+  const [showRequiredInfo, setShowRequiredInfo] = useState(false);
   const isSignedIn = Boolean(getAccessToken());
   // Prefetch and cache boards as soon as the pin detail opens so that opening
   // the save dropdown reads from the cache instead of showing "Loading boards...".
@@ -919,11 +920,17 @@ function PinDetail() {
                         ))}
                       </div>
                     ) : null}
-                    <button className="self-end mt-2 text-sm font-bold text-foreground hover:underline">
-                      See less
+                    <button
+                      type="button"
+                      onClick={() => setShowRequiredInfo((isShown) => !isShown)}
+                      className="self-end mt-2 text-sm font-bold text-foreground hover:underline"
+                    >
+                      {showRequiredInfo ? "Hide required info" : "Show required info"}
                     </button>
 
-                    {template ? <TemplateRequirements template={template} /> : null}
+                    {template && showRequiredInfo ? (
+                      <TemplateRequirements template={template} />
+                    ) : null}
 
                     {template?.comments.length ? (
                       <div className="mt-6 space-y-3">

@@ -203,6 +203,7 @@ function RootComponent() {
 
       void queryClient.invalidateQueries({ queryKey: ["post-templates"] });
       void queryClient.invalidateQueries({ queryKey: ["boards"] });
+      void queryClient.invalidateQueries({ queryKey: ["remixes"] });
       void queryClient.invalidateQueries({ queryKey: ["board-feed-categories"] });
       void queryClient.invalidateQueries({ queryKey: searchMenuQueryKey });
     };

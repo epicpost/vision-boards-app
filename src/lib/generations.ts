@@ -39,6 +39,27 @@ export interface GenerationResult {
   created_at: string;
 }
 
+export interface RemixGenerationItem {
+  generation_id: string;
+  template_id: string;
+  template_title: string;
+  status: GenerationStatus;
+  aspect_ratio: string | null;
+  assets: GenerationOutputAsset[];
+  caption: string | null;
+  error: string | null;
+  created_at: string;
+}
+
+export interface RemixGenerationResponse {
+  data: RemixGenerationItem[];
+  pagination: {
+    limit: number;
+    next_cursor: string | null;
+    has_more: boolean;
+  };
+}
+
 interface ApiErrorResponse {
   error?: {
     code?: string;
@@ -78,6 +99,34 @@ async function throwApiError(response: Response, fallback: string): Promise<neve
   }
 
   throw new Error(getApiErrorMessage(payload) ?? `${fallback} failed with ${response.status}`);
+}
+
+export const remixesQueryKey = () => ["remixes", { limit: 50 }] as const;
+
+export async function fetchRemixes({
+  cursor,
+  limit = 50,
+}: {
+  cursor?: string;
+  limit?: number;
+} = {}): Promise<RemixGenerationResponse> {
+  const token = requireToken("view your remixes");
+
+  const url = new URL("/api/v1/generations/remixes", API_BASE_URL);
+  url.searchParams.set("limit", String(limit));
+  if (cursor) url.searchParams.set("cursor", cursor);
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    await throwApiError(response, "Remixes request");
+  }
+
+  return response.json() as Promise<RemixGenerationResponse>;
 }
 
 export async function uploadAssetFiles(files: File[]): Promise<IngestedAsset[]> {
@@ -140,9 +189,7 @@ export interface RemixUploadParams {
   aspectRatio?: string;
 }
 
-export async function remixTemplateUpload(
-  params: RemixUploadParams,
-): Promise<GenerationResult> {
+export async function remixTemplateUpload(params: RemixUploadParams): Promise<GenerationResult> {
   const token = requireToken("remix templates");
 
   const form = new FormData();

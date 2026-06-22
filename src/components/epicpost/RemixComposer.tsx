@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowUp, Download, Image as ImageIcon, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -10,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { getAccessToken } from "@/lib/auth";
 import {
+  remixesQueryKey,
   remixTemplateUpload,
   waitForGeneration,
   type GenerationResult,
@@ -37,6 +39,7 @@ export function RemixComposer({
   template: PostTemplate;
   onRequireAuth: () => void;
 }) {
+  const queryClient = useQueryClient();
   const imageRequirement = template.input_requirements?.assets.find(
     (asset) => asset.type === "image",
   );
@@ -138,6 +141,7 @@ export function RemixComposer({
       }
 
       setResult(settled);
+      void queryClient.invalidateQueries({ queryKey: remixesQueryKey() });
       setIsResultOpen(true);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not remix this template.");
@@ -146,20 +150,15 @@ export function RemixComposer({
     }
   }
 
-  async function handleDownload() {
+  function handleDownload() {
     if (!output) return;
-    try {
-      const response = await fetch(output.url);
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `epicpost-remix-${result?.generation_id ?? "image"}.png`;
-      anchor.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      toast.error("Could not download the image.");
-    }
+    const anchor = document.createElement("a");
+    anchor.href = output.url;
+    anchor.download = `epicpost-remix-${result?.generation_id ?? "image"}.png`;
+    anchor.rel = "noopener";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
   }
 
   return (
