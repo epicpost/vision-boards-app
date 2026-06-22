@@ -17,6 +17,10 @@ export interface BrandKit {
   user_id: string;
   name: string;
   colors: Record<string, string>;
+  font_id: string | null;
+  secondary_font_id: string | null;
+  // Resolved from font_id by the backend (legacy string fallback). Read-only —
+  // write font_id / secondary_font_id instead.
   font_family: string | null;
   secondary_font_family: string | null;
   logo_asset_id: string | null;
@@ -35,8 +39,8 @@ export interface BrandKit {
 export interface BrandKitInput {
   name: string;
   colors: Record<string, string>;
-  font_family?: string | null;
-  secondary_font_family?: string | null;
+  font_id?: string | null;
+  secondary_font_id?: string | null;
   logo_asset_id?: string | null;
   image_asset_ids?: string[];
   one_liner?: string | null;

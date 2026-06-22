@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useBlocker } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HexColorInput, HexColorPicker } from "react-colorful";
 import {
   Check,
@@ -39,6 +39,15 @@ import {
 } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AUTH_SESSION_CHANGED_EVENT, hasAuthSession, requestAuthDialog } from "@/lib/auth";
+import {
+  type Font,
+  FONTS_CACHE_TTL_MS,
+  ensureFontsLoaded,
+  fetchFonts,
+  fontFamilyStack,
+  fontsQueryKey,
+  readCachedFonts,
+} from "@/lib/fonts";
 import {
   type BrandImage,
   type BrandKit,
@@ -290,8 +299,8 @@ function BrandKitEditor({
     () => ({
       name: kit?.name ?? "",
       websiteUrl: kit?.website_url ?? "",
-      fontPrimary: kit?.font_family ?? "",
-      fontSecondary: kit?.secondary_font_family ?? "",
+      fontPrimaryId: kit?.font_id ?? null,
+      fontSecondaryId: kit?.secondary_font_id ?? null,
       oneLiner: kit?.one_liner ?? "",
       toneOfVoice: kit?.tone_of_voice ?? "",
       palette: colorsToPalette(kit?.colors),
@@ -305,8 +314,8 @@ function BrandKitEditor({
 
   const [name, setName] = useState(initial.name);
   const [websiteUrl, setWebsiteUrl] = useState(initial.websiteUrl);
-  const [fontPrimary, setFontPrimary] = useState(initial.fontPrimary);
-  const [fontSecondary, setFontSecondary] = useState(initial.fontSecondary);
+  const [fontPrimaryId, setFontPrimaryId] = useState<string | null>(initial.fontPrimaryId);
+  const [fontSecondaryId, setFontSecondaryId] = useState<string | null>(initial.fontSecondaryId);
   const [oneLiner, setOneLiner] = useState(initial.oneLiner);
   const [toneOfVoice, setToneOfVoice] = useState(initial.toneOfVoice);
   const [palette, setPalette] = useState<string[]>(initial.palette);
@@ -327,11 +336,28 @@ function BrandKitEditor({
   // create a duplicate.
   const draftKitIdRef = useRef<string | null>(kit?.id ?? null);
 
+  // The selectable font catalog (reference data) lives in the DB; brand kits
+  // reference a typeface by its `font_id`.
+  const fontsQuery = useQuery({
+    queryKey: fontsQueryKey(),
+    queryFn: fetchFonts,
+    // Seed from the persisted cache so the picker renders instantly and skips the
+    // network entirely while the local copy is still fresh.
+    initialData: () => readCachedFonts() ?? undefined,
+    staleTime: FONTS_CACHE_TTL_MS,
+    gcTime: FONTS_CACHE_TTL_MS,
+  });
+  const fonts = useMemo(() => fontsQuery.data ?? [], [fontsQuery.data]);
+
+  useEffect(() => {
+    ensureFontsLoaded(fonts);
+  }, [fonts]);
+
   const hasUnsavedChanges =
     name !== initial.name ||
     websiteUrl !== initial.websiteUrl ||
-    fontPrimary !== initial.fontPrimary ||
-    fontSecondary !== initial.fontSecondary ||
+    fontPrimaryId !== initial.fontPrimaryId ||
+    fontSecondaryId !== initial.fontSecondaryId ||
     oneLiner !== initial.oneLiner ||
     toneOfVoice !== initial.toneOfVoice ||
     logoAssetId !== initial.logoAssetId ||
@@ -340,6 +366,18 @@ function BrandKitEditor({
     !areArraysEqual(brandValues, initial.brandValues) ||
     !areImagesEqual(images, initial.images);
 
+  const shouldBlockLeave = useCallback(
+    ({ current, next }: { current: { pathname: string }; next: { pathname: string } }) =>
+      hasUnsavedChanges && current.pathname !== next.pathname,
+    [hasUnsavedChanges],
+  );
+
+  const leaveBlocker = useBlocker({
+    shouldBlockFn: shouldBlockLeave,
+    enableBeforeUnload: hasUnsavedChanges,
+    withResolver: true,
+  });
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       const trimmed = name.trim();
@@ -347,8 +385,8 @@ function BrandKitEditor({
       const input: BrandKitInput = {
         name: trimmed,
         colors: paletteToColors(palette),
-        font_family: fontPrimary.trim() || null,
-        secondary_font_family: fontSecondary.trim() || null,
+        font_id: fontPrimaryId,
+        secondary_font_id: fontSecondaryId,
         logo_asset_id: logoAssetId,
         image_asset_ids: images.map((img) => img.asset_id),
         one_liner: oneLiner.trim() || null,
@@ -366,6 +404,21 @@ function BrandKitEditor({
       toast.error(error instanceof Error ? error.message : "Couldn't save brand kit.");
     },
   });
+
+  async function handleSaveAndLeave() {
+    if (leaveBlocker.status !== "blocked") return;
+    try {
+      await saveMutation.mutateAsync();
+      leaveBlocker.proceed();
+    } catch {
+      // saveMutation.onError already reports the failure.
+    }
+  }
+
+  function handleDiscardAndLeave() {
+    if (leaveBlocker.status !== "blocked") return;
+    leaveBlocker.proceed();
+  }
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
@@ -386,8 +439,8 @@ function BrandKitEditor({
     return {
       name: name.trim() || "Untitled",
       colors: paletteToColors(palette),
-      font_family: fontPrimary.trim() || null,
-      secondary_font_family: fontSecondary.trim() || null,
+      font_id: fontPrimaryId,
+      secondary_font_id: fontSecondaryId,
       logo_asset_id: logoAssetId,
       image_asset_ids: images.map((img) => img.asset_id),
       one_liner: oneLiner.trim() || null,
@@ -519,6 +572,48 @@ function BrandKitEditor({
 
   return (
     <div>
+      <AlertDialog
+        open={leaveBlocker.status === "blocked"}
+        onOpenChange={(open) => {
+          if (!open && leaveBlocker.status === "blocked" && !saveMutation.isPending) {
+            leaveBlocker.reset();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Save changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes. Do you want to save them before leaving this page?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saveMutation.isPending}>Stay</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                handleDiscardAndLeave();
+              }}
+              disabled={saveMutation.isPending}
+              className="bg-secondary text-foreground hover:bg-accent"
+            >
+              Discard
+            </AlertDialogAction>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                void handleSaveAndLeave();
+              }}
+              disabled={saveMutation.isPending}
+              className="bg-foreground text-background hover:bg-foreground/90"
+            >
+              {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Save
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="grid gap-3 lg:grid-cols-3">
         <div className="flex flex-col gap-3 lg:col-span-2">
           {/* Header — name + website */}
@@ -595,15 +690,17 @@ function BrandKitEditor({
               <SectionLabel>Fonts</SectionLabel>
               <div className="mt-3 grid grid-cols-2 gap-3">
                 <FontSlot
-                  fontFamily={fontPrimary}
-                  value={fontPrimary}
-                  onChange={setFontPrimary}
+                  fonts={fonts}
+                  loading={fontsQuery.isLoading}
+                  value={fontPrimaryId}
+                  onChange={setFontPrimaryId}
                   placeholder="Headline font"
                 />
                 <FontSlot
-                  fontFamily={fontSecondary}
-                  value={fontSecondary}
-                  onChange={setFontSecondary}
+                  fonts={fonts}
+                  loading={fontsQuery.isLoading}
+                  value={fontSecondaryId}
+                  onChange={setFontSecondaryId}
                   placeholder="Body font"
                 />
               </div>
@@ -859,92 +956,35 @@ function normalizeHexColor(value: string) {
   return hex.toLowerCase();
 }
 
-type FontCategory = "sans-serif" | "serif" | "display" | "monospace" | "handwriting";
-
-type FontOption = { name: string; category: FontCategory };
-
-const FONT_OPTIONS: FontOption[] = [
-  { name: "Roboto", category: "sans-serif" },
-  { name: "Open Sans", category: "sans-serif" },
-  { name: "Inter", category: "sans-serif" },
-  { name: "Lato", category: "sans-serif" },
-  { name: "Montserrat", category: "sans-serif" },
-  { name: "Poppins", category: "sans-serif" },
-  { name: "Roboto Condensed", category: "sans-serif" },
-  { name: "Oswald", category: "display" },
-  { name: "Noto Sans", category: "sans-serif" },
-  { name: "Raleway", category: "sans-serif" },
-  { name: "Nunito", category: "sans-serif" },
-  { name: "Work Sans", category: "sans-serif" },
-  { name: "DM Sans", category: "sans-serif" },
-  { name: "Rubik", category: "sans-serif" },
-  { name: "Manrope", category: "sans-serif" },
-  { name: "Quicksand", category: "sans-serif" },
-  { name: "Karla", category: "sans-serif" },
-  { name: "Merriweather", category: "serif" },
-  { name: "Playfair Display", category: "serif" },
-  { name: "Lora", category: "serif" },
-  { name: "PT Serif", category: "serif" },
-  { name: "Noto Serif", category: "serif" },
-  { name: "Roboto Slab", category: "serif" },
-  { name: "Bitter", category: "serif" },
-  { name: "EB Garamond", category: "serif" },
-  { name: "Cormorant Garamond", category: "serif" },
-  { name: "Bebas Neue", category: "display" },
-  { name: "Anton", category: "display" },
-  { name: "Lobster", category: "display" },
-  { name: "Pacifico", category: "handwriting" },
-  { name: "Dancing Script", category: "handwriting" },
-  { name: "Caveat", category: "handwriting" },
-  { name: "JetBrains Mono", category: "monospace" },
-  { name: "Roboto Mono", category: "monospace" },
-  { name: "Source Code Pro", category: "monospace" },
-  { name: "Space Mono", category: "monospace" },
-  { name: "IBM Plex Mono", category: "monospace" },
-];
-
-const GOOGLE_FONTS_LINK_ID = "brand-kit-google-fonts";
-
-// Load all picker fonts once so each option (and the preview) renders in its own typeface.
-function ensureGoogleFontsLoaded() {
-  if (typeof document === "undefined") return;
-  if (document.getElementById(GOOGLE_FONTS_LINK_ID)) return;
-  const families = FONT_OPTIONS.map(
-    (font) => `family=${font.name.trim().replace(/\s+/g, "+")}`,
-  ).join("&");
-  const link = document.createElement("link");
-  link.id = GOOGLE_FONTS_LINK_ID;
-  link.rel = "stylesheet";
-  link.href = `https://fonts.googleapis.com/css2?${families}&display=swap`;
-  document.head.appendChild(link);
-}
-
 function FontSlot({
-  fontFamily,
+  fonts,
+  loading,
   value,
   onChange,
   placeholder,
 }: {
-  fontFamily: string;
-  value: string;
-  onChange: (value: string) => void;
+  fonts: Font[];
+  loading: boolean;
+  value: string | null;
+  onChange: (value: string | null) => void;
   placeholder: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
-  useEffect(() => {
-    if (open) ensureGoogleFontsLoaded();
-  }, [open]);
+  const selectedFont = useMemo(
+    () => fonts.find((font) => font.id === value) ?? null,
+    [fonts, value],
+  );
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return FONT_OPTIONS;
-    return FONT_OPTIONS.filter((font) => font.name.toLowerCase().includes(q));
-  }, [query]);
+    if (!q) return fonts;
+    return fonts.filter((font) => font.family.toLowerCase().includes(q));
+  }, [fonts, query]);
 
-  function handleSelect(name: string) {
-    onChange(name);
+  function handleSelect(id: string | null) {
+    onChange(id);
     setOpen(false);
     setQuery("");
   }
@@ -963,12 +1003,16 @@ function FontSlot({
         >
           <span
             className="text-3xl font-bold text-foreground"
-            style={{ fontFamily: fontFamily || undefined }}
+            style={{ fontFamily: selectedFont ? fontFamilyStack(selectedFont) : undefined }}
           >
             Aa
           </span>
           <span className="mt-2 truncate text-sm font-semibold text-foreground">
-            {value || <span className="text-muted-foreground">{placeholder}</span>}
+            {selectedFont ? (
+              selectedFont.family
+            ) : (
+              <span className="text-muted-foreground">{placeholder}</span>
+            )}
           </span>
           <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-muted-foreground opacity-0 transition group-hover:opacity-100 group-data-[state=open]:opacity-100" />
         </button>
@@ -992,32 +1036,37 @@ function FontSlot({
           {value && (
             <button
               type="button"
-              onClick={() => handleSelect("")}
+              onClick={() => handleSelect(null)}
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-muted-foreground transition hover:bg-accent"
             >
               <X className="h-4 w-4 shrink-0" />
               Clear selection
             </button>
           )}
-          {results.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 px-3 py-6 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading fonts…
+            </div>
+          ) : results.length === 0 ? (
             <div className="px-3 py-6 text-center text-sm text-muted-foreground">
               No fonts found
             </div>
           ) : (
             results.map((font) => {
-              const selected = font.name === value;
+              const selected = font.id === value;
               return (
                 <button
-                  key={font.name}
+                  key={font.id}
                   type="button"
-                  onClick={() => handleSelect(font.name)}
+                  onClick={() => handleSelect(font.id)}
                   className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-accent"
                 >
                   <span
                     className="truncate text-lg text-foreground"
-                    style={{ fontFamily: `'${font.name}', ${font.category}` }}
+                    style={{ fontFamily: fontFamilyStack(font) }}
                   >
-                    {font.name}
+                    {font.family}
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
                     <span className="text-xs text-muted-foreground">{font.category}</span>
