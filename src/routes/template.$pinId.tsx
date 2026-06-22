@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Maximize2,
+  Minus,
   Smile,
   Sticker,
   Image as ImageIcon,
@@ -18,6 +19,7 @@ import {
   MessageCircle,
   Facebook,
   Twitter,
+  X,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -51,7 +53,7 @@ import {
 } from "@/lib/boards";
 import { likedTemplatesQueryKey, likeTemplate, unlikeTemplate } from "@/lib/likes";
 import { getAccessToken } from "@/lib/auth";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 const APP_BASE_URL = import.meta.env.VITE_APP_BASE_URL ?? "https://www.epicpost.app";
 const DEFAULT_SHARE_TITLE = "EpicPost — Remixable Social Media Templates";
@@ -275,6 +277,12 @@ function PinDetail() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isSaveOpen, setIsSaveOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  // Fullscreen viewer: independent share/save popover state so the overlay's
+  // controls don't collide with the inline header ones.
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [fsShareOpen, setFsShareOpen] = useState(false);
+  const [fsSaveOpen, setFsSaveOpen] = useState(false);
   const [shareSearch, setShareSearch] = useState("");
   const [isCreateBoardOpen, setIsCreateBoardOpen] = useState(false);
   const [boardSearch, setBoardSearch] = useState("");
@@ -309,6 +317,7 @@ function PinDetail() {
         unsaveMutation.mutate(boardId);
       });
       setIsSaveOpen(false);
+      setFsSaveOpen(false);
     },
     onError: (error: unknown) => {
       toast.error(error instanceof Error ? error.message : "Could not save template.");
@@ -456,6 +465,33 @@ function PinDetail() {
     setSelectedMediaIndex((index) => Math.min(previewMedia.length - 1, index + 1));
   }
 
+  const ZOOM_MIN = 1;
+  const ZOOM_MAX = 4;
+  const ZOOM_STEP = 0.25;
+
+  const zoomIn = useCallback(() => {
+    setZoom((value) => Math.min(ZOOM_MAX, Math.round((value + ZOOM_STEP) * 100) / 100));
+  }, []);
+  const zoomOut = useCallback(() => {
+    setZoom((value) => Math.max(ZOOM_MIN, Math.round((value - ZOOM_STEP) * 100) / 100));
+  }, []);
+
+  function openFullscreen() {
+    setZoom(1);
+    setIsFullscreen(true);
+  }
+
+  function closeFullscreen() {
+    setIsFullscreen(false);
+    setFsShareOpen(false);
+    setFsSaveOpen(false);
+  }
+
+  // Reset zoom whenever the active media changes (or the viewer closes).
+  useEffect(() => {
+    setZoom(1);
+  }, [selectedMediaIndex, isFullscreen]);
+
   useEffect(() => {
     setSelectedMediaIndex(0);
     setIsFirstMediaLoaded(false);
@@ -497,6 +533,64 @@ function PinDetail() {
     window.addEventListener("keydown", handleCarouselKeyDown);
     return () => window.removeEventListener("keydown", handleCarouselKeyDown);
   }, [previewMedia.length]);
+
+  // Fullscreen viewer shortcuts: Escape to close, Up/Down to change media (in
+  // addition to the Left/Right handled above), +/- to zoom.
+  useEffect(() => {
+    if (!isFullscreen) return;
+
+    function handleFullscreenKeyDown(event: KeyboardEvent) {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+      const target = event.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      ) {
+        return;
+      }
+
+      switch (event.key) {
+        case "Escape":
+          closeFullscreen();
+          break;
+        case "ArrowUp":
+          event.preventDefault();
+          setSelectedMediaIndex((index) => Math.max(0, index - 1));
+          break;
+        case "ArrowDown":
+          event.preventDefault();
+          setSelectedMediaIndex((index) => Math.min(previewMedia.length - 1, index + 1));
+          break;
+        case "+":
+        case "=":
+          event.preventDefault();
+          zoomIn();
+          break;
+        case "-":
+          event.preventDefault();
+          zoomOut();
+          break;
+        default:
+          break;
+      }
+    }
+
+    window.addEventListener("keydown", handleFullscreenKeyDown);
+    return () => window.removeEventListener("keydown", handleFullscreenKeyDown);
+  }, [isFullscreen, previewMedia.length, zoomIn, zoomOut]);
+
+  // Lock body scroll while the fullscreen viewer is open.
+  useEffect(() => {
+    if (!isFullscreen || typeof document === "undefined") return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [isFullscreen]);
 
   useEffect(() => {
     if (!isFirstMediaLoaded || previewMedia.length <= 1) return;
