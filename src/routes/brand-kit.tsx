@@ -93,6 +93,22 @@ function areImagesEqual(first: BrandImage[], second: BrandImage[]) {
   );
 }
 
+function getBrandKitSnapshot(kit: BrandKit | null) {
+  return {
+    name: kit?.name ?? "",
+    websiteUrl: kit?.website_url ?? "",
+    fontPrimaryId: kit?.font_id ?? null,
+    fontSecondaryId: kit?.secondary_font_id ?? null,
+    oneLiner: kit?.one_liner ?? "",
+    toneOfVoice: kit?.tone_of_voice ?? "",
+    palette: colorsToPalette(kit?.colors),
+    brandValues: kit?.brand_values ?? [],
+    logoAssetId: kit?.logo_asset_id ?? null,
+    logoUrl: kit?.logo_url ?? null,
+    images: kit?.images ?? [],
+  };
+}
+
 function BrandKitPage() {
   const queryClient = useQueryClient();
   const [signedIn, setSignedIn] = useState(false);
@@ -295,23 +311,9 @@ function BrandKitEditor({
   onSaved: (kit: BrandKit) => void;
   onDeleted: (deletedId: string) => void;
 }) {
-  const initial = useMemo(
-    () => ({
-      name: kit?.name ?? "",
-      websiteUrl: kit?.website_url ?? "",
-      fontPrimaryId: kit?.font_id ?? null,
-      fontSecondaryId: kit?.secondary_font_id ?? null,
-      oneLiner: kit?.one_liner ?? "",
-      toneOfVoice: kit?.tone_of_voice ?? "",
-      palette: colorsToPalette(kit?.colors),
-      brandValues: kit?.brand_values ?? [],
-      logoAssetId: kit?.logo_asset_id ?? null,
-      logoUrl: kit?.logo_url ?? null,
-      images: kit?.images ?? [],
-    }),
-    [kit],
-  );
+  const initial = useMemo(() => getBrandKitSnapshot(kit), [kit]);
 
+  const [savedSnapshot, setSavedSnapshot] = useState(initial);
   const [name, setName] = useState(initial.name);
   const [websiteUrl, setWebsiteUrl] = useState(initial.websiteUrl);
   const [fontPrimaryId, setFontPrimaryId] = useState<string | null>(initial.fontPrimaryId);
@@ -354,17 +356,17 @@ function BrandKitEditor({
   }, [fonts]);
 
   const hasUnsavedChanges =
-    name !== initial.name ||
-    websiteUrl !== initial.websiteUrl ||
-    fontPrimaryId !== initial.fontPrimaryId ||
-    fontSecondaryId !== initial.fontSecondaryId ||
-    oneLiner !== initial.oneLiner ||
-    toneOfVoice !== initial.toneOfVoice ||
-    logoAssetId !== initial.logoAssetId ||
-    logoUrl !== initial.logoUrl ||
-    !areArraysEqual(palette, initial.palette) ||
-    !areArraysEqual(brandValues, initial.brandValues) ||
-    !areImagesEqual(images, initial.images);
+    name !== savedSnapshot.name ||
+    websiteUrl !== savedSnapshot.websiteUrl ||
+    fontPrimaryId !== savedSnapshot.fontPrimaryId ||
+    fontSecondaryId !== savedSnapshot.fontSecondaryId ||
+    oneLiner !== savedSnapshot.oneLiner ||
+    toneOfVoice !== savedSnapshot.toneOfVoice ||
+    logoAssetId !== savedSnapshot.logoAssetId ||
+    logoUrl !== savedSnapshot.logoUrl ||
+    !areArraysEqual(palette, savedSnapshot.palette) ||
+    !areArraysEqual(brandValues, savedSnapshot.brandValues) ||
+    !areImagesEqual(images, savedSnapshot.images);
 
   const shouldBlockLeave = useCallback(
     ({ current, next }: { current: { pathname: string }; next: { pathname: string } }) =>
@@ -397,6 +399,7 @@ function BrandKitEditor({
       return kit ? updateBrandKit(kit.id, input) : createBrandKit(input);
     },
     onSuccess: (saved) => {
+      setSavedSnapshot(getBrandKitSnapshot(saved));
       toast.success(kit ? "Brand kit updated" : "Brand kit created");
       onSaved(saved);
     },
@@ -465,6 +468,7 @@ function BrandKitEditor({
     setLogoAssetId(updated.logo_asset_id);
     setLogoUrl(updated.logo_url);
     setImages(updated.images);
+    setSavedSnapshot(getBrandKitSnapshot(updated));
     // Push into the cache; for a new kit this switches selection (remount with a
     // fresh baseline), for an existing kit it just refreshes the data in place.
     onSaved(updated);
@@ -742,7 +746,7 @@ function BrandKitEditor({
                 {brandValues.map((value) => (
                   <span
                     key={value}
-                    className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-sm font-semibold text-foreground"
+                    className="flex items-center gap-1.5 rounded-[16px] bg-secondary px-3 py-1.5 text-sm font-semibold text-foreground"
                   >
                     {value}
                     <button
