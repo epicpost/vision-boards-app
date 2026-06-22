@@ -9,6 +9,17 @@ import { Sidebar } from "@/components/epicpost/Sidebar";
 import { TopBar } from "@/components/epicpost/TopBar";
 import { MobileNav } from "@/components/epicpost/MobileNav";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -295,6 +306,7 @@ function BrandKitEditor({
   const [images, setImages] = useState<BrandImage[]>(initial.images);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [deletingImageIds, setDeletingImageIds] = useState<Set<string>>(new Set());
 
   const logoInputRef = useRef<HTMLInputElement>(null);
   const imagesInputRef = useRef<HTMLInputElement>(null);
@@ -457,10 +469,17 @@ function BrandKitEditor({
       setImages((current) => current.filter((i) => i.asset_id !== assetId));
       return;
     }
+    setDeletingImageIds((current) => new Set(current).add(assetId));
     try {
       applyUpdatedKit(await removeBrandImage(kitId, assetId));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Couldn't remove the image.");
+    } finally {
+      setDeletingImageIds((current) => {
+        const next = new Set(current);
+        next.delete(assetId);
+        return next;
+      });
     }
   }
 
@@ -671,25 +690,58 @@ function BrandKitEditor({
 
             {images.length > 0 ? (
               <div className="mt-3 grid grid-cols-2 gap-3">
-                {images.map((image) => (
-                  <div
-                    key={image.asset_id}
-                    className="group relative aspect-square overflow-hidden rounded-[14px] border border-border bg-secondary"
-                  >
-                    <img
-                      src={image.thumbnail_url ?? image.preview_url ?? image.url}
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
-                    <button
-                      onClick={() => void handleRemoveImage(image.asset_id)}
-                      aria-label="Remove image"
-                      className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-background/90 text-foreground opacity-0 transition group-hover:opacity-100"
+                {images.map((image) => {
+                  const isDeleting = deletingImageIds.has(image.asset_id);
+
+                  return (
+                    <div
+                      key={image.asset_id}
+                      className="group relative aspect-square overflow-hidden rounded-[14px] border border-border bg-secondary"
                     >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
+                      <img
+                        src={image.thumbnail_url ?? image.preview_url ?? image.url}
+                        alt=""
+                        className={`h-full w-full object-cover transition ${
+                          isDeleting ? "scale-105 opacity-35 grayscale" : ""
+                        }`}
+                      />
+                      {isDeleting ? (
+                        <div className="absolute inset-0 flex items-center justify-center bg-background/30">
+                          <Loader2 className="h-5 w-5 animate-spin text-foreground" />
+                        </div>
+                      ) : null}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <button
+                            disabled={isDeleting}
+                            aria-label="Remove image"
+                            className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-background/90 text-foreground opacity-0 transition group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete image?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This action can't be undone. Are you sure you want to delete this
+                              image?
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>No</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => void handleRemoveImage(image.asset_id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Yes
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="mt-3 flex h-24 items-center justify-center rounded-[14px] border border-border text-sm text-muted-foreground">
@@ -707,18 +759,34 @@ function BrandKitEditor({
       <div className="sticky bottom-0 z-10 mt-8 flex items-center justify-between gap-3 border-t border-border bg-background py-4">
         <div>
           {kit ? (
-            <button
-              onClick={() => {
-                if (window.confirm("Delete this brand kit? This can't be undone.")) {
-                  deleteMutation.mutate();
-                }
-              }}
-              disabled={deleteMutation.isPending}
-              className="flex h-11 items-center gap-1.5 rounded-full px-4 text-[15px] font-semibold text-muted-foreground transition hover:text-destructive disabled:opacity-50"
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete
-            </button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button
+                  disabled={deleteMutation.isPending}
+                  className="flex h-11 items-center gap-1.5 rounded-full px-4 text-[15px] font-semibold text-muted-foreground transition hover:text-destructive disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete brand kit?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action can't be undone. Are you sure you want to delete this brand kit?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>No</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => deleteMutation.mutate()}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Yes
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           ) : null}
         </div>
         <div className="flex items-center gap-3">
