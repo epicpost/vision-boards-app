@@ -1,17 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Download, ExternalLink, Loader2 } from "lucide-react";
+import { Download, ExternalLink, Loader2, Minus, Plus, X } from "lucide-react";
 import { Sidebar } from "@/components/epicpost/Sidebar";
 import { TopBar } from "@/components/epicpost/TopBar";
 import { MobileNav } from "@/components/epicpost/MobileNav";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { fetchRemixes, remixesQueryKey, type RemixGenerationItem } from "@/lib/generations";
 import { getAccessToken } from "@/lib/auth";
 
@@ -154,6 +147,155 @@ function RemixPreviewCard({
   );
 }
 
+const ZOOM_MIN = 1;
+const ZOOM_MAX = 4;
+const ZOOM_STEP = 0.25;
+
+// Fullscreen remix viewer — mirrors the template detail page's image viewer
+// (dark backdrop, centered media, zoom controls) and adds the remix CTAs.
+function RemixViewer({
+  remix,
+  onClose,
+  onDownload,
+}: {
+  remix: RemixGenerationItem;
+  onClose: () => void;
+  onDownload: () => void;
+}) {
+  const asset = remix.assets[0] ?? null;
+  const [zoom, setZoom] = useState(1);
+
+  const zoomIn = useCallback(() => {
+    setZoom((value) => Math.min(ZOOM_MAX, Math.round((value + ZOOM_STEP) * 100) / 100));
+  }, []);
+  const zoomOut = useCallback(() => {
+    setZoom((value) => Math.max(ZOOM_MIN, Math.round((value - ZOOM_STEP) * 100) / 100));
+  }, []);
+
+  // Lock body scroll while the viewer is open.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
+
+  // Keyboard shortcuts: Escape to close, +/- to zoom.
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+
+      const target = event.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      ) {
+        return;
+      }
+
+      switch (event.key) {
+        case "Escape":
+          onClose();
+          break;
+        case "+":
+        case "=":
+          event.preventDefault();
+          zoomIn();
+          break;
+        case "-":
+          event.preventDefault();
+          zoomOut();
+          break;
+        default:
+          break;
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose, zoomIn, zoomOut]);
+
+  if (!asset) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col bg-black/90 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Remix viewer"
+    >
+      {/* Top bar: close (left) */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between p-4">
+        <button
+          type="button"
+          aria-label="Close"
+          onClick={onClose}
+          className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-[14px] bg-white text-foreground shadow-md transition hover:bg-secondary"
+        >
+          <X className="h-5 w-5" strokeWidth={2.4} />
+        </button>
+      </div>
+
+      {/* Centered media */}
+      <div className="flex h-full w-full items-center justify-center overflow-auto p-6">
+        <img
+          src={asset.url}
+          alt={remix.caption ?? remix.template_title}
+          style={{ transform: `scale(${zoom})` }}
+          className="max-h-[80vh] max-w-[88vw] origin-center object-contain transition-transform duration-150"
+        />
+      </div>
+
+      {/* CTA buttons */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex flex-wrap items-center justify-center gap-2 px-4">
+        <Link
+          to="/template/$pinId"
+          params={{ pinId: remix.template_id }}
+          className="pointer-events-auto flex h-11 items-center gap-2 rounded-full bg-white px-5 text-base font-semibold text-foreground shadow-md transition hover:brightness-95"
+        >
+          <ExternalLink className="h-4 w-4" />
+          Use template again
+        </Link>
+        <button
+          type="button"
+          onClick={onDownload}
+          className="pointer-events-auto flex h-11 items-center gap-2 rounded-full bg-primary px-5 text-base font-bold text-primary-foreground shadow-md transition hover:brightness-90"
+        >
+          <Download className="h-4 w-4" />
+          Download
+        </button>
+      </div>
+
+      {/* Zoom controls */}
+      <div className="absolute bottom-4 right-4 z-10 flex flex-col overflow-hidden rounded-[14px] bg-white shadow-md">
+        <button
+          type="button"
+          aria-label="Zoom in"
+          onClick={zoomIn}
+          disabled={zoom >= ZOOM_MAX}
+          className="flex h-11 w-11 items-center justify-center text-foreground transition hover:bg-secondary disabled:opacity-40"
+        >
+          <Plus className="h-5 w-5" strokeWidth={2.4} />
+        </button>
+        <span className="h-px w-full bg-border" />
+        <button
+          type="button"
+          aria-label="Zoom out"
+          onClick={zoomOut}
+          disabled={zoom <= ZOOM_MIN}
+          className="flex h-11 w-11 items-center justify-center text-foreground transition hover:bg-secondary disabled:opacity-40"
+        >
+          <Minus className="h-5 w-5" strokeWidth={2.4} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function RemixesGrid() {
   const [selectedRemix, setSelectedRemix] = useState<RemixGenerationItem | null>(null);
   const remixesQuery = useQuery({
@@ -232,53 +374,13 @@ function RemixesGrid() {
         ))}
       </div>
 
-      <Dialog
-        open={Boolean(selectedRemix)}
-        onOpenChange={(open) => !open && setSelectedRemix(null)}
-      >
-        <DialogContent className="max-w-lg rounded-[20px] p-6">
-          <DialogHeader>
-            <DialogTitle>{selectedRemix?.template_title ?? "Your remix"}</DialogTitle>
-            <DialogDescription>
-              {selectedRemix?.caption
-                ? `${selectedRemix.caption} · ${formatUpdatedAt(selectedRemix.created_at)}`
-                : selectedRemix
-                  ? formatUpdatedAt(selectedRemix.created_at)
-                  : ""}
-            </DialogDescription>
-          </DialogHeader>
-          {selectedAsset && (
-            <div className="overflow-hidden rounded-[16px] border border-border bg-secondary">
-              <img
-                src={selectedAsset.url}
-                alt={selectedRemix?.caption ?? selectedRemix?.template_title ?? "Generated remix"}
-                className="max-h-[65vh] w-full object-contain"
-              />
-            </div>
-          )}
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {selectedRemix && (
-              <Link
-                to="/template/$pinId"
-                params={{ pinId: selectedRemix.template_id }}
-                className="flex h-11 items-center gap-2 rounded-full bg-secondary px-5 text-base font-semibold text-foreground transition hover:brightness-95"
-              >
-                <ExternalLink className="h-4 w-4" />
-                Use template again
-              </Link>
-            )}
-            <button
-              type="button"
-              disabled={!selectedAsset}
-              onClick={handleDownload}
-              className="flex h-11 items-center gap-2 rounded-full bg-primary px-5 text-base font-bold text-primary-foreground transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Download className="h-4 w-4" />
-              Download
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {selectedRemix && selectedAsset ? (
+        <RemixViewer
+          remix={selectedRemix}
+          onClose={() => setSelectedRemix(null)}
+          onDownload={handleDownload}
+        />
+      ) : null}
     </>
   );
 }
