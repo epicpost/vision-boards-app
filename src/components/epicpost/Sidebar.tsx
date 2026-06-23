@@ -107,7 +107,8 @@ export function Sidebar() {
               <div
                 aria-label={it.label}
                 className={`flex h-12 w-12 items-center justify-center rounded-[16px] transition ${
-                  pathname === it.to || (it.to === "/remixes" && pathname === "/boards")
+                  pathname === it.to ||
+                  (it.to === "/remixes" && (pathname === "/boards" || pathname === "/likes"))
                     ? "bg-foreground text-background"
                     : "hover:bg-secondary text-foreground"
                 }`}

@@ -291,7 +291,7 @@ function RemixesPage() {
         <TopBar showTabs={false} />
         <main className="px-4 md:px-8 pt-2 pb-12 max-w-[1600px] mx-auto">
           <div className="mb-6 flex items-start justify-between gap-6">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Your saved ideas</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Remixes</h1>
           </div>
 
           <nav className="mb-6 flex items-center justify-between gap-6 border-b border-transparent">

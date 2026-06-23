@@ -209,9 +209,9 @@ function BrandKitPage() {
       <Sidebar />
       <div className="md:pl-[72px] pb-16 md:pb-0">
         <TopBar showTabs={false} />
-        <main className="mx-auto w-full max-w-6xl px-4 py-8 md:px-8 md:py-10">
+        <main className="mx-auto w-full max-w-6xl px-4 pb-12 pt-2 md:px-8">
           <header className="mb-6">
-            <h1 className="text-3xl font-bold text-foreground">Brand Kit</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Brand Kit</h1>
             <p className="mt-2 text-base text-muted-foreground">
               Set up your brand DNA — logo, colors, fonts and voice. Every remix and generation
               stays aligned to it.

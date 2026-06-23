@@ -435,7 +435,7 @@ function BoardsPage() {
         <TopBar showTabs={false} />
         <main className="px-4 md:px-8 pt-2 pb-12 max-w-[1600px] mx-auto">
           <div className="flex items-start justify-between gap-6 mb-6">
-            <h1 className="text-3xl font-bold text-foreground tracking-tight">Your saved ideas</h1>
+            <h1 className="text-3xl font-bold text-foreground tracking-tight">Boards</h1>
           </div>
 
           <nav className="flex items-center justify-between gap-6 border-b border-transparent mb-6">
