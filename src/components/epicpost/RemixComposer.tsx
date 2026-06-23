@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { ArrowUp, Download, Image as ImageIcon, Loader2, X } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  ArrowUp,
+  Download,
+  ExternalLink,
+  Image as ImageIcon,
+  Loader2,
+  UploadCloud,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -10,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { getAccessToken } from "@/lib/auth";
+import { brandKitsQueryKey, fetchBrandKits, type BrandImage } from "@/lib/brand-kit";
 import {
   remixesQueryKey,
   remixTemplateUpload,
@@ -28,6 +37,26 @@ type Phase = "idle" | "sending" | "generating";
 
 const FALLBACK_ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const FALLBACK_MAX_IMAGES = 10;
+
+function formatCreatedAt(createdAt: string | null | undefined) {
+  if (!createdAt) return "";
+
+  const created = new Date(createdAt).getTime();
+  if (Number.isNaN(created)) return "";
+
+  const diffMs = Date.now() - created;
+  const diffMinutes = Math.max(1, Math.floor(diffMs / 60_000));
+  if (diffMinutes < 60) return `${diffMinutes}m`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}d`;
+  if (diffDays < 31) return `${Math.floor(diffDays / 7)}w`;
+
+  return `${Math.floor(diffDays / 30)}mo`;
+}
 
 // The comment-style composer at the bottom of the detail card. Attach the
 // images the template needs, type the caption, and send to generate a remix —
@@ -61,7 +90,18 @@ export function RemixComposer({
   const [phase, setPhase] = useState<Phase>("idle");
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [isResultOpen, setIsResultOpen] = useState(false);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [loadingBrandAssetId, setLoadingBrandAssetId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Brand-kit images are only worth fetching once the picker is opened.
+  const brandKitsQuery = useQuery({
+    queryKey: brandKitsQueryKey(),
+    queryFn: fetchBrandKits,
+    enabled: isPickerOpen && Boolean(getAccessToken()),
+  });
+  const brandImages = (brandKitsQuery.data ?? []).flatMap((kit) => kit.images);
   // Track live preview URLs so unmount revokes exactly the current set.
   const previewUrlsRef = useRef<string[]>([]);
   previewUrlsRef.current = images.map((image) => image.previewUrl);
@@ -89,9 +129,10 @@ export function RemixComposer({
         ? "Add a caption to remix"
         : "Ready — send to generate your remix";
 
-  function addFiles(fileList: FileList) {
-    const incoming = Array.from(fileList).filter((file) => acceptedTypes.includes(file.type));
-    if (incoming.length < fileList.length) {
+  function addFiles(fileList: FileList | File[]) {
+    const files = Array.from(fileList);
+    const incoming = files.filter((file) => acceptedTypes.includes(file.type));
+    if (incoming.length < files.length) {
       toast.error("Some files were skipped — only PNG, JPG or WebP images are supported.");
     }
 
@@ -107,6 +148,31 @@ export function RemixComposer({
       }));
       return accepted.length > 0 ? [...current, ...accepted] : current;
     });
+  }
+
+  // Pull a brand-kit image down into a File so it flows through the same upload
+  // path as a freshly picked file.
+  async function addBrandImage(image: BrandImage) {
+    if (images.length >= maxImages) {
+      toast.error(`This template uses at most ${maxImages} images.`);
+      return;
+    }
+    try {
+      setLoadingBrandAssetId(image.asset_id);
+      const response = await fetch(image.url);
+      if (!response.ok) throw new Error("Could not load that brand image.");
+      const blob = await response.blob();
+      const extension = blob.type.split("/")[1] ?? "jpg";
+      const file = new File([blob], `${image.asset_id}.${extension}`, {
+        type: blob.type || "image/jpeg",
+      });
+      addFiles([file]);
+      setIsPickerOpen(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not load that brand image.");
+    } finally {
+      setLoadingBrandAssetId(null);
+    }
   }
 
   function removeImage(id: string) {
@@ -148,6 +214,18 @@ export function RemixComposer({
     } finally {
       setPhase("idle");
     }
+  }
+
+  // "Use template again" — close the result and reset the composer so the user
+  // can attach fresh images and remix the same template right away.
+  function handleUseTemplateAgain() {
+    setIsResultOpen(false);
+    setImages((current) => {
+      current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+      return [];
+    });
+    setCaption("");
+    setResult(null);
   }
 
   function handleDownload() {
@@ -203,7 +281,7 @@ export function RemixComposer({
               type="button"
               aria-label="Add more images"
               disabled={isBusy}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => setIsPickerOpen(true)}
               className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[14px] border-2 border-dashed border-border text-muted-foreground transition hover:border-foreground/40 hover:text-foreground disabled:opacity-50"
             >
               <ImageIcon className="h-5 w-5" />
@@ -237,7 +315,7 @@ export function RemixComposer({
           type="button"
           aria-label="Attach images"
           disabled={isBusy}
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => setIsPickerOpen(true)}
           className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-background/60 disabled:opacity-50"
         >
           <ImageIcon className="h-5 w-5 text-foreground" />
@@ -264,36 +342,122 @@ export function RemixComposer({
 
       <p className="mt-1.5 px-2 text-xs text-muted-foreground">{hint}</p>
 
-      <Dialog open={isResultOpen} onOpenChange={setIsResultOpen}>
-        <DialogContent className="max-w-md rounded-[20px] p-6">
+      <Dialog
+        open={isPickerOpen}
+        onOpenChange={(open) => {
+          setIsPickerOpen(open);
+          if (!open) setIsDragging(false);
+        }}
+      >
+        <DialogContent className="max-w-2xl rounded-[20px] p-6">
           <DialogHeader>
-            <DialogTitle>Your remix is ready</DialogTitle>
+            <DialogTitle>Upload a photo</DialogTitle>
             <DialogDescription>
-              Generated from {images.length} image{images.length > 1 ? "s" : ""}
-              {result?.caption ? ` with the caption “${result.caption}”` : ""}.
+              Choose one of your brand kit images or add a new one.
+            </DialogDescription>
+          </DialogHeader>
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(event) => {
+              event.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(event) => {
+              event.preventDefault();
+              setIsDragging(false);
+              if (event.dataTransfer.files?.length) {
+                addFiles(event.dataTransfer.files);
+                setIsPickerOpen(false);
+              }
+            }}
+            className={`flex h-40 w-full flex-col items-center justify-center gap-3 rounded-[16px] border-2 border-dashed text-muted-foreground transition ${
+              isDragging
+                ? "border-foreground/50 bg-secondary text-foreground"
+                : "border-border hover:border-foreground/40 hover:text-foreground"
+            }`}
+          >
+            <UploadCloud className="h-7 w-7" />
+            <span className="text-[15px] font-medium">Choose an image or drag and drop it here</span>
+          </button>
+
+          {brandImages.length > 0 && (
+            <div className="mt-2">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">From your brand kit</p>
+              <div className="grid max-h-[40vh] grid-cols-4 gap-2 overflow-y-auto sm:grid-cols-5">
+                {brandImages.map((image) => {
+                  const isLoading = loadingBrandAssetId === image.asset_id;
+                  return (
+                    <button
+                      key={image.asset_id}
+                      type="button"
+                      disabled={Boolean(loadingBrandAssetId)}
+                      onClick={() => addBrandImage(image)}
+                      className="group relative aspect-square overflow-hidden rounded-[12px] border border-border transition hover:border-foreground/40 disabled:opacity-60"
+                    >
+                      <img
+                        src={image.thumbnail_url ?? image.preview_url ?? image.url}
+                        alt="Brand image"
+                        className="h-full w-full object-cover"
+                      />
+                      {isLoading && (
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/40">
+                          <Loader2 className="h-5 w-5 animate-spin text-white" />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {brandKitsQuery.isLoading && (
+            <p className="text-xs text-muted-foreground">Loading your brand kit images…</p>
+          )}
+          {!brandKitsQuery.isLoading && brandImages.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              No brand kit images yet — add one above to get started.
+            </p>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isResultOpen} onOpenChange={setIsResultOpen}>
+        <DialogContent className="max-w-lg rounded-[20px] p-6">
+          <DialogHeader>
+            <DialogTitle>{template.title}</DialogTitle>
+            <DialogDescription>
+              {result?.caption
+                ? `${result.caption} · ${formatCreatedAt(result.created_at)}`
+                : formatCreatedAt(result?.created_at)}
             </DialogDescription>
           </DialogHeader>
           {output && (
             <div className="overflow-hidden rounded-[16px] border border-border bg-secondary">
               <img
                 src={output.url}
-                alt={result?.caption ?? "Generated remix"}
-                className="max-h-[60vh] w-full object-contain"
+                alt={result?.caption ?? template.title}
+                className="max-h-[65vh] w-full object-contain"
               />
             </div>
           )}
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-2">
             <button
               type="button"
-              onClick={() => setIsResultOpen(false)}
-              className="h-11 rounded-full bg-secondary px-5 text-base font-semibold text-foreground transition hover:brightness-95"
+              onClick={handleUseTemplateAgain}
+              className="flex h-11 items-center gap-2 rounded-full bg-secondary px-5 text-base font-semibold text-foreground transition hover:brightness-95"
             >
-              Close
+              <ExternalLink className="h-4 w-4" />
+              Use template again
             </button>
             <button
               type="button"
+              disabled={!output}
               onClick={handleDownload}
-              className="flex h-11 items-center gap-2 rounded-full bg-primary px-5 text-base font-bold text-primary-foreground transition hover:brightness-90"
+              className="flex h-11 items-center gap-2 rounded-full bg-primary px-5 text-base font-bold text-primary-foreground transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Download className="h-4 w-4" />
               Download
