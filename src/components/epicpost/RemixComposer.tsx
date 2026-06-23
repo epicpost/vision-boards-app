@@ -118,6 +118,11 @@ export function RemixComposer({
   // Auto-attached brand cards default to shown; the user can dismiss each one.
   const [logoRemoved, setLogoRemoved] = useState(false);
   const [fontsRemoved, setFontsRemoved] = useState(false);
+  // Caption colour: the template advertises a default + palette under
+  // agent_hints.render_defaults; the user can pick one (or dismiss the card).
+  const [captionColor, setCaptionColor] = useState<string | null>(null);
+  const [colorRemoved, setColorRemoved] = useState(false);
+  const [isColorPaletteOpen, setIsColorPaletteOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // The brand kit feeds both the auto-attached logo/fonts cards and the image
@@ -138,6 +143,22 @@ export function RemixComposer({
   // The catalog font id sent to the renderer — only while the Fonts card is
   // kept attached. The backend resolves it to the actual typeface at render time.
   const selectedFontId = showFontsCard ? (brandKit?.font_id ?? undefined) : undefined;
+
+  // Caption-colour support is advertised by the template's render config. The
+  // card shows the same way the Fonts card does when the template can render
+  // with an input colour; the palette is the template's preselected options
+  // (plus its default), and an explicit pick is sent as `captionColor`.
+  const renderDefaults = template.agent_hints?.render_defaults ?? null;
+  const defaultCaptionColor = renderDefaults?.caption_color ?? null;
+  const captionColorOptions = renderDefaults?.caption_color_options ?? [];
+  const supportsCaptionColor =
+    requiresText && (captionColorOptions.length > 0 || Boolean(defaultCaptionColor));
+  const showColorCard = supportsCaptionColor && !colorRemoved;
+  // The colour sent to the renderer: the user's pick, else the template default
+  // (so the card reflects what will actually render). Undefined when dismissed.
+  const selectedCaptionColor = showColorCard
+    ? (captionColor ?? defaultCaptionColor ?? undefined)
+    : undefined;
   // Track live preview URLs so unmount revokes exactly the current set.
   const previewUrlsRef = useRef<string[]>([]);
   previewUrlsRef.current = images.map((image) => image.previewUrl);
@@ -285,6 +306,7 @@ export function RemixComposer({
           caption: trimmedCaption,
           aspectRatio,
           fontId: selectedFontId,
+          captionColor: selectedCaptionColor,
         });
       } else {
         initial = await remixTemplateUpload({
@@ -293,6 +315,7 @@ export function RemixComposer({
           caption: trimmedCaption,
           aspectRatio,
           fontId: selectedFontId,
+          captionColor: selectedCaptionColor,
         });
       }
       setPhase("generating");
@@ -326,6 +349,9 @@ export function RemixComposer({
     setResult(null);
     setLogoRemoved(false);
     setFontsRemoved(false);
+    setColorRemoved(false);
+    setCaptionColor(null);
+    setIsColorPaletteOpen(false);
   }
 
   function handleDownload() {
@@ -353,7 +379,7 @@ export function RemixComposer({
         }}
       />
 
-      {(images.length > 0 || showLogoCard || showFontsCard) && (
+      {(images.length > 0 || showLogoCard || showFontsCard || showColorCard) && (
         <div className="mb-2 flex flex-wrap items-center gap-2">
           {showLogoCard && (
             <div className="group relative h-14 w-14 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
@@ -401,6 +427,66 @@ export function RemixComposer({
               >
                 <X className="h-3 w-3" strokeWidth={2.6} />
               </button>
+            </div>
+          )}
+          {showColorCard && (
+            <div className="group relative shrink-0">
+              <button
+                type="button"
+                disabled={isBusy}
+                aria-label="Choose caption colour"
+                aria-expanded={isColorPaletteOpen}
+                onClick={() => setIsColorPaletteOpen((open) => !open)}
+                className="relative h-14 w-14 overflow-hidden rounded-[14px] border border-border bg-secondary"
+              >
+                <span
+                  className="absolute inset-1.5 rounded-[10px] border border-black/10"
+                  style={{ backgroundColor: selectedCaptionColor }}
+                />
+                <span className="absolute inset-x-0 bottom-0 bg-black/55 py-0.5 text-center text-[9px] font-semibold uppercase tracking-wide text-white">
+                  Color
+                </span>
+              </button>
+              <button
+                type="button"
+                aria-label="Remove caption colour"
+                disabled={isBusy}
+                onClick={() => {
+                  setColorRemoved(true);
+                  setIsColorPaletteOpen(false);
+                }}
+                className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-0"
+              >
+                <X className="h-3 w-3" strokeWidth={2.6} />
+              </button>
+              {isColorPaletteOpen && captionColorOptions.length > 0 && (
+                <div className="absolute bottom-full left-0 z-10 mb-2 flex w-max max-w-[200px] flex-wrap gap-1.5 rounded-xl border border-border bg-popover p-2 shadow-md">
+                  {captionColorOptions.map((option) => {
+                    const isActive =
+                      (selectedCaptionColor ?? "").toLowerCase() ===
+                      option.value.toLowerCase();
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        title={option.label}
+                        aria-label={option.label}
+                        aria-pressed={isActive}
+                        onClick={() => {
+                          setCaptionColor(option.value);
+                          setIsColorPaletteOpen(false);
+                        }}
+                        className={`h-7 w-7 rounded-full border transition ${
+                          isActive
+                            ? "border-primary ring-2 ring-primary ring-offset-1 ring-offset-popover"
+                            : "border-black/10 hover:scale-110"
+                        }`}
+                        style={{ backgroundColor: option.value }}
+                      />
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
           {images.map((image) => (

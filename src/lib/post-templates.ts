@@ -172,6 +172,26 @@ export interface PostTemplate {
   video_output_spec?: VideoOutputSpec | null;
   video_requirements?: VideoRequirements | null;
   carousel_requirements?: CarouselRequirements | null;
+  agent_hints?: AgentHints;
+}
+
+export interface CaptionColorOption {
+  label: string;
+  value: string;
+}
+
+// The subset of agent_hints the composer reads. `render_defaults` carries the
+// HTML render config — including the default caption colour the engine uses when
+// none is passed and the `caption_color_options` palette the UI offers as
+// preselected colour cards.
+export interface AgentHints {
+  render_template?: string | null;
+  render_defaults?: {
+    caption_color?: string;
+    caption_color_options?: CaptionColorOption[];
+    [key: string]: unknown;
+  } | null;
+  [key: string]: unknown;
 }
 
 export interface PostTemplateFeedResponse {
