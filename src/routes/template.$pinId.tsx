@@ -606,8 +606,12 @@ function PinDetail() {
     ? filteredBoards
     : filteredBoards.filter((board) => !board.is_top_choice);
   const selectedBoard = boards.find((board) => board.id === savedBoardId) ?? null;
+  // Use a dedicated key (not `postTemplatesQueryKey()`) so this plain query never
+  // clobbers the home feed's `useInfiniteQuery` cache, which shares that key but
+  // stores a `{ pages, pageParams }` shape. A flat write there makes the infinite
+  // observer crash on `data.pages.length`.
   const defaultFeedQuery = useQuery({
-    queryKey: postTemplatesQueryKey(),
+    queryKey: ["post-templates-related"],
     queryFn: () => fetchPostTemplates(),
   });
   const cachedFeeds = queryClient.getQueriesData<PostTemplateFeedResponse>({
