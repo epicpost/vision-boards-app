@@ -76,9 +76,13 @@ export function RemixComposer({
   onRequireAuth: () => void;
 }) {
   const queryClient = useQueryClient();
-  const imageRequirement = template.input_requirements?.assets.find(
-    (asset) => asset.type === "image",
-  );
+  // A template can express its image inputs either as one slot with a count
+  // range (min_count/max_count) or as several single-image slots (e.g. a
+  // three-image collage = three slots). Aggregate across all image slots so the
+  // composer honors the full contract instead of just the first slot.
+  const imageRequirements =
+    template.input_requirements?.assets.filter((asset) => asset.type === "image") ?? [];
+  const imageRequirement = imageRequirements[0];
   const captionRequirement =
     template.input_requirements?.text_requirements.find((text) => text.visible_on_asset) ??
     template.input_requirements?.text_requirements[0];
@@ -93,8 +97,12 @@ export function RemixComposer({
 
   // Prefer the explicit asset contract; fall back to the template's image count
   // so the composer still works for feed entries without input_requirements.
-  const minImages = Math.max(1, imageRequirement?.min_count ?? template.input_image_count ?? 1);
-  const maxImages = Math.max(minImages, imageRequirement?.max_count ?? FALLBACK_MAX_IMAGES);
+  const minImages = imageRequirements.length
+    ? Math.max(1, imageRequirements.reduce((sum, asset) => sum + asset.min_count, 0))
+    : Math.max(1, template.input_image_count ?? 1);
+  const maxImages = imageRequirements.length
+    ? Math.max(minImages, imageRequirements.reduce((sum, asset) => sum + asset.max_count, 0))
+    : Math.max(minImages, FALLBACK_MAX_IMAGES);
   const acceptedTypes = imageRequirement?.accepted_mime_types.length
     ? imageRequirement.accepted_mime_types
     : FALLBACK_ACCEPTED_TYPES;
