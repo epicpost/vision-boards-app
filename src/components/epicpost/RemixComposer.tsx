@@ -21,7 +21,9 @@ import { getAccessToken } from "@/lib/auth";
 import { brandKitsQueryKey, fetchBrandKits, type BrandImage } from "@/lib/brand-kit";
 import {
   remixesQueryKey,
+  remixTemplate,
   remixTemplateUpload,
+  uploadAssetFiles,
   waitForGeneration,
   type GenerationResult,
 } from "@/lib/generations";
@@ -29,7 +31,12 @@ import type { PostTemplate } from "@/lib/post-templates";
 
 interface AttachedImage {
   id: string;
-  file: File;
+  // Newly picked/dropped files carry their bytes; brand-kit picks reference an
+  // already-uploaded asset by id (their bytes live on S3, which the browser
+  // can't refetch due to CORS — the server resolves them at remix time).
+  file?: File;
+  assetId?: string;
+  // Object URL for uploads, or the brand image's CDN URL for brand picks.
   previewUrl: string;
 }
 
@@ -76,6 +83,14 @@ export function RemixComposer({
     template.input_requirements?.text_requirements.find((text) => text.visible_on_asset) ??
     template.input_requirements?.text_requirements[0];
 
+  // Templates can ask for the brand logo and/or render brand text on the asset.
+  // When they do, we auto-attach the matching brand-kit cards below.
+  const requiresLogo =
+    template.input_requirements?.assets.some((asset) => asset.type === "logo") ??
+    template.output_spec?.contains_branding_slot ??
+    false;
+  const requiresText = Boolean(captionRequirement);
+
   // Prefer the explicit asset contract; fall back to the template's image count
   // so the composer still works for feed entries without input_requirements.
   const minImages = Math.max(1, imageRequirement?.min_count ?? template.input_image_count ?? 1);
@@ -92,25 +107,61 @@ export function RemixComposer({
   const [isResultOpen, setIsResultOpen] = useState(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [loadingBrandAssetId, setLoadingBrandAssetId] = useState<string | null>(null);
+  // Auto-attached brand cards default to shown; the user can dismiss each one.
+  const [logoRemoved, setLogoRemoved] = useState(false);
+  const [fontsRemoved, setFontsRemoved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Brand-kit images are only worth fetching once the picker is opened.
+  // The brand kit feeds both the auto-attached logo/fonts cards and the image
+  // picker, so it's loaded whenever the user is signed in.
   const brandKitsQuery = useQuery({
     queryKey: brandKitsQueryKey(),
     queryFn: fetchBrandKits,
-    enabled: isPickerOpen && Boolean(getAccessToken()),
+    enabled: (requiresLogo || requiresText || isPickerOpen) && Boolean(getAccessToken()),
   });
   const brandImages = (brandKitsQuery.data ?? []).flatMap((kit) => kit.images);
+  // Follow the brand-kit page convention: the first kit is the default.
+  const brandKit = brandKitsQuery.data?.[0] ?? null;
+  const brandLogoUrl = brandKit?.logo_preview_url ?? brandKit?.logo_url ?? null;
+  const brandPrimaryFont = brandKit?.font_family ?? null;
+  const brandSecondaryFont = brandKit?.secondary_font_family ?? null;
+  const showLogoCard = requiresLogo && Boolean(brandLogoUrl) && !logoRemoved;
+  const showFontsCard = requiresText && Boolean(brandPrimaryFont) && !fontsRemoved;
   // Track live preview URLs so unmount revokes exactly the current set.
   const previewUrlsRef = useRef<string[]>([]);
   previewUrlsRef.current = images.map((image) => image.previewUrl);
 
   useEffect(() => {
     return () => {
-      previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      previewUrlsRef.current.forEach((url) => {
+        if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+      });
     };
   }, []);
+
+  // Best-effort load the brand fonts so the "Aa" preview renders in the real
+  // typeface. Non-Google families simply fall back to the default font.
+  useEffect(() => {
+    if (!showFontsCard || typeof document === "undefined") return;
+    const families = [brandPrimaryFont, brandSecondaryFont]
+      .filter((font): font is string => Boolean(font))
+      .map((font) => `family=${font.trim().replace(/\s+/g, "+")}`)
+      .join("&");
+    if (!families) return;
+
+    const href = `https://fonts.googleapis.com/css2?${families}&display=swap`;
+    const id = "remix-brand-fonts";
+    const existing = document.getElementById(id) as HTMLLinkElement | null;
+    if (existing) {
+      if (existing.href !== href) existing.href = href;
+      return;
+    }
+    const link = document.createElement("link");
+    link.id = id;
+    link.rel = "stylesheet";
+    link.href = href;
+    document.head.appendChild(link);
+  }, [showFontsCard, brandPrimaryFont, brandSecondaryFont]);
 
   const isBusy = phase !== "idle";
   const captionMissing = Boolean(captionRequirement?.required) && !caption.trim();
@@ -150,35 +201,32 @@ export function RemixComposer({
     });
   }
 
-  // Pull a brand-kit image down into a File so it flows through the same upload
-  // path as a freshly picked file.
-  async function addBrandImage(image: BrandImage) {
+  // Reference a brand-kit image by its asset id — no byte fetch, so the S3 CORS
+  // restriction never bites. The server resolves the asset when the remix runs.
+  function addBrandImage(image: BrandImage) {
     if (images.length >= maxImages) {
       toast.error(`This template uses at most ${maxImages} images.`);
       return;
     }
-    try {
-      setLoadingBrandAssetId(image.asset_id);
-      const response = await fetch(image.url);
-      if (!response.ok) throw new Error("Could not load that brand image.");
-      const blob = await response.blob();
-      const extension = blob.type.split("/")[1] ?? "jpg";
-      const file = new File([blob], `${image.asset_id}.${extension}`, {
-        type: blob.type || "image/jpeg",
-      });
-      addFiles([file]);
-      setIsPickerOpen(false);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not load that brand image.");
-    } finally {
-      setLoadingBrandAssetId(null);
-    }
+    setImages((current) => {
+      if (current.some((item) => item.assetId === image.asset_id)) return current;
+      return [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          assetId: image.asset_id,
+          previewUrl: image.thumbnail_url ?? image.preview_url ?? image.url,
+        },
+      ];
+    });
+    setIsPickerOpen(false);
   }
 
   function removeImage(id: string) {
     setImages((current) => {
       const target = current.find((image) => image.id === id);
-      if (target) URL.revokeObjectURL(target.previewUrl);
+      // Only object URLs need revoking; brand picks use plain CDN URLs.
+      if (target?.previewUrl.startsWith("blob:")) URL.revokeObjectURL(target.previewUrl);
       return current.filter((image) => image.id !== id);
     });
   }
@@ -192,13 +240,40 @@ export function RemixComposer({
 
     try {
       setPhase("sending");
-      const initial = await remixTemplateUpload({
-        templateId: template.id,
-        files: images.map((image) => image.file),
-        caption: caption.trim() || undefined,
-        aspectRatio:
-          template.output_spec?.default_aspect_ratio ?? template.aspect_ratio ?? undefined,
-      });
+      const aspectRatio =
+        template.output_spec?.default_aspect_ratio ?? template.aspect_ratio ?? undefined;
+      const trimmedCaption = caption.trim() || undefined;
+      const hasBrandPicks = images.some((image) => image.assetId);
+
+      // Pure uploads keep the transient (non-persisting) remix-upload path.
+      // Once a brand-kit asset is in the mix, switch to the asset-id remix path:
+      // persist any new uploads to get ids, then send the ordered asset list so
+      // the server resolves every image (including brand ones) on its side.
+      let initial: GenerationResult;
+      if (hasBrandPicks) {
+        const filesToUpload = images
+          .map((image) => image.file)
+          .filter((file): file is File => Boolean(file));
+        const uploaded = filesToUpload.length ? await uploadAssetFiles(filesToUpload) : [];
+        let uploadCursor = 0;
+        const assetIds = images.map((image) => image.assetId ?? uploaded[uploadCursor++]?.asset_id);
+        if (assetIds.some((id) => !id)) {
+          throw new Error("Some images could not be prepared. Please try again.");
+        }
+        initial = await remixTemplate({
+          templateId: template.id,
+          assetIds: assetIds as string[],
+          caption: trimmedCaption,
+          aspectRatio,
+        });
+      } else {
+        initial = await remixTemplateUpload({
+          templateId: template.id,
+          files: images.map((image) => image.file).filter((file): file is File => Boolean(file)),
+          caption: trimmedCaption,
+          aspectRatio,
+        });
+      }
       setPhase("generating");
       const settled = await waitForGeneration(initial);
 
@@ -221,11 +296,15 @@ export function RemixComposer({
   function handleUseTemplateAgain() {
     setIsResultOpen(false);
     setImages((current) => {
-      current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+      current.forEach((image) => {
+        if (image.previewUrl.startsWith("blob:")) URL.revokeObjectURL(image.previewUrl);
+      });
       return [];
     });
     setCaption("");
     setResult(null);
+    setLogoRemoved(false);
+    setFontsRemoved(false);
   }
 
   function handleDownload() {
@@ -253,8 +332,56 @@ export function RemixComposer({
         }}
       />
 
-      {images.length > 0 && (
+      {(images.length > 0 || showLogoCard || showFontsCard) && (
         <div className="mb-2 flex flex-wrap items-center gap-2">
+          {showLogoCard && (
+            <div className="group relative h-14 w-14 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+              <img
+                src={brandLogoUrl ?? undefined}
+                alt="Brand logo"
+                className="h-full w-full object-contain p-1.5"
+              />
+              <span className="absolute inset-x-0 bottom-0 bg-black/55 py-0.5 text-center text-[9px] font-semibold uppercase tracking-wide text-white">
+                Logo
+              </span>
+              <button
+                type="button"
+                aria-label="Remove brand logo"
+                disabled={isBusy}
+                onClick={() => setLogoRemoved(true)}
+                className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-0"
+              >
+                <X className="h-3 w-3" strokeWidth={2.6} />
+              </button>
+            </div>
+          )}
+          {showFontsCard && (
+            <div className="group relative h-14 w-14 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+              <span
+                className="flex h-full w-full items-center justify-center text-xl leading-none text-foreground"
+                style={{ fontFamily: brandPrimaryFont ?? undefined }}
+                title={
+                  brandSecondaryFont
+                    ? `${brandPrimaryFont} · ${brandSecondaryFont}`
+                    : (brandPrimaryFont ?? undefined)
+                }
+              >
+                Aa
+              </span>
+              <span className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1 py-0.5 text-center text-[9px] font-semibold uppercase tracking-wide text-white">
+                Fonts
+              </span>
+              <button
+                type="button"
+                aria-label="Remove brand fonts"
+                disabled={isBusy}
+                onClick={() => setFontsRemoved(true)}
+                className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-0"
+              >
+                <X className="h-3 w-3" strokeWidth={2.6} />
+              </button>
+            </div>
+          )}
           {images.map((image) => (
             <div
               key={image.id}
@@ -262,12 +389,12 @@ export function RemixComposer({
             >
               <img
                 src={image.previewUrl}
-                alt={image.file.name}
+                alt={image.file?.name ?? "Selected image"}
                 className="h-full w-full object-cover"
               />
               <button
                 type="button"
-                aria-label={`Remove ${image.file.name}`}
+                aria-label={`Remove ${image.file?.name ?? "image"}`}
                 disabled={isBusy}
                 onClick={() => removeImage(image.id)}
                 className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-0"
@@ -380,7 +507,9 @@ export function RemixComposer({
             }`}
           >
             <UploadCloud className="h-7 w-7" />
-            <span className="text-[15px] font-medium">Choose an image or drag and drop it here</span>
+            <span className="text-[15px] font-medium">
+              Choose an image or drag and drop it here
+            </span>
           </button>
 
           {brandImages.length > 0 && (
@@ -388,12 +517,12 @@ export function RemixComposer({
               <p className="mb-2 text-xs font-medium text-muted-foreground">From your brand kit</p>
               <div className="grid max-h-[40vh] grid-cols-4 gap-2 overflow-y-auto sm:grid-cols-5">
                 {brandImages.map((image) => {
-                  const isLoading = loadingBrandAssetId === image.asset_id;
+                  const alreadyAdded = images.some((item) => item.assetId === image.asset_id);
                   return (
                     <button
                       key={image.asset_id}
                       type="button"
-                      disabled={Boolean(loadingBrandAssetId)}
+                      disabled={alreadyAdded || images.length >= maxImages}
                       onClick={() => addBrandImage(image)}
                       className="group relative aspect-square overflow-hidden rounded-[12px] border border-border transition hover:border-foreground/40 disabled:opacity-60"
                     >
@@ -402,9 +531,9 @@ export function RemixComposer({
                         alt="Brand image"
                         className="h-full w-full object-cover"
                       />
-                      {isLoading && (
-                        <span className="absolute inset-0 flex items-center justify-center bg-black/40">
-                          <Loader2 className="h-5 w-5 animate-spin text-white" />
+                      {alreadyAdded && (
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-[11px] font-semibold text-white">
+                          Added
                         </span>
                       )}
                     </button>
