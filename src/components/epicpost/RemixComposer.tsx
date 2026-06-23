@@ -18,7 +18,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { getAccessToken } from "@/lib/auth";
-import { brandKitsQueryKey, fetchBrandKits, type BrandImage } from "@/lib/brand-kit";
+import {
+  brandKitsQueryKey,
+  COLOR_TYPE_LABELS,
+  COLOR_TYPES,
+  fetchBrandKits,
+  type BrandImage,
+} from "@/lib/brand-kit";
 import {
   remixesQueryKey,
   remixTemplate,
@@ -150,7 +156,24 @@ export function RemixComposer({
   // (plus its default), and an explicit pick is sent as `captionColor`.
   const renderDefaults = template.agent_hints?.render_defaults ?? null;
   const defaultCaptionColor = renderDefaults?.caption_color ?? null;
-  const captionColorOptions = renderDefaults?.caption_color_options ?? [];
+  const templateColorOptions = renderDefaults?.caption_color_options ?? [];
+  // The user's brand colours feed the same palette, so a remix can match the
+  // brand without leaving the composer. Appended after the template presets and
+  // deduped by hex so a shared colour isn't offered twice.
+  const brandColorOptions = COLOR_TYPES.flatMap((type) => {
+    const value = brandKit?.colors?.[type];
+    return value ? [{ label: COLOR_TYPE_LABELS[type], value }] : [];
+  });
+  const captionColorOptions = (() => {
+    const seen = new Set(templateColorOptions.map((o) => o.value.toLowerCase()));
+    const merged = [...templateColorOptions];
+    for (const option of brandColorOptions) {
+      if (seen.has(option.value.toLowerCase())) continue;
+      seen.add(option.value.toLowerCase());
+      merged.push(option);
+    }
+    return merged;
+  })();
   const supportsCaptionColor =
     requiresText && (captionColorOptions.length > 0 || Boolean(defaultCaptionColor));
   const showColorCard = supportsCaptionColor && !colorRemoved;
