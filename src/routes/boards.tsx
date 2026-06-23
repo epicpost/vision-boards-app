@@ -121,6 +121,7 @@ function templateToPin(template: PostTemplate, index: number) {
     height: media.height,
     fallbackHeight: 460 + (index % 4) * 40,
     title: template.title,
+    isSaved: template.is_saved,
   };
 }
 

@@ -10,6 +10,7 @@ export interface Pin {
   fallbackHeight: number;
   mediaType?: "image" | "video" | null;
   title?: string;
+  isSaved?: boolean;
 }
 
 function isValidDimension(value: number | null | undefined): value is number {
@@ -80,8 +81,12 @@ export function TemplateCard({ pin }: { pin: Pin }) {
         )}
         <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition rounded-[16px]">
           <div className="absolute top-3 right-3">
-            <span className="inline-flex bg-primary text-primary-foreground font-bold text-sm px-4 py-2.5 rounded-full">
-              Save
+            <span
+              className={`inline-flex px-4 py-2.5 text-sm font-bold text-white ${
+                pin.isSaved ? "rounded-[14px] bg-foreground" : "rounded-full bg-primary"
+              }`}
+            >
+              {pin.isSaved ? "Saved" : "Save"}
             </span>
           </div>
           <div className="absolute bottom-3 left-3 right-3 flex justify-end items-end gap-2">

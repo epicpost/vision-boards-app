@@ -210,12 +210,15 @@ function BrandKitPage() {
       <div className="md:pl-[72px] pb-16 md:pb-0">
         <TopBar showTabs={false} />
         <main className="mx-auto w-full max-w-6xl px-4 pb-12 pt-2 md:px-8">
-          <header className="mb-6">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Brand Kit</h1>
-            <p className="mt-2 text-base text-muted-foreground">
-              Set up your brand DNA — logo, colors, fonts and voice. Every remix and generation
-              stays aligned to it.
-            </p>
+          <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight text-foreground">Brand Kit</h1>
+              <p className="mt-2 text-base text-muted-foreground">
+                Set up your brand DNA — logo, colors, fonts and voice. Every remix and generation
+                stays aligned to it.
+              </p>
+            </div>
+            {signedIn && !kitsQuery.isLoading && !kitsQuery.isError ? <KitActions /> : null}
           </header>
 
           {!signedIn ? (
@@ -232,15 +235,12 @@ function BrandKitPage() {
               onRetry={() => void kitsQuery.refetch()}
             />
           ) : (
-            <>
-              <KitActions />
-              <BrandKitEditor
-                key={selectedId ?? "loading"}
-                kit={selectedKit}
-                onSaved={handleSaved}
-                onDeleted={handleDeleted}
-              />
-            </>
+            <BrandKitEditor
+              key={selectedId ?? "loading"}
+              kit={selectedKit}
+              onSaved={handleSaved}
+              onDeleted={handleDeleted}
+            />
           )}
         </main>
       </div>
@@ -266,10 +266,10 @@ function KitActions() {
 
   return (
     <>
-      <div className="mb-6 flex justify-end">
+      <div className="flex sm:pt-2">
         <button
           onClick={() => setImportOpen(true)}
-          className="flex h-11 items-center gap-1.5 rounded-full bg-[#e60023] px-5 text-[15px] font-semibold text-white transition hover:bg-[#ad081b]"
+          className="flex h-11 shrink-0 items-center gap-1.5 rounded-full bg-[#e60023] px-5 text-[15px] font-semibold text-white transition hover:bg-[#ad081b]"
         >
           <Link2 className="h-4 w-4" strokeWidth={2.4} />
           Import from URL

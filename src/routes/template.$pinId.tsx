@@ -139,6 +139,7 @@ function templateToPin(template: PostTemplate, index: number) {
     height: media.height,
     fallbackHeight: 460 + (index % 4) * 40,
     title: template.title,
+    isSaved: template.is_saved,
   };
 }
 
@@ -558,6 +559,10 @@ function PinDetail() {
     mutationFn: (boardId: string) => unsaveTemplateFromBoard(pinId, boardId),
     onSuccess: () => {
       setSavedBoardId(null);
+      queryClient.setQueryData<PostTemplate | undefined>(postTemplateQueryKey(pinId), (cached) =>
+        cached ? { ...cached, is_saved: false, board_id: null, board_name: null } : cached,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["post-templates"] });
       showRemovedToast();
     },
     onError: (error: unknown) => {
@@ -569,6 +574,12 @@ function PinDetail() {
     onSuccess: (_data, boardId) => {
       setSavedBoardId(boardId);
       const board = boardsQuery.data?.data.find((item) => item.id === boardId);
+      queryClient.setQueryData<PostTemplate | undefined>(postTemplateQueryKey(pinId), (cached) =>
+        cached
+          ? { ...cached, is_saved: true, board_id: boardId, board_name: board?.name ?? null }
+          : cached,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["post-templates"] });
       showSavedToast(board ?? null, () => {
         unsaveMutation.mutate(boardId);
       });
@@ -692,7 +703,7 @@ function PinDetail() {
     );
   }, [shareRecipients, shareSearch]);
   const currentBoardId = savedBoardId ?? template?.board_id ?? null;
-  const isSaved = Boolean(currentBoardId);
+  const isSaved = Boolean(template?.is_saved || currentBoardId);
   const savingBoardId = saveMutation.isPending ? (saveMutation.variables ?? null) : null;
   const boardsErrorMessage =
     boardsQuery.error instanceof Error ? boardsQuery.error.message : "Could not load boards.";
@@ -1382,7 +1393,9 @@ function PinDetail() {
                   if (!requireAuthToSave()) return;
                   setFsSaveOpen(true);
                 }}
-                className="h-10 rounded-[12px] bg-primary px-5 text-sm font-bold text-primary-foreground transition hover:brightness-90"
+                className={`h-10 rounded-[12px] px-5 text-sm font-bold text-white transition ${
+                  isSaved ? "bg-foreground hover:brightness-110" : "bg-primary hover:brightness-90"
+                }`}
               >
                 {isSaved ? "Saved" : "Save"}
               </button>
