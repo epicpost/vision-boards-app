@@ -135,6 +135,9 @@ export function RemixComposer({
   const brandSecondaryFont = brandKit?.secondary_font_family ?? null;
   const showLogoCard = requiresLogo && Boolean(brandLogoUrl) && !logoRemoved;
   const showFontsCard = requiresText && Boolean(brandPrimaryFont) && !fontsRemoved;
+  // The catalog font id sent to the renderer — only while the Fonts card is
+  // kept attached. The backend resolves it to the actual typeface at render time.
+  const selectedFontId = showFontsCard ? (brandKit?.font_id ?? undefined) : undefined;
   // Track live preview URLs so unmount revokes exactly the current set.
   const previewUrlsRef = useRef<string[]>([]);
   previewUrlsRef.current = images.map((image) => image.previewUrl);
@@ -281,6 +284,7 @@ export function RemixComposer({
           assetIds: assetIds as string[],
           caption: trimmedCaption,
           aspectRatio,
+          fontId: selectedFontId,
         });
       } else {
         initial = await remixTemplateUpload({
@@ -288,6 +292,7 @@ export function RemixComposer({
           files: images.map((image) => image.file).filter((file): file is File => Boolean(file)),
           caption: trimmedCaption,
           aspectRatio,
+          fontId: selectedFontId,
         });
       }
       setPhase("generating");
