@@ -195,18 +195,20 @@ export function RemixComposer({
       toast.error("Some files were skipped — only PNG, JPG or WebP images are supported.");
     }
 
-    setImages((current) => {
-      const room = maxImages - current.length;
-      if (room <= 0 || incoming.length > room) {
-        toast.error(`This template uses at most ${maxImages} images.`);
-      }
-      const accepted = incoming.slice(0, Math.max(0, room)).map((file) => ({
-        id: crypto.randomUUID(),
-        file,
-        previewUrl: URL.createObjectURL(file),
-      }));
-      return accepted.length > 0 ? [...current, ...accepted] : current;
-    });
+    const room = maxImages - images.length;
+    if (room <= 0 || incoming.length > room) {
+      toast.error(`This template uses at most ${maxImages} images.`);
+    }
+    const accepted = incoming.slice(0, Math.max(0, room)).map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      previewUrl: URL.createObjectURL(file),
+    }));
+    if (accepted.length === 0) return;
+    setImages((current) => [...current, ...accepted]);
+    // An explicit upload (file picker or drag-and-drop in the dialog) is a
+    // deliberate choice — close the picker so the user returns to the composer.
+    setIsPickerOpen(false);
   }
 
   // Reference a brand-kit image by its asset id — no byte fetch, so the S3 CORS
@@ -216,18 +218,24 @@ export function RemixComposer({
       toast.error(`This template uses at most ${maxImages} images.`);
       return;
     }
-    setImages((current) => {
-      if (current.some((item) => item.assetId === image.asset_id)) return current;
-      return [
-        ...current,
-        {
-          id: crypto.randomUUID(),
-          assetId: image.asset_id,
-          previewUrl: image.thumbnail_url ?? image.preview_url ?? image.url,
-        },
-      ];
-    });
-    setIsPickerOpen(false);
+    const alreadyAttached = images.some((item) => item.assetId === image.asset_id);
+    if (!alreadyAttached) {
+      setImages((current) => {
+        if (current.some((item) => item.assetId === image.asset_id)) return current;
+        return [
+          ...current,
+          {
+            id: crypto.randomUUID(),
+            assetId: image.asset_id,
+            previewUrl: image.thumbnail_url ?? image.preview_url ?? image.url,
+          },
+        ];
+      });
+    }
+    // Keep the picker open so the user can keep selecting; only close once the
+    // template's image quota is filled.
+    const attachedCount = images.length + (alreadyAttached ? 0 : 1);
+    if (attachedCount >= maxImages) setIsPickerOpen(false);
   }
 
   function removeImage(id: string) {
