@@ -56,9 +56,7 @@ function SettingsPage() {
             ) : (
               <div>
                 <h1 className="text-3xl font-bold text-foreground">{active}</h1>
-                <p className="mt-3 text-base text-muted-foreground">
-                  This section is coming soon.
-                </p>
+                <p className="mt-3 text-base text-muted-foreground">This section is coming soon.</p>
               </div>
             )}
           </section>
@@ -69,15 +67,9 @@ function SettingsPage() {
   );
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block rounded-2xl border border-border px-4 py-3">
+    <label className="block rounded-[16px] border border-border px-4 py-3">
       <div className="text-[13px] font-semibold text-foreground">{label}</div>
       <div className="mt-1">{children}</div>
     </label>
@@ -96,8 +88,8 @@ function EditProfileForm({ user }: { user: ReturnType<typeof getAuthUser> }) {
     <div>
       <h1 className="text-3xl font-bold text-foreground">Edit profile</h1>
       <p className="mt-2 text-base text-muted-foreground">
-        Keep your personal details private. Information you add here is visible to anyone
-        who can view your profile.
+        Keep your personal details private. Information you add here is visible to anyone who can
+        view your profile.
       </p>
 
       <div className="mt-8">
@@ -152,8 +144,8 @@ function EditProfileForm({ user }: { user: ReturnType<typeof getAuthUser> }) {
             className="w-full bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
           />
           <p className="mt-2 text-sm text-muted-foreground">
-            Choose up to 2 sets of pronouns to appear on your profile so others know how to
-            refer to you. You can edit or remove these any time.
+            Choose up to 2 sets of pronouns to appear on your profile so others know how to refer to
+            you. You can edit or remove these any time.
           </p>
         </Field>
         <Field label="Website">

@@ -194,3 +194,25 @@ iframe[src*="accounts.google.com/gsi"] {
   box-shadow: none !important;
   padding: 0 !important;
 }
+
+.brand-color-picker,
+.brand-color-picker .react-colorful__saturation {
+  border-radius: 16px;
+}
+
+.brand-color-picker .react-colorful__saturation {
+  border-bottom: 0;
+}
+
+.brand-color-picker .react-colorful__hue {
+  height: 14px;
+  margin-top: 12px;
+  border-radius: 999px;
+}
+
+.brand-color-picker .react-colorful__hue-pointer,
+.brand-color-picker .react-colorful__saturation-pointer {
+  height: 20px;
+  width: 20px;
+  border-width: 3px;
+}

@@ -1274,18 +1274,20 @@ function Swatch({
       <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
         {COLOR_TYPE_LABELS[type]}
       </span>
-      <div className="relative">
-        <label
-          className="block h-14 w-14 cursor-pointer overflow-hidden rounded-full border border-border"
-          style={{ backgroundColor: valid ? hex : "transparent" }}
-        >
-          <input
-            type="color"
-            value={valid ? hex : "#888888"}
-            onChange={(e) => onChange(e.target.value)}
-            className="h-full w-full cursor-pointer opacity-0"
-          />
-        </label>
+      <div className="relative h-14 w-14">
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="block h-14 w-14 overflow-hidden rounded-full border border-border focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              style={{ backgroundColor: valid ? hex : "transparent" }}
+              aria-label={`Edit ${COLOR_TYPE_LABELS[type].toLowerCase()} color`}
+            />
+          </PopoverTrigger>
+          <PopoverContent align="start" sideOffset={8} className="w-[236px] rounded-[16px] p-3">
+            <BrandColorPicker hex={hex} onChange={onChange} />
+          </PopoverContent>
+        </Popover>
         <button
           onClick={onRemove}
           aria-label="Remove color"
@@ -1301,6 +1303,29 @@ function Swatch({
         className="w-16 bg-transparent text-center text-xs font-semibold text-muted-foreground outline-none"
       />
     </div>
+  );
+}
+
+function BrandColorPicker({ hex, onChange }: { hex: string; onChange: (value: string) => void }) {
+  const valid = isHexColor(hex);
+  const pickerColor = valid ? normalizeHexColor(hex) : DEFAULT_NEW_COLOR;
+
+  return (
+    <>
+      <HexColorPicker
+        color={pickerColor}
+        onChange={onChange}
+        className="brand-color-picker"
+        style={{ width: "100%", height: 190 }}
+      />
+      <HexColorInput
+        color={hex}
+        onChange={onChange}
+        prefixed
+        aria-label="Hex color"
+        className="mt-3 h-10 w-full rounded-[16px] border border-border bg-background px-3 text-center text-sm font-semibold text-foreground outline-none focus:border-foreground/40"
+      />
+    </>
   );
 }
 
@@ -1366,6 +1391,7 @@ function AddColorButton({
         <HexColorPicker
           color={pickerColor}
           onChange={setHex}
+          className="brand-color-picker"
           style={{ width: "100%", height: 190 }}
         />
         <div className="mt-3 flex items-center gap-2">

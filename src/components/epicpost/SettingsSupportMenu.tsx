@@ -19,8 +19,7 @@ const support = [
   { label: "Terms of service", external: true },
 ];
 
-const resourcesPrimary = ["About", "Blog", "Businesses"];
-const resourcesSecondary = ["Careers", "Developers"];
+const newsroomUrl = "https://newsroom.epicpost.app";
 
 type Item = { label: string; external?: boolean; to?: "/settings" };
 
@@ -75,12 +74,16 @@ export function SettingsSupportMenu({ onClose }: { onClose: () => void }) {
         ))}
       </div>
       <div className="px-2 pb-2 pt-3 text-[13px] font-medium text-muted-foreground">Resources</div>
-      <div className="px-2 pb-1 text-base font-semibold text-[#3b6cd9]">
-        {resourcesPrimary.join("  ")}
-      </div>
-      <div className="px-2 pb-2 text-base font-semibold text-[#3b6cd9]">
-        {resourcesSecondary.join("  ")}
-      </div>
+      <a
+        href={newsroomUrl}
+        target="_blank"
+        rel="noreferrer"
+        onClick={onClose}
+        className="flex w-full items-center justify-between rounded-[16px] px-2 py-2.5 text-left transition hover:bg-secondary"
+      >
+        <span className="text-base font-semibold text-foreground">Newsroom</span>
+        <ExternalLink className="h-5 w-5 text-foreground" strokeWidth={2.2} />
+      </a>
     </div>
   );
 }
