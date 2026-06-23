@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import {
   ArrowUp,
   Download,
   ExternalLink,
   Image as ImageIcon,
   Loader2,
+  Pencil,
   UploadCloud,
   X,
 } from "lucide-react";
@@ -34,6 +36,7 @@ import {
   type GenerationResult,
 } from "@/lib/generations";
 import type { PostTemplate } from "@/lib/post-templates";
+import { hasRemixEditorTemplate } from "@/lib/remix-editor";
 
 interface AttachedImage {
   id: string;
@@ -82,6 +85,7 @@ export function RemixComposer({
   onRequireAuth: () => void;
 }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   // A template can express its image inputs either as one slot with a count
   // range (min_count/max_count) or as several single-image slots (e.g. a
   // three-image collage = three slots). Aggregate across all image slots so the
@@ -104,10 +108,16 @@ export function RemixComposer({
   // Prefer the explicit asset contract; fall back to the template's image count
   // so the composer still works for feed entries without input_requirements.
   const minImages = imageRequirements.length
-    ? Math.max(1, imageRequirements.reduce((sum, asset) => sum + asset.min_count, 0))
+    ? Math.max(
+        1,
+        imageRequirements.reduce((sum, asset) => sum + asset.min_count, 0),
+      )
     : Math.max(1, template.input_image_count ?? 1);
   const maxImages = imageRequirements.length
-    ? Math.max(minImages, imageRequirements.reduce((sum, asset) => sum + asset.max_count, 0))
+    ? Math.max(
+        minImages,
+        imageRequirements.reduce((sum, asset) => sum + asset.max_count, 0),
+      )
     : Math.max(minImages, FALLBACK_MAX_IMAGES);
   const acceptedTypes = imageRequirement?.accepted_mime_types.length
     ? imageRequirement.accepted_mime_types
@@ -160,20 +170,16 @@ export function RemixComposer({
   // The user's brand colours feed the same palette, so a remix can match the
   // brand without leaving the composer. Appended after the template presets and
   // deduped by hex so a shared colour isn't offered twice.
+  const templateColorValues = new Set(templateColorOptions.map((o) => o.value.toLowerCase()));
   const brandColorOptions = COLOR_TYPES.flatMap((type) => {
     const value = brandKit?.colors?.[type];
-    return value ? [{ label: COLOR_TYPE_LABELS[type], value }] : [];
+    // Skip a brand colour already offered as a template preset.
+    return value && !templateColorValues.has(value.toLowerCase())
+      ? [{ label: COLOR_TYPE_LABELS[type], value }]
+      : [];
   });
-  const captionColorOptions = (() => {
-    const seen = new Set(templateColorOptions.map((o) => o.value.toLowerCase()));
-    const merged = [...templateColorOptions];
-    for (const option of brandColorOptions) {
-      if (seen.has(option.value.toLowerCase())) continue;
-      seen.add(option.value.toLowerCase());
-      merged.push(option);
-    }
-    return merged;
-  })();
+  // Combined list backs the default-selection + "is this colour active" checks.
+  const captionColorOptions = [...templateColorOptions, ...brandColorOptions];
   const supportsCaptionColor =
     requiresText && (captionColorOptions.length > 0 || Boolean(defaultCaptionColor));
   const showColorCard = supportsCaptionColor && !colorRemoved;
@@ -222,6 +228,8 @@ export function RemixComposer({
   const captionMissing = Boolean(captionRequirement?.required) && !caption.trim();
   const canSend = images.length >= minImages && !captionMissing && !isBusy;
   const output = result?.assets[0] ?? null;
+  // Only templates with a static editor config can open the visual editor.
+  const canEdit = hasRemixEditorTemplate(template.id);
 
   if (template.capabilities && !template.capabilities.supports_remix) return null;
 
@@ -388,6 +396,31 @@ export function RemixComposer({
     anchor.remove();
   }
 
+  // A single palette swatch — shared by the template-preset and brand-colour
+  // groups in the colour popup so both render identically.
+  function renderColorSwatch(option: { label: string; value: string }) {
+    const isActive = (selectedCaptionColor ?? "").toLowerCase() === option.value.toLowerCase();
+    return (
+      <button
+        key={option.value}
+        type="button"
+        title={option.label}
+        aria-label={option.label}
+        aria-pressed={isActive}
+        onClick={() => {
+          setCaptionColor(option.value);
+          setIsColorPaletteOpen(false);
+        }}
+        className={`h-7 w-7 rounded-full border transition ${
+          isActive
+            ? "border-primary ring-2 ring-primary ring-offset-1 ring-offset-popover"
+            : "border-black/10 hover:scale-110"
+        }`}
+        style={{ backgroundColor: option.value }}
+      />
+    );
+  }
+
   return (
     <div className="mt-auto pt-6">
       <input
@@ -483,31 +516,25 @@ export function RemixComposer({
                 <X className="h-3 w-3" strokeWidth={2.6} />
               </button>
               {isColorPaletteOpen && captionColorOptions.length > 0 && (
-                <div className="absolute bottom-full left-0 z-10 mb-2 flex w-max max-w-[200px] flex-wrap gap-1.5 rounded-xl border border-border bg-popover p-2 shadow-md">
-                  {captionColorOptions.map((option) => {
-                    const isActive =
-                      (selectedCaptionColor ?? "").toLowerCase() ===
-                      option.value.toLowerCase();
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        title={option.label}
-                        aria-label={option.label}
-                        aria-pressed={isActive}
-                        onClick={() => {
-                          setCaptionColor(option.value);
-                          setIsColorPaletteOpen(false);
-                        }}
-                        className={`h-7 w-7 rounded-full border transition ${
-                          isActive
-                            ? "border-primary ring-2 ring-primary ring-offset-1 ring-offset-popover"
-                            : "border-black/10 hover:scale-110"
-                        }`}
-                        style={{ backgroundColor: option.value }}
-                      />
-                    );
-                  })}
+                <div className="absolute bottom-full left-0 z-10 mb-2 w-max max-w-[200px] rounded-xl border border-border bg-popover p-2 shadow-md">
+                  {templateColorOptions.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {templateColorOptions.map((option) => renderColorSwatch(option))}
+                    </div>
+                  )}
+                  {brandColorOptions.length > 0 && (
+                    <>
+                      {templateColorOptions.length > 0 && (
+                        <div className="my-2 border-t border-border" />
+                      )}
+                      <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Brand colors
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {brandColorOptions.map((option) => renderColorSwatch(option))}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -712,6 +739,22 @@ export function RemixComposer({
               <ExternalLink className="h-4 w-4" />
               Use template again
             </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() =>
+                  navigate({
+                    to: "/editor/$templateId",
+                    params: { templateId: template.id },
+                    search: result?.caption ? { caption: result.caption } : {},
+                  })
+                }
+                className="flex h-11 items-center gap-2 rounded-full bg-secondary px-5 text-base font-semibold text-foreground transition hover:brightness-95"
+              >
+                <Pencil className="h-4 w-4" />
+                Edit
+              </button>
+            )}
             <button
               type="button"
               disabled={!output}
