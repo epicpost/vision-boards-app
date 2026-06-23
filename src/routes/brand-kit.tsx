@@ -233,7 +233,7 @@ function BrandKitPage() {
             />
           ) : (
             <>
-              <KitSwitcher kits={kits ?? []} selectedId={selectedId} onSelect={setSelectedId} />
+              <KitActions />
               <BrandKitEditor
                 key={selectedId ?? "loading"}
                 kit={selectedKit}
@@ -251,15 +251,7 @@ function BrandKitPage() {
 
 // ── kit switcher ──────────────────────────────────────────────────────────────
 
-function KitSwitcher({
-  kits,
-  selectedId,
-  onSelect,
-}: {
-  kits: BrandKit[];
-  selectedId: string | "new" | null;
-  onSelect: (id: string | "new") => void;
-}) {
+function KitActions() {
   const [importOpen, setImportOpen] = useState(false);
   const [websiteUrl, setWebsiteUrl] = useState("");
 
@@ -274,23 +266,10 @@ function KitSwitcher({
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-center gap-2">
-        {kits.map((kit) => (
-          <button
-            key={kit.id}
-            onClick={() => onSelect(kit.id)}
-            className={`h-10 rounded-full px-4 text-[15px] font-semibold transition ${
-              selectedId === kit.id
-                ? "bg-foreground text-background"
-                : "bg-secondary text-foreground hover:bg-accent"
-            }`}
-          >
-            {kit.name || "Untitled"}
-          </button>
-        ))}
+      <div className="mb-6 flex justify-end">
         <button
           onClick={() => setImportOpen(true)}
-          className="flex h-10 items-center gap-1.5 rounded-full bg-foreground px-4 text-[15px] font-semibold text-background transition hover:opacity-90"
+          className="flex h-11 items-center gap-1.5 rounded-full bg-[#e60023] px-5 text-[15px] font-semibold text-white transition hover:bg-[#ad081b]"
         >
           <Link2 className="h-4 w-4" strokeWidth={2.4} />
           Import from URL
