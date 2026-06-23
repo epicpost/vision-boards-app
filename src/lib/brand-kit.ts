@@ -49,6 +49,8 @@ export interface BrandKitInput {
   website_url?: string | null;
 }
 
+export const MAX_BRAND_IMAGES = 15;
+
 interface ApiErrorResponse {
   error?: { code?: string; message?: string };
   detail?: Array<{ msg?: string }> | string;
@@ -77,6 +79,12 @@ function requireToken(action: string): string {
   return token;
 }
 
+function validateBrandImageQuota(imageAssetIds: string[] | undefined) {
+  if (imageAssetIds && imageAssetIds.length > MAX_BRAND_IMAGES) {
+    throw new Error(`You can attach up to ${MAX_BRAND_IMAGES} brand images.`);
+  }
+}
+
 async function throwApiError(response: Response, fallback: string): Promise<never> {
   const payload = (await response.json().catch(() => ({}))) as ApiErrorResponse;
   if (payload.error?.code === "TOKEN_EXPIRED") {
@@ -86,33 +94,43 @@ async function throwApiError(response: Response, fallback: string): Promise<neve
 }
 
 // ── colors <-> palette mapping ───────────────────────────────────────────────
-// The UI edits an ordered list of hex strings; the backend stores a `colors`
-// dict whose first three keys keep their generation-relevant roles.
+// A brand palette is a closed set of typed roles (mirrors the backend's
+// `BrandColors`): at most one colour per role, five roles max. The UI edits an
+// ordered list of `{ type, hex }` entries; the backend stores them as a dict
+// keyed by role (e.g. `{ "primary": "#111", "text": "#000" }`).
 
-const PALETTE_ROLES = ["primary", "secondary", "accent"] as const;
+export const COLOR_TYPES = ["primary", "secondary", "accent", "background", "text"] as const;
 
-export function paletteToColors(palette: string[]): Record<string, string> {
+export type ColorType = (typeof COLOR_TYPES)[number];
+
+export const COLOR_TYPE_LABELS: Record<ColorType, string> = {
+  primary: "Primary",
+  secondary: "Secondary",
+  accent: "Accent",
+  background: "Background",
+  text: "Text",
+};
+
+export interface PaletteEntry {
+  type: ColorType;
+  hex: string;
+}
+
+export function paletteToColors(palette: PaletteEntry[]): Record<string, string> {
   const colors: Record<string, string> = {};
-  palette
-    .map((hex) => hex.trim())
-    .filter(Boolean)
-    .forEach((hex, i) => {
-      const key = i < PALETTE_ROLES.length ? PALETTE_ROLES[i] : `color_${i + 1}`;
-      colors[key] = hex;
-    });
+  for (const { type, hex } of palette) {
+    const value = hex.trim();
+    if (value) colors[type] = value;
+  }
   return colors;
 }
 
-export function colorsToPalette(colors: Record<string, string> | null | undefined): string[] {
+export function colorsToPalette(colors: Record<string, string> | null | undefined): PaletteEntry[] {
   if (!colors) return [];
-  const palette: string[] = [];
-  for (const role of PALETTE_ROLES) {
-    if (colors[role]) palette.push(colors[role]);
+  const palette: PaletteEntry[] = [];
+  for (const type of COLOR_TYPES) {
+    if (colors[type]) palette.push({ type, hex: colors[type] });
   }
-  Object.keys(colors)
-    .filter((key) => /^color_\d+$/.test(key))
-    .sort((a, b) => Number(a.split("_")[1]) - Number(b.split("_")[1]))
-    .forEach((key) => palette.push(colors[key]));
   return palette;
 }
 
@@ -140,6 +158,7 @@ export async function fetchBrandKits(): Promise<BrandKit[]> {
 
 export async function createBrandKit(input: BrandKitInput): Promise<BrandKit> {
   const token = requireToken("create a brand kit");
+  validateBrandImageQuota(input.image_asset_ids);
 
   const response = await fetch(new URL("/api/v1/me/brand-profiles", API_BASE_URL), {
     method: "POST",
@@ -160,6 +179,7 @@ export async function createBrandKit(input: BrandKitInput): Promise<BrandKit> {
 
 export async function updateBrandKit(id: string, input: Partial<BrandKitInput>): Promise<BrandKit> {
   const token = requireToken("update your brand kit");
+  validateBrandImageQuota(input.image_asset_ids);
 
   const response = await fetch(new URL(`/api/v1/me/brand-profiles/${id}`, API_BASE_URL), {
     method: "PATCH",
@@ -232,8 +252,15 @@ export async function removeBrandLogo(id: string): Promise<BrandKit> {
   return payload.data;
 }
 
-export async function uploadBrandImage(id: string, file: File): Promise<BrandKit> {
+export async function uploadBrandImage(
+  id: string,
+  file: File,
+  existingImageCount = 0,
+): Promise<BrandKit> {
   const token = requireToken("upload an image");
+  if (existingImageCount >= MAX_BRAND_IMAGES) {
+    throw new Error(`You've reached your max images quota of ${MAX_BRAND_IMAGES}.`);
+  }
 
   const body = new FormData();
   body.append("file", file);

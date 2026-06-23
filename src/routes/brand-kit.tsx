@@ -52,6 +52,11 @@ import {
   type BrandImage,
   type BrandKit,
   type BrandKitInput,
+  type ColorType,
+  type PaletteEntry,
+  COLOR_TYPES,
+  COLOR_TYPE_LABELS,
+  MAX_BRAND_IMAGES,
   brandKitsQueryKey,
   colorsToPalette,
   createBrandKit,
@@ -79,6 +84,10 @@ export const Route = createFileRoute("/brand-kit")({
 });
 
 const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
+const MAX_TONE_OF_VOICE = 3;
+const MAX_BRAND_VALUES = 5;
+const MAX_BRAND_VALUE_LENGTH = 60;
+const MAX_ONE_LINER_LENGTH = 140;
 const DEFAULT_NEW_COLOR = "#888888";
 const HEX_COLOR_PATTERN = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const TONE_OF_VOICE_PRESETS = [
@@ -96,6 +105,15 @@ const TONE_OF_VOICE_PRESETS = [
 
 function areArraysEqual<T>(first: T[], second: T[]) {
   return first.length === second.length && first.every((value, index) => value === second[index]);
+}
+
+function arePalettesEqual(first: PaletteEntry[], second: PaletteEntry[]) {
+  return (
+    first.length === second.length &&
+    first.every(
+      (entry, index) => entry.type === second[index].type && entry.hex === second[index].hex,
+    )
+  );
 }
 
 function areImagesEqual(first: BrandImage[], second: BrandImage[]) {
@@ -344,7 +362,7 @@ function BrandKitEditor({
   const [oneLiner, setOneLiner] = useState(initial.oneLiner);
   const [toneOfVoice, setToneOfVoice] = useState(initial.toneOfVoice);
   const [tonePickerOpen, setTonePickerOpen] = useState(false);
-  const [palette, setPalette] = useState<string[]>(initial.palette);
+  const [palette, setPalette] = useState<PaletteEntry[]>(initial.palette);
   const [brandValues, setBrandValues] = useState<string[]>(initial.brandValues);
   const [valueDraft, setValueDraft] = useState("");
   const [logoAssetId, setLogoAssetId] = useState<string | null>(initial.logoAssetId);
@@ -403,7 +421,7 @@ function BrandKitEditor({
     toneOfVoice !== savedSnapshot.toneOfVoice ||
     logoAssetId !== savedSnapshot.logoAssetId ||
     logoUrl !== savedSnapshot.logoUrl ||
-    !areArraysEqual(palette, savedSnapshot.palette) ||
+    !arePalettesEqual(palette, savedSnapshot.palette) ||
     !areArraysEqual(brandValues, savedSnapshot.brandValues) ||
     !areImagesEqual(images, savedSnapshot.images);
 
@@ -552,18 +570,30 @@ function BrandKitEditor({
 
   async function handleImageFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
-    const files = Array.from(fileList).filter((f) => ACCEPTED_TYPES.includes(f.type));
+    if (images.length >= MAX_BRAND_IMAGES) {
+      toast.error(`You've reached your max images quota of ${MAX_BRAND_IMAGES}.`);
+      return;
+    }
+    const remainingSlots = MAX_BRAND_IMAGES - images.length;
+    const files = Array.from(fileList)
+      .filter((f) => ACCEPTED_TYPES.includes(f.type))
+      .slice(0, remainingSlots);
     if (files.length === 0) {
       toast.error("Images must be PNG, JPG or WebP.");
       return;
+    }
+    if (fileList.length > remainingSlots) {
+      toast.info(
+        `Only ${remainingSlots} more image${remainingSlots === 1 ? "" : "s"} can be added.`,
+      );
     }
     setUploadingImages(true);
     try {
       const kitId = await ensureKitId();
       // One request per file; each returns the full updated profile.
       let updated: BrandKit | null = null;
-      for (const file of files) {
-        updated = await uploadBrandImage(kitId, file);
+      for (const [index, file] of files.entries()) {
+        updated = await uploadBrandImage(kitId, file, images.length + index);
       }
       if (updated) applyUpdatedKit(updated);
     } catch (error) {
@@ -595,16 +625,26 @@ function BrandKitEditor({
   }
 
   function updatePalette(index: number, value: string) {
-    setPalette((current) => current.map((c, i) => (i === index ? value : c)));
+    setPalette((current) =>
+      current.map((entry, i) => (i === index ? { ...entry, hex: value } : entry)),
+    );
   }
 
   function removeSwatch(index: number) {
     setPalette((current) => current.filter((_, i) => i !== index));
   }
 
+  function addSwatch(type: ColorType, hex: string) {
+    setPalette((current) => [...current, { type, hex }]);
+  }
+
   function addValue() {
-    const v = valueDraft.trim();
+    const v = valueDraft.trim().slice(0, MAX_BRAND_VALUE_LENGTH);
     if (!v) return;
+    if (brandValues.length >= MAX_BRAND_VALUES) {
+      toast.error(`You can add up to ${MAX_BRAND_VALUES} brand values.`);
+      return;
+    }
     if (brandValues.includes(v)) {
       setValueDraft("");
       return;
@@ -616,6 +656,10 @@ function BrandKitEditor({
   function addToneOfVoice(value: string) {
     const tone = value.trim();
     if (!tone) return;
+    if (toneOfVoiceValues.length >= MAX_TONE_OF_VOICE) {
+      setTonePickerOpen(false);
+      return;
+    }
     const exists = toneOfVoiceValues.some((item) => item.toLowerCase() === tone.toLowerCase());
     if (exists) {
       setTonePickerOpen(false);
@@ -770,15 +814,22 @@ function BrandKitEditor({
           <Card>
             <SectionLabel>Colors</SectionLabel>
             <div className="mt-4 flex flex-wrap items-start gap-4">
-              {palette.map((hex, index) => (
+              {palette.map((entry, index) => (
                 <Swatch
-                  key={index}
-                  hex={hex}
+                  key={entry.type}
+                  type={entry.type}
+                  hex={entry.hex}
                   onChange={(value) => updatePalette(index, value)}
                   onRemove={() => removeSwatch(index)}
                 />
               ))}
-              <AddColorButton onAdd={(hex) => setPalette((current) => [...current, hex])} />
+              {(() => {
+                const used = new Set(palette.map((entry) => entry.type));
+                const available = COLOR_TYPES.filter((type) => !used.has(type));
+                return available.length > 0 ? (
+                  <AddColorButton availableTypes={available} onAdd={addSwatch} />
+                ) : null;
+              })()}
             </div>
           </Card>
 
@@ -788,12 +839,16 @@ function BrandKitEditor({
               <SectionLabel>One liner</SectionLabel>
               <textarea
                 value={oneLiner}
-                onChange={(e) => setOneLiner(e.target.value)}
+                onChange={(e) => setOneLiner(e.target.value.slice(0, MAX_ONE_LINER_LENGTH))}
+                maxLength={MAX_ONE_LINER_LENGTH}
                 placeholder="A short, punchy line that sums up your brand"
                 rows={2}
                 className="mt-3 w-full resize-none bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
                 style={{ fontFamily: oneLinerFont ? fontFamilyStack(oneLinerFont) : undefined }}
               />
+              <p className="mt-2 text-right text-xs text-muted-foreground">
+                {oneLiner.length}/{MAX_ONE_LINER_LENGTH}
+              </p>
             </Card>
 
             <Card>
@@ -817,19 +872,22 @@ function BrandKitEditor({
                   </span>
                 ))}
               </div>
-              <input
-                value={valueDraft}
-                onChange={(e) => setValueDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === ",") {
-                    e.preventDefault();
-                    addValue();
-                  }
-                }}
-                onBlur={addValue}
-                placeholder="Add a value and press Enter"
-                className="mt-3 w-full bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
-              />
+              {brandValues.length < MAX_BRAND_VALUES && (
+                <input
+                  value={valueDraft}
+                  onChange={(e) => setValueDraft(e.target.value.slice(0, MAX_BRAND_VALUE_LENGTH))}
+                  maxLength={MAX_BRAND_VALUE_LENGTH}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === ",") {
+                      e.preventDefault();
+                      addValue();
+                    }
+                  }}
+                  onBlur={addValue}
+                  placeholder="Add a value and press Enter"
+                  className="mt-3 w-full bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
+                />
+              )}
             </Card>
           </div>
 
@@ -852,43 +910,45 @@ function BrandKitEditor({
                   </button>
                 </span>
               ))}
-              <Popover open={tonePickerOpen} onOpenChange={setTonePickerOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    type="button"
-                    disabled={availableToneOfVoicePresets.length === 0}
-                    className="flex h-9 min-w-[180px] items-center justify-between gap-2 rounded-[16px] bg-secondary px-4 text-sm font-semibold text-foreground outline-none transition hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              {toneOfVoiceValues.length < MAX_TONE_OF_VOICE && (
+                <Popover open={tonePickerOpen} onOpenChange={setTonePickerOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      disabled={availableToneOfVoicePresets.length === 0}
+                      className="flex h-9 min-w-[180px] items-center justify-between gap-2 rounded-[16px] bg-secondary px-4 text-sm font-semibold text-foreground outline-none transition hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <span>
+                        {availableToneOfVoicePresets.length > 0
+                          ? "Add tone of voice"
+                          : "All tones added"}
+                      </span>
+                      <ChevronDown className="h-4 w-4 shrink-0" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    align="start"
+                    sideOffset={10}
+                    className="w-[min(calc(100vw-32px),320px)] overflow-hidden rounded-[20px] border-0 bg-background p-0 text-foreground shadow-[0_12px_36px_rgba(0,0,0,0.18)]"
                   >
-                    <span>
-                      {availableToneOfVoicePresets.length > 0
-                        ? "Add tone of voice"
-                        : "All tones added"}
-                    </span>
-                    <ChevronDown className="h-4 w-4 shrink-0" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent
-                  align="start"
-                  sideOffset={10}
-                  className="w-[min(calc(100vw-32px),320px)] overflow-hidden rounded-[20px] border-0 bg-background p-0 text-foreground shadow-[0_12px_36px_rgba(0,0,0,0.18)]"
-                >
-                  <div className="max-h-[320px] overflow-y-auto px-3 py-3">
-                    <h3 className="mb-2 text-center text-xl font-bold">Tone of voice</h3>
-                    <div className="space-y-1">
-                      {availableToneOfVoicePresets.map((tone) => (
-                        <button
-                          key={tone}
-                          type="button"
-                          onClick={() => addToneOfVoice(tone)}
-                          className="flex h-12 w-full items-center rounded-[14px] px-4 text-left text-base font-semibold transition hover:bg-secondary focus-visible:bg-secondary focus-visible:outline-none"
-                        >
-                          {tone}
-                        </button>
-                      ))}
+                    <div className="max-h-[320px] overflow-y-auto px-3 py-3">
+                      <h3 className="mb-2 text-center text-xl font-bold">Tone of voice</h3>
+                      <div className="space-y-1">
+                        {availableToneOfVoicePresets.map((tone) => (
+                          <button
+                            key={tone}
+                            type="button"
+                            onClick={() => addToneOfVoice(tone)}
+                            className="flex h-12 w-full items-center rounded-[14px] px-4 text-left text-base font-semibold transition hover:bg-secondary focus-visible:bg-secondary focus-visible:outline-none"
+                          >
+                            {tone}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
           </Card>
         </div>
@@ -897,20 +957,32 @@ function BrandKitEditor({
         <div className="lg:col-span-1">
           <Card>
             <SectionLabel>Images</SectionLabel>
-            <button
-              onClick={() => imagesInputRef.current?.click()}
-              disabled={uploadingImages}
-              className="mt-3 flex h-32 w-full items-center justify-center rounded-[16px] border-2 border-dashed border-border text-muted-foreground transition hover:border-foreground/40 hover:text-foreground disabled:opacity-50"
-            >
-              {uploadingImages ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-              ) : (
-                <span className="flex flex-col items-center gap-1.5 text-sm font-semibold">
-                  <Upload className="h-5 w-5" />
-                  Upload an image
-                </span>
-              )}
-            </button>
+            {images.length >= MAX_BRAND_IMAGES ? (
+              <div className="mt-3 flex h-32 flex-col items-center justify-center rounded-[16px] border border-border bg-secondary px-4 text-center">
+                <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                <p className="mt-2 text-sm font-semibold text-foreground">
+                  You've reached your max images quota.
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Remove an image to upload another one.
+                </p>
+              </div>
+            ) : (
+              <button
+                onClick={() => imagesInputRef.current?.click()}
+                disabled={uploadingImages}
+                className="mt-3 flex h-32 w-full items-center justify-center rounded-[16px] border-2 border-dashed border-border text-muted-foreground transition hover:border-foreground/40 hover:text-foreground disabled:opacity-50"
+              >
+                {uploadingImages ? (
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                ) : (
+                  <span className="flex flex-col items-center gap-1.5 text-sm font-semibold">
+                    <Upload className="h-5 w-5" />
+                    Upload an image
+                  </span>
+                )}
+              </button>
+            )}
             <input
               ref={imagesInputRef}
               type="file"
@@ -1191,10 +1263,12 @@ function FontSlot({
 }
 
 function Swatch({
+  type,
   hex,
   onChange,
   onRemove,
 }: {
+  type: ColorType;
   hex: string;
   onChange: (value: string) => void;
   onRemove: () => void;
@@ -1202,6 +1276,9 @@ function Swatch({
   const valid = isHexColor(hex);
   return (
     <div className="group flex flex-col items-center gap-1.5">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {COLOR_TYPE_LABELS[type]}
+      </span>
       <div className="relative">
         <label
           className="block h-14 w-14 cursor-pointer overflow-hidden rounded-full border border-border"
@@ -1232,20 +1309,31 @@ function Swatch({
   );
 }
 
-function AddColorButton({ onAdd }: { onAdd: (value: string) => void }) {
+function AddColorButton({
+  availableTypes,
+  onAdd,
+}: {
+  availableTypes: readonly ColorType[];
+  onAdd: (type: ColorType, hex: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [hex, setHex] = useState(DEFAULT_NEW_COLOR);
+  const [type, setType] = useState<ColorType>(availableTypes[0]);
   const valid = isHexColor(hex);
   const pickerColor = valid ? normalizeHexColor(hex) : DEFAULT_NEW_COLOR;
 
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen);
-    if (nextOpen) setHex(DEFAULT_NEW_COLOR);
+    if (nextOpen) {
+      setHex(DEFAULT_NEW_COLOR);
+      // Default to the first still-unused role each time the picker opens.
+      setType(availableTypes[0]);
+    }
   }
 
   function handleAdd() {
     if (!valid) return;
-    onAdd(normalizeHexColor(hex));
+    onAdd(type, normalizeHexColor(hex));
     setOpen(false);
   }
 
@@ -1261,6 +1349,22 @@ function AddColorButton({ onAdd }: { onAdd: (value: string) => void }) {
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" sideOffset={8} className="w-[236px] rounded-[16px] p-3">
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {availableTypes.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setType(option)}
+              className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
+                option === type
+                  ? "bg-foreground text-background"
+                  : "bg-muted text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {COLOR_TYPE_LABELS[option]}
+            </button>
+          ))}
+        </div>
         <HexColorPicker
           color={pickerColor}
           onChange={setHex}
