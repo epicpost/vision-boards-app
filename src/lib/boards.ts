@@ -260,6 +260,33 @@ export async function unsaveTemplateFromBoard(
   }
 }
 
+export async function deleteBoard(boardId: string): Promise<void> {
+  const token = getAccessToken();
+  if (!token) {
+    requestAuthDialog();
+    throw new Error("Sign in to delete boards.");
+  }
+
+  const response = await fetch(
+    new URL(`/api/v1/boards/${encodeURIComponent(boardId)}`, API_BASE_URL),
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as ApiErrorResponse;
+    if (isTokenExpiredError(payload)) {
+      expireAuthSession();
+    }
+
+    throw new Error(getApiErrorMessage(payload) ?? `Delete request failed with ${response.status}`);
+  }
+}
+
 export interface BoardFeedCategory {
   id: string;
   name: string;

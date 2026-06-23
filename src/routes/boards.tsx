@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { Download, ExternalLink, Lock, Loader2 } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Download, ExternalLink, Lock, Loader2, MoreHorizontal } from "lucide-react";
+import { toast } from "sonner";
 import { Sidebar } from "@/components/epicpost/Sidebar";
 import { TopBar } from "@/components/epicpost/TopBar";
 import { MobileNav } from "@/components/epicpost/MobileNav";
@@ -14,8 +15,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import { pins } from "@/components/epicpost/pins-data";
-import { boardsQueryKey, fetchBoards, type Board } from "@/lib/boards";
+import { boardsQueryKey, deleteBoard, fetchBoards, type Board } from "@/lib/boards";
 import { fetchRemixes, remixesQueryKey, type RemixGenerationItem } from "@/lib/generations";
 import { fetchLikedTemplates, likedTemplatesQueryKey } from "@/lib/likes";
 import { getTemplateMedia, type PostTemplate } from "@/lib/post-templates";
@@ -58,37 +65,75 @@ function formatUpdatedAt(updatedAt: string | null) {
   return `${Math.floor(diffDays / 30)}mo`;
 }
 
-function BoardCard({ board }: { board: Board }) {
+function BoardCard({
+  board,
+  onDelete,
+  isDeleting,
+}: {
+  board: Board;
+  onDelete: (board: Board) => void;
+  isDeleting: boolean;
+}) {
   const thumbs = board.preview_assets.map((asset) => asset.url);
   const fallbackThumbs = take(board.id.length % pins.length, 3);
   const [main, ...rest] = [...thumbs, ...fallbackThumbs].slice(0, 3);
   const updated = formatUpdatedAt(board.updated_at);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <Link to="/" search={{ board: board.id }} className="group block">
+    <div className="group block">
+      {/* Relative wrapper so the options menu is a sibling of the Link — a
+          DropdownMenu trigger can't live inside the navigating <Link>. */}
       <div className="relative overflow-hidden rounded-[20px] bg-secondary aspect-[4/3]">
-        <div className="flex h-full w-full gap-px">
-          <div className="relative h-full w-2/3">
-            <img src={main} alt="" className="h-full w-full object-cover" />
+        <Link to="/" search={{ board: board.id }} className="block h-full w-full">
+          <div className="flex h-full w-full gap-px">
+            <div className="relative h-full w-2/3">
+              <img src={main} alt="" className="h-full w-full object-cover" />
+            </div>
+            <div className="flex h-full w-1/3 flex-col gap-px">
+              {rest.map((src, i) => (
+                <img key={i} src={src} alt="" className="h-1/2 w-full object-cover" />
+              ))}
+            </div>
           </div>
-          <div className="flex h-full w-1/3 flex-col gap-px">
-            {rest.map((src, i) => (
-              <img key={i} src={src} alt="" className="h-1/2 w-full object-cover" />
-            ))}
-          </div>
-        </div>
+        </Link>
         {board.is_secret && (
           <span className="absolute left-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-background/95 shadow">
             <Lock className="h-4 w-4 text-foreground" strokeWidth={2.5} />
           </span>
         )}
+
+        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label="Board options"
+              className={`absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition ${
+                menuOpen
+                  ? "bg-foreground text-background opacity-100"
+                  : "bg-white text-foreground opacity-0 hover:bg-secondary group-hover:opacity-100"
+              }`}
+            >
+              <MoreHorizontal className="h-5 w-5" strokeWidth={2.5} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[180px] rounded-[16px] p-2 shadow-lg">
+            <DropdownMenuItem
+              onSelect={() => onDelete(board)}
+              disabled={isDeleting}
+              className="cursor-pointer rounded-[10px] px-3 py-2 text-[15px] font-medium text-destructive focus:text-destructive disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       <h3 className="mt-3 px-1 text-[17px] font-bold text-foreground truncate">{board.name}</h3>
       <p className="px-1 text-sm text-muted-foreground">
         {board.template_count} {board.template_count === 1 ? "Template" : "Templates"}
         {updated ? ` · ${updated}` : ""}
       </p>
-    </Link>
+    </div>
   );
 }
 
@@ -421,11 +466,29 @@ function RemixesGrid() {
 }
 
 function BoardsPage() {
+  const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>("boards");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const boardsQuery = useQuery({
     queryKey: boardsQueryKey(),
     queryFn: () => fetchBoards(),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (board: Board) => deleteBoard(board.id),
+    onMutate: (board) => {
+      setDeletingId(board.id);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: boardsQueryKey() });
+      toast.success("Board deleted.");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Could not delete board.");
+    },
+    onSettled: () => {
+      setDeletingId(null);
+    },
   });
   const boards = boardsQuery.data?.data ?? [];
 
@@ -509,7 +572,12 @@ function BoardsPage() {
           ) : boards.length ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8">
               {boards.map((b) => (
-                <BoardCard key={b.id} board={b} />
+                <BoardCard
+                  key={b.id}
+                  board={b}
+                  onDelete={(target) => deleteMutation.mutate(target)}
+                  isDeleting={deletingId === b.id}
+                />
               ))}
             </div>
           ) : (
