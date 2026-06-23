@@ -505,7 +505,11 @@ function showSavedToast(board: Board | null, onUndo: () => void) {
         </button>
       </div>
     ),
-    { duration: 5000, unstyled: true },
+    {
+      duration: 5000,
+      unstyled: true,
+      className: "!border-0 !bg-transparent !p-0 !shadow-none",
+    },
   );
 }
 
@@ -516,7 +520,7 @@ function showRemovedToast() {
         Removed from your board!
       </div>
     ),
-    { unstyled: true },
+    { unstyled: true, className: "!border-0 !bg-transparent !p-0 !shadow-none" },
   );
 }
 

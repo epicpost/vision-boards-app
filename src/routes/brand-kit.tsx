@@ -343,7 +343,7 @@ function BrandKitEditor({
   const [fontSecondaryId, setFontSecondaryId] = useState<string | null>(initial.fontSecondaryId);
   const [oneLiner, setOneLiner] = useState(initial.oneLiner);
   const [toneOfVoice, setToneOfVoice] = useState(initial.toneOfVoice);
-  const [toneDraft, setToneDraft] = useState("");
+  const [tonePickerOpen, setTonePickerOpen] = useState(false);
   const [palette, setPalette] = useState<string[]>(initial.palette);
   const [brandValues, setBrandValues] = useState<string[]>(initial.brandValues);
   const [valueDraft, setValueDraft] = useState("");
@@ -389,6 +389,10 @@ function BrandKitEditor({
   );
   const oneLinerFont = secondaryFont ?? primaryFont;
   const toneOfVoiceValues = useMemo(() => parseToneOfVoice(toneOfVoice), [toneOfVoice]);
+  const availableToneOfVoicePresets = useMemo(() => {
+    const selected = new Set(toneOfVoiceValues.map((tone) => tone.toLowerCase()));
+    return TONE_OF_VOICE_PRESETS.filter((tone) => !selected.has(tone.toLowerCase()));
+  }, [toneOfVoiceValues]);
 
   const hasUnsavedChanges =
     name !== savedSnapshot.name ||
@@ -614,11 +618,11 @@ function BrandKitEditor({
     if (!tone) return;
     const exists = toneOfVoiceValues.some((item) => item.toLowerCase() === tone.toLowerCase());
     if (exists) {
-      setToneDraft("");
+      setTonePickerOpen(false);
       return;
     }
     setToneOfVoice(serializeToneOfVoice([...toneOfVoiceValues, tone]));
-    setToneDraft("");
+    setTonePickerOpen(false);
   }
 
   function removeToneOfVoice(value: string) {
@@ -848,18 +852,43 @@ function BrandKitEditor({
                   </button>
                 </span>
               ))}
-              <select
-                value={toneDraft}
-                onChange={(e) => addToneOfVoice(e.target.value)}
-                className="h-9 min-w-[180px] rounded-[16px] border border-border bg-background px-3 text-sm font-semibold text-foreground outline-none transition hover:border-foreground/40 focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                <option value="">Add tone of voice</option>
-                {TONE_OF_VOICE_PRESETS.map((tone) => (
-                  <option key={tone} value={tone}>
-                    {tone}
-                  </option>
-                ))}
-              </select>
+              <Popover open={tonePickerOpen} onOpenChange={setTonePickerOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    disabled={availableToneOfVoicePresets.length === 0}
+                    className="flex h-9 min-w-[180px] items-center justify-between gap-2 rounded-[16px] bg-secondary px-4 text-sm font-semibold text-foreground outline-none transition hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span>
+                      {availableToneOfVoicePresets.length > 0
+                        ? "Add tone of voice"
+                        : "All tones added"}
+                    </span>
+                    <ChevronDown className="h-4 w-4 shrink-0" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  sideOffset={10}
+                  className="w-[min(calc(100vw-32px),320px)] overflow-hidden rounded-[20px] border-0 bg-background p-0 text-foreground shadow-[0_12px_36px_rgba(0,0,0,0.18)]"
+                >
+                  <div className="max-h-[320px] overflow-y-auto px-3 py-3">
+                    <h3 className="mb-2 text-center text-xl font-bold">Tone of voice</h3>
+                    <div className="space-y-1">
+                      {availableToneOfVoicePresets.map((tone) => (
+                        <button
+                          key={tone}
+                          type="button"
+                          onClick={() => addToneOfVoice(tone)}
+                          className="flex h-12 w-full items-center rounded-[14px] px-4 text-left text-base font-semibold transition hover:bg-secondary focus-visible:bg-secondary focus-visible:outline-none"
+                        >
+                          {tone}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </Card>
         </div>
