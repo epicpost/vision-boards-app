@@ -81,6 +81,18 @@ export const Route = createFileRoute("/brand-kit")({
 const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const DEFAULT_NEW_COLOR = "#888888";
 const HEX_COLOR_PATTERN = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+const TONE_OF_VOICE_PRESETS = [
+  "Playful",
+  "Bold",
+  "Friendly",
+  "Confident",
+  "Professional",
+  "Warm",
+  "Witty",
+  "Minimal",
+  "Premium",
+  "Inspirational",
+];
 
 function areArraysEqual<T>(first: T[], second: T[]) {
   return first.length === second.length && first.every((value, index) => value === second[index]);
@@ -91,6 +103,17 @@ function areImagesEqual(first: BrandImage[], second: BrandImage[]) {
     first.map((image) => image.asset_id),
     second.map((image) => image.asset_id),
   );
+}
+
+function parseToneOfVoice(value: string) {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function serializeToneOfVoice(values: string[]) {
+  return values.join(", ");
 }
 
 function getBrandKitSnapshot(kit: BrandKit | null) {
@@ -320,6 +343,7 @@ function BrandKitEditor({
   const [fontSecondaryId, setFontSecondaryId] = useState<string | null>(initial.fontSecondaryId);
   const [oneLiner, setOneLiner] = useState(initial.oneLiner);
   const [toneOfVoice, setToneOfVoice] = useState(initial.toneOfVoice);
+  const [toneDraft, setToneDraft] = useState("");
   const [palette, setPalette] = useState<string[]>(initial.palette);
   const [brandValues, setBrandValues] = useState<string[]>(initial.brandValues);
   const [valueDraft, setValueDraft] = useState("");
@@ -354,6 +378,17 @@ function BrandKitEditor({
   useEffect(() => {
     ensureFontsLoaded(fonts);
   }, [fonts]);
+
+  const primaryFont = useMemo(
+    () => fonts.find((font) => font.id === fontPrimaryId) ?? null,
+    [fonts, fontPrimaryId],
+  );
+  const secondaryFont = useMemo(
+    () => fonts.find((font) => font.id === fontSecondaryId) ?? null,
+    [fonts, fontSecondaryId],
+  );
+  const oneLinerFont = secondaryFont ?? primaryFont;
+  const toneOfVoiceValues = useMemo(() => parseToneOfVoice(toneOfVoice), [toneOfVoice]);
 
   const hasUnsavedChanges =
     name !== savedSnapshot.name ||
@@ -574,6 +609,22 @@ function BrandKitEditor({
     setValueDraft("");
   }
 
+  function addToneOfVoice(value: string) {
+    const tone = value.trim();
+    if (!tone) return;
+    const exists = toneOfVoiceValues.some((item) => item.toLowerCase() === tone.toLowerCase());
+    if (exists) {
+      setToneDraft("");
+      return;
+    }
+    setToneOfVoice(serializeToneOfVoice([...toneOfVoiceValues, tone]));
+    setToneDraft("");
+  }
+
+  function removeToneOfVoice(value: string) {
+    setToneOfVoice(serializeToneOfVoice(toneOfVoiceValues.filter((item) => item !== value)));
+  }
+
   return (
     <div>
       <AlertDialog
@@ -737,6 +788,7 @@ function BrandKitEditor({
                 placeholder="A short, punchy line that sums up your brand"
                 rows={2}
                 className="mt-3 w-full resize-none bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
+                style={{ fontFamily: oneLinerFont ? fontFamilyStack(oneLinerFont) : undefined }}
               />
             </Card>
 
@@ -780,12 +832,35 @@ function BrandKitEditor({
           {/* Tone of voice */}
           <Card>
             <SectionLabel>Tone of voice</SectionLabel>
-            <input
-              value={toneOfVoice}
-              onChange={(e) => setToneOfVoice(e.target.value)}
-              placeholder="e.g. Bold, playful, confident"
-              className="mt-3 w-full bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
-            />
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {toneOfVoiceValues.map((value) => (
+                <span
+                  key={value}
+                  className="flex items-center gap-1.5 rounded-[16px] bg-secondary px-3 py-1.5 text-sm font-semibold text-foreground"
+                >
+                  {value}
+                  <button
+                    onClick={() => removeToneOfVoice(value)}
+                    aria-label={`Remove ${value}`}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </span>
+              ))}
+              <select
+                value={toneDraft}
+                onChange={(e) => addToneOfVoice(e.target.value)}
+                className="h-9 min-w-[180px] rounded-[16px] border border-border bg-background px-3 text-sm font-semibold text-foreground outline-none transition hover:border-foreground/40 focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="">Add tone of voice</option>
+                {TONE_OF_VOICE_PRESETS.map((tone) => (
+                  <option key={tone} value={tone}>
+                    {tone}
+                  </option>
+                ))}
+              </select>
+            </div>
           </Card>
         </div>
 
