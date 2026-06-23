@@ -184,3 +184,13 @@ iframe[src*="accounts.google.com/gsi"] {
   z-index: 2147483647 !important;
   pointer-events: auto !important;
 }
+
+/* Custom Sonner toasts draw their own surface. Keep the Sonner wrapper from
+   becoming a second nested card. */
+.toaster [data-sonner-toast][data-type="custom"],
+.toaster [data-sonner-toast][data-toast-type="custom"] {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
