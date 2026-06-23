@@ -416,6 +416,21 @@ function BrandKitEditor({
     withResolver: true,
   });
 
+  function applySnapshot(snapshot: ReturnType<typeof getBrandKitSnapshot>) {
+    setSavedSnapshot(snapshot);
+    setName(snapshot.name);
+    setWebsiteUrl(snapshot.websiteUrl);
+    setFontPrimaryId(snapshot.fontPrimaryId);
+    setFontSecondaryId(snapshot.fontSecondaryId);
+    setOneLiner(snapshot.oneLiner);
+    setToneOfVoice(snapshot.toneOfVoice);
+    setPalette(snapshot.palette);
+    setBrandValues(snapshot.brandValues);
+    setLogoAssetId(snapshot.logoAssetId);
+    setLogoUrl(snapshot.logoUrl);
+    setImages(snapshot.images);
+  }
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       const trimmed = name.trim();
@@ -435,7 +450,8 @@ function BrandKitEditor({
       return kit ? updateBrandKit(kit.id, input) : createBrandKit(input);
     },
     onSuccess: (saved) => {
-      setSavedSnapshot(getBrandKitSnapshot(saved));
+      draftKitIdRef.current = saved.id;
+      applySnapshot(getBrandKitSnapshot(saved));
       toast.success(kit ? "Brand kit updated" : "Brand kit created");
       onSaved(saved);
     },
