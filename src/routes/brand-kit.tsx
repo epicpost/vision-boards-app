@@ -1339,15 +1339,18 @@ function AddColorButton({
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-dashed border-border text-muted-foreground transition hover:border-foreground/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          aria-label="Add color"
-        >
-          <Plus className="h-5 w-5" />
-        </button>
-      </PopoverTrigger>
+      <div className="flex flex-col items-center gap-1.5">
+        <span className="h-[16px]" aria-hidden="true" />
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-dashed border-border text-muted-foreground transition hover:border-foreground/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            aria-label="Add color"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+        </PopoverTrigger>
+      </div>
       <PopoverContent align="start" sideOffset={8} className="w-[236px] rounded-[16px] p-3">
         <div className="mb-3 flex flex-wrap gap-1.5">
           {availableTypes.map((option) => (
