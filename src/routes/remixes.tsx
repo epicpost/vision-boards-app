@@ -1,11 +1,23 @@
 import { useCallback, useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { Download, ExternalLink, Loader2, Minus, Plus, X } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Download, ExternalLink, Loader2, Minus, MoreHorizontal, Plus, X } from "lucide-react";
+import { toast } from "sonner";
 import { Sidebar } from "@/components/epicpost/Sidebar";
 import { TopBar } from "@/components/epicpost/TopBar";
 import { MobileNav } from "@/components/epicpost/MobileNav";
-import { fetchRemixes, remixesQueryKey, type RemixGenerationItem } from "@/lib/generations";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
+import {
+  deleteRemix,
+  fetchRemixes,
+  remixesQueryKey,
+  type RemixGenerationItem,
+} from "@/lib/generations";
 import { getAccessToken } from "@/lib/auth";
 
 export const Route = createFileRoute("/remixes")({
@@ -108,11 +120,16 @@ function RemixStatusCard({ remix }: { remix: RemixGenerationItem }) {
 function RemixPreviewCard({
   remix,
   onPreview,
+  onDelete,
+  isDeleting,
 }: {
   remix: RemixGenerationItem;
   onPreview: (remix: RemixGenerationItem) => void;
+  onDelete: (remix: RemixGenerationItem) => void;
+  isDeleting: boolean;
 }) {
   const asset = remix.assets[0];
+  const [menuOpen, setMenuOpen] = useState(false);
 
   if (remix.status !== "completed" || !asset) {
     return <RemixStatusCard remix={remix} />;
@@ -120,23 +137,53 @@ function RemixPreviewCard({
 
   return (
     <div className="mb-3 break-inside-avoid group">
-      <button
-        type="button"
-        onClick={() => onPreview(remix)}
-        className="relative block w-full overflow-hidden rounded-[16px] bg-secondary text-left"
+      {/* Relative wrapper so the options menu is a sibling of the clickable
+          image — a DropdownMenu (which renders buttons) can't be nested inside
+          the card <button>. */}
+      <div
+        className="relative w-full overflow-hidden rounded-[16px] bg-secondary"
         style={{ aspectRatio: remixAspectRatio(remix) }}
       >
-        <img
-          src={asset.url}
-          alt={remix.caption ?? remix.template_title}
-          loading="lazy"
-          className="h-full w-full object-contain"
-        />
-        <span className="absolute inset-0 rounded-[16px] bg-black/25 opacity-0 transition group-hover:opacity-100" />
-        <span className="absolute right-3 top-3 rounded-full bg-primary px-4 py-2 text-sm font-bold text-primary-foreground opacity-0 transition group-hover:opacity-100">
-          Preview
-        </span>
-      </button>
+        <button
+          type="button"
+          onClick={() => onPreview(remix)}
+          aria-label={`Preview ${remix.template_title}`}
+          className="block h-full w-full text-left"
+        >
+          <img
+            src={asset.url}
+            alt={remix.caption ?? remix.template_title}
+            loading="lazy"
+            className="h-full w-full object-contain"
+          />
+          <span className="pointer-events-none absolute inset-0 rounded-[16px] bg-black/25 opacity-0 transition group-hover:opacity-100" />
+        </button>
+
+        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label="Remix options"
+              className={`absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition ${
+                menuOpen
+                  ? "bg-foreground text-background opacity-100"
+                  : "bg-white text-foreground opacity-0 hover:bg-secondary group-hover:opacity-100"
+              }`}
+            >
+              <MoreHorizontal className="h-5 w-5" strokeWidth={2.5} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[180px] rounded-[16px] p-2 shadow-lg">
+            <DropdownMenuItem
+              onSelect={() => onDelete(remix)}
+              disabled={isDeleting}
+              className="cursor-pointer rounded-[10px] px-3 py-2 text-[15px] font-medium text-destructive focus:text-destructive disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       <p className="px-2 pt-2 text-[13px] font-semibold text-foreground line-clamp-2">
         {remix.template_title}
       </p>
@@ -297,11 +344,32 @@ function RemixViewer({
 }
 
 function RemixesGrid() {
+  const queryClient = useQueryClient();
   const [selectedRemix, setSelectedRemix] = useState<RemixGenerationItem | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const remixesQuery = useQuery({
     queryKey: remixesQueryKey(),
     queryFn: () => fetchRemixes(),
     enabled: Boolean(getAccessToken()),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (remix: RemixGenerationItem) => deleteRemix(remix.generation_id),
+    onMutate: (remix) => {
+      setDeletingId(remix.generation_id);
+    },
+    onSuccess: (_data, remix) => {
+      if (selectedRemix?.generation_id === remix.generation_id) {
+        setSelectedRemix(null);
+      }
+      void queryClient.invalidateQueries({ queryKey: remixesQueryKey() });
+      toast.success("Remix deleted.");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Could not delete remix.");
+    },
+    onSettled: () => {
+      setDeletingId(null);
+    },
   });
   const remixes = remixesQuery.data?.data ?? [];
   const refetchRemixes = remixesQuery.refetch;
@@ -370,7 +438,13 @@ function RemixesGrid() {
     <>
       <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-3 [column-fill:_balance]">
         {remixes.map((remix) => (
-          <RemixPreviewCard key={remix.generation_id} remix={remix} onPreview={setSelectedRemix} />
+          <RemixPreviewCard
+            key={remix.generation_id}
+            remix={remix}
+            onPreview={setSelectedRemix}
+            onDelete={(target) => deleteMutation.mutate(target)}
+            isDeleting={deletingId === remix.generation_id}
+          />
         ))}
       </div>
 

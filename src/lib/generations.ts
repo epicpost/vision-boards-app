@@ -129,6 +129,24 @@ export async function fetchRemixes({
   return response.json() as Promise<RemixGenerationResponse>;
 }
 
+export async function deleteRemix(generationId: string): Promise<void> {
+  const token = requireToken("delete this remix");
+
+  const response = await fetch(
+    new URL(`/api/v1/generations/${encodeURIComponent(generationId)}`, API_BASE_URL),
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    await throwApiError(response, "Delete remix");
+  }
+}
+
 export async function uploadAssetFiles(files: File[]): Promise<IngestedAsset[]> {
   const token = requireToken("upload images");
 
