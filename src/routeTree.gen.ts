@@ -16,6 +16,7 @@ import { Route as BrandKitRouteImport } from './routes/brand-kit'
 import { Route as BoardsRouteImport } from './routes/boards'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TemplatePinIdRouteImport } from './routes/template.$pinId'
+import { Route as EditorTemplateIdRouteImport } from './routes/editor.$templateId'
 import { Route as AuthMagicLinkConfirmRouteImport } from './routes/auth/magic-link/confirm'
 
 const SettingsRoute = SettingsRouteImport.update({
@@ -53,6 +54,11 @@ const TemplatePinIdRoute = TemplatePinIdRouteImport.update({
   path: '/template/$pinId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EditorTemplateIdRoute = EditorTemplateIdRouteImport.update({
+  id: '/editor/$templateId',
+  path: '/editor/$templateId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthMagicLinkConfirmRoute = AuthMagicLinkConfirmRouteImport.update({
   id: '/auth/magic-link/confirm',
   path: '/auth/magic-link/confirm',
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/likes': typeof LikesRoute
   '/remixes': typeof RemixesRoute
   '/settings': typeof SettingsRoute
+  '/editor/$templateId': typeof EditorTemplateIdRoute
   '/template/$pinId': typeof TemplatePinIdRoute
   '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
 }
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/likes': typeof LikesRoute
   '/remixes': typeof RemixesRoute
   '/settings': typeof SettingsRoute
+  '/editor/$templateId': typeof EditorTemplateIdRoute
   '/template/$pinId': typeof TemplatePinIdRoute
   '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
 }
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/likes': typeof LikesRoute
   '/remixes': typeof RemixesRoute
   '/settings': typeof SettingsRoute
+  '/editor/$templateId': typeof EditorTemplateIdRoute
   '/template/$pinId': typeof TemplatePinIdRoute
   '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
 }
@@ -99,6 +108,7 @@ export interface FileRouteTypes {
     | '/likes'
     | '/remixes'
     | '/settings'
+    | '/editor/$templateId'
     | '/template/$pinId'
     | '/auth/magic-link/confirm'
   fileRoutesByTo: FileRoutesByTo
@@ -109,6 +119,7 @@ export interface FileRouteTypes {
     | '/likes'
     | '/remixes'
     | '/settings'
+    | '/editor/$templateId'
     | '/template/$pinId'
     | '/auth/magic-link/confirm'
   id:
@@ -119,6 +130,7 @@ export interface FileRouteTypes {
     | '/likes'
     | '/remixes'
     | '/settings'
+    | '/editor/$templateId'
     | '/template/$pinId'
     | '/auth/magic-link/confirm'
   fileRoutesById: FileRoutesById
@@ -130,6 +142,7 @@ export interface RootRouteChildren {
   LikesRoute: typeof LikesRoute
   RemixesRoute: typeof RemixesRoute
   SettingsRoute: typeof SettingsRoute
+  EditorTemplateIdRoute: typeof EditorTemplateIdRoute
   TemplatePinIdRoute: typeof TemplatePinIdRoute
   AuthMagicLinkConfirmRoute: typeof AuthMagicLinkConfirmRoute
 }
@@ -185,6 +198,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TemplatePinIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/editor/$templateId': {
+      id: '/editor/$templateId'
+      path: '/editor/$templateId'
+      fullPath: '/editor/$templateId'
+      preLoaderRoute: typeof EditorTemplateIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth/magic-link/confirm': {
       id: '/auth/magic-link/confirm'
       path: '/auth/magic-link/confirm'
@@ -202,6 +222,7 @@ const rootRouteChildren: RootRouteChildren = {
   LikesRoute: LikesRoute,
   RemixesRoute: RemixesRoute,
   SettingsRoute: SettingsRoute,
+  EditorTemplateIdRoute: EditorTemplateIdRoute,
   TemplatePinIdRoute: TemplatePinIdRoute,
   AuthMagicLinkConfirmRoute: AuthMagicLinkConfirmRoute,
 }
