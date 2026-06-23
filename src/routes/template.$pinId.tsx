@@ -31,6 +31,12 @@ import { SignupDialog } from "@/components/epicpost/SignupDialog";
 import { CreateBoardDialog } from "@/components/epicpost/CreateBoardDialog";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   fetchPostTemplate,
@@ -1077,15 +1083,26 @@ function PinDetail() {
                                 </button>
                               }
                             />
-                            <button
-                              aria-label="More"
-                              className="h-10 w-10 rounded-full hover:bg-secondary flex items-center justify-center transition"
-                            >
-                              <MoreHorizontal
-                                className="h-6 w-6 text-foreground"
-                                strokeWidth={2.2}
-                              />
-                            </button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button
+                                  aria-label="More"
+                                  className="h-10 w-10 rounded-full hover:bg-secondary flex items-center justify-center transition"
+                                >
+                                  <MoreHorizontal
+                                    className="h-6 w-6 text-foreground"
+                                    strokeWidth={2.2}
+                                  />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start" className="w-56">
+                                <DropdownMenuItem>Download image</DropdownMenuItem>
+                                <DropdownMenuItem>See more</DropdownMenuItem>
+                                <DropdownMenuItem>See less</DropdownMenuItem>
+                                <DropdownMenuItem>Report Template</DropdownMenuItem>
+                                <DropdownMenuItem>Get Template embed code</DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                           <div className="flex items-center gap-2">
                             <SaveToBoardPopover

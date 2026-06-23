@@ -1,9 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Sidebar } from "@/components/epicpost/Sidebar";
 import { TopBar } from "@/components/epicpost/TopBar";
 import { MobileNav } from "@/components/epicpost/MobileNav";
-import { getAuthUser } from "@/lib/auth";
+import { AvatarCropDialog } from "@/components/epicpost/AvatarCropDialog";
+import { getAuthUser, updateAuthUser } from "@/lib/auth";
+import { updateMyProfile, uploadAvatar } from "@/lib/profile";
+
+const MAX_AVATAR_BYTES = 10 * 1024 * 1024;
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -82,7 +86,54 @@ function EditProfileForm({ user }: { user: ReturnType<typeof getAuthUser> }) {
   const [about, setAbout] = useState("");
   const [pronouns, setPronouns] = useState("");
   const [website, setWebsite] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url ?? null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<{ type: "error" | "success"; message: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const initial = (firstName || user?.username || "U").charAt(0).toUpperCase();
+
+  const handleFilePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setStatus({ type: "error", message: "Please choose an image file." });
+      return;
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      setStatus({ type: "error", message: "Image must be 10 MB or smaller." });
+      return;
+    }
+    setStatus(null);
+    setCropFile(file);
+  };
+
+  const handleCropped = async (blob: Blob) => {
+    const profile = await uploadAvatar(blob);
+    setAvatarUrl(profile.avatar_url ?? null);
+    updateAuthUser({ avatar_url: profile.avatar_url });
+    setCropFile(null);
+    setStatus({ type: "success", message: "Photo updated." });
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setStatus(null);
+    try {
+      const profile = await updateMyProfile({
+        first_name: firstName.trim() || null,
+        last_name: lastName.trim() || null,
+        about: about.trim() || null,
+      });
+      updateAuthUser({ first_name: profile.first_name, last_name: profile.last_name });
+      setStatus({ type: "success", message: "Profile saved." });
+    } catch (err) {
+      setStatus({ type: "error", message: err instanceof Error ? err.message : "Failed to save." });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div>
@@ -95,22 +146,35 @@ function EditProfileForm({ user }: { user: ReturnType<typeof getAuthUser> }) {
       <div className="mt-8">
         <div className="text-sm font-semibold text-foreground">Photo</div>
         <div className="mt-2 flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-pink-300 via-rose-300 to-amber-200 text-2xl font-bold text-foreground">
-            {user?.avatar_url ? (
-              <img
-                src={user.avatar_url}
-                alt=""
-                className="h-full w-full rounded-full object-cover"
-              />
+          <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-pink-300 via-rose-300 to-amber-200 text-2xl font-bold text-foreground">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="h-full w-full rounded-full object-cover" />
             ) : (
               initial
             )}
           </div>
-          <button className="h-10 rounded-full bg-secondary px-4 text-[15px] font-semibold text-foreground hover:bg-accent">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleFilePicked}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="h-10 rounded-full bg-secondary px-4 text-[15px] font-semibold text-foreground hover:bg-accent"
+          >
             Change
           </button>
         </div>
       </div>
+
+      <AvatarCropDialog
+        file={cropFile}
+        onClose={() => setCropFile(null)}
+        onCropped={handleCropped}
+      />
 
       <div className="mt-6 flex flex-col gap-4">
         <Field label="First name">
@@ -159,11 +223,22 @@ function EditProfileForm({ user }: { user: ReturnType<typeof getAuthUser> }) {
       </div>
 
       <div className="sticky bottom-0 mt-10 -mx-6 flex items-center justify-end gap-3 border-t border-border bg-background px-6 py-4">
-        <button className="h-11 rounded-full bg-secondary px-5 text-[15px] font-semibold text-muted-foreground">
-          Reset
-        </button>
-        <button className="h-11 rounded-full bg-secondary px-6 text-[15px] font-semibold text-muted-foreground">
-          Save
+        {status ? (
+          <p
+            className={`mr-auto text-sm font-medium ${
+              status.type === "error" ? "text-destructive" : "text-muted-foreground"
+            }`}
+          >
+            {status.message}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="h-11 rounded-full bg-primary px-6 text-[15px] font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Save"}
         </button>
       </div>
     </div>

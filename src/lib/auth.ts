@@ -145,6 +145,17 @@ export function getAuthUser(): UserProfile | null {
   }
 }
 
+export function updateAuthUser(patch: Partial<UserProfile>) {
+  if (typeof window === "undefined") return;
+
+  const current = getAuthUser();
+  if (!current) return;
+
+  const next = { ...current, ...patch };
+  window.localStorage.setItem(USER_KEY, JSON.stringify(next));
+  window.dispatchEvent(new Event(AUTH_SESSION_CHANGED_EVENT));
+}
+
 export function clearAuthSession() {
   if (typeof window === "undefined") return;
 
