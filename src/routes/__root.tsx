@@ -10,6 +10,7 @@ import {
 import { useEffect, useState } from "react";
 import { SignupDialog } from "@/components/epicpost/SignupDialog";
 import { OnboardingDialog } from "@/components/epicpost/OnboardingDialog";
+import { GetStartedCard } from "@/components/epicpost/GetStartedCard";
 import { AUTH_REQUIRED_EVENT, AUTH_SESSION_CHANGED_EVENT, hasAuthSession } from "@/lib/auth";
 import { getMyProfile } from "@/lib/profile";
 import {
@@ -21,6 +22,8 @@ import {
 import { Toaster } from "@/components/ui/sonner";
 
 import appCss from "../styles.css?url";
+
+const GET_STARTED_KEY = "epicpost_get_started_card";
 
 function NotFoundComponent() {
   return (
@@ -166,6 +169,21 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const [authOpen, setAuthOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
+  // The "pick any idea" coach-mark: shown after onboarding finishes and kept
+  // visible across refreshes (via a localStorage flag) until dismissed.
+  const [getStartedOpen, setGetStartedOpen] = useState(
+    () => typeof window !== "undefined" && window.localStorage.getItem(GET_STARTED_KEY) === "1",
+  );
+
+  function dismissGetStarted() {
+    setGetStartedOpen(false);
+    if (typeof window !== "undefined") window.localStorage.removeItem(GET_STARTED_KEY);
+  }
+
+  function handleOnboardingCompleted() {
+    if (typeof window !== "undefined") window.localStorage.setItem(GET_STARTED_KEY, "1");
+    setGetStartedOpen(true);
+  }
 
   useEffect(() => {
     const openAuthDialog = () => setAuthOpen(true);
@@ -277,7 +295,12 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <Outlet />
       <SignupDialog open={authOpen} onOpenChange={setAuthOpen} />
-      <OnboardingDialog open={onboardingOpen} onOpenChange={setOnboardingOpen} />
+      <OnboardingDialog
+        open={onboardingOpen}
+        onOpenChange={setOnboardingOpen}
+        onCompleted={handleOnboardingCompleted}
+      />
+      {getStartedOpen ? <GetStartedCard onDismiss={dismissGetStarted} /> : null}
       <Toaster position="top-center" />
     </QueryClientProvider>
   );

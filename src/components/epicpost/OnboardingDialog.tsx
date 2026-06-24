@@ -80,9 +80,11 @@ const PROGRESS = ["33%", "66%", "100%"] as const;
 export function OnboardingDialog({
   open,
   onOpenChange,
+  onCompleted,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onCompleted?: () => void;
 }) {
   const [step, setStep] = useState<StepIndex>(0);
   const [data, setData] = useState<OnboardingData>(EMPTY_DATA);
@@ -152,6 +154,7 @@ export function OnboardingDialog({
       window.localStorage.removeItem(DATA_KEY);
       toast.success("You're all set!");
       onOpenChange(false);
+      onCompleted?.();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Couldn't save your onboarding.";
       toast.error(message);
@@ -221,14 +224,14 @@ export function OnboardingDialog({
               Continue
             </button>
           ) : (
-            <div className="flex items-center justify-end gap-3">
+            <div className="flex items-center justify-between gap-3">
               <button
                 type="button"
                 disabled={isSubmitting}
                 onClick={() => finish(false)}
-                className="px-4 h-12 rounded-[14px] text-sm font-semibold text-muted-foreground hover:text-foreground transition disabled:opacity-50"
+                className="px-2 h-12 rounded-[14px] text-sm font-semibold text-muted-foreground hover:text-foreground transition disabled:opacity-50"
               >
-                Skip for now
+                Skip
               </button>
               <button
                 type="button"
