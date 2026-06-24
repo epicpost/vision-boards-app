@@ -16,7 +16,12 @@ export interface EditorFont {
   label: string;
   // CSS font-family stack (the primary family is a Google font we lazy-load).
   family: string;
+  // The font's default weight (used when a layer has no explicit weight).
   weight: number;
+  // Weights this family actually ships, in ascending order. Display fonts like
+  // Anton ship a single weight, so the weight control only offers what's here —
+  // this keeps the canvas export (which can't faux-bold) matching the preview.
+  weights: number[];
 }
 
 export interface EditorColor {
@@ -56,6 +61,8 @@ export interface ImageLayer extends BaseLayer {
   transform?: ImageTransform;
 }
 
+export type TextAlign = "left" | "center" | "right";
+
 export interface TextLayer extends BaseLayer {
   kind: "header" | "description" | "cta";
   text: string;
@@ -66,6 +73,13 @@ export interface TextLayer extends BaseLayer {
   uppercase: boolean;
   // Quick AI-style rewrite options cycled by the sparkle button.
   suggestions: string[];
+  // Optional style overrides. Absent === the template/LAYOUT default, so existing
+  // remixes look unchanged until the user edits them. Resolved via `resolveTextStyle`.
+  sizeScale?: number; // multiplier on the layout default font size (1 = default)
+  weight?: number; // font weight, snapped to one the chosen font actually ships
+  letterSpacing?: number; // tracking, in em (0 = default)
+  align?: TextAlign; // default "center"
+  shadow?: boolean; // drop shadow behind the text
 }
 
 export interface LogoLayer extends BaseLayer {
@@ -118,35 +132,111 @@ export interface RemixEditorTemplate {
 // One shared typeface catalog backs every template's font picker. Each family
 // is a Google font we load on demand via `editorFontsHref()`.
 export const EDITOR_FONTS: EditorFont[] = [
-  { id: "anton", label: "Anton", family: "'Anton', sans-serif", weight: 400 },
-  { id: "archivo", label: "Archivo", family: "'Archivo Black', sans-serif", weight: 400 },
-  { id: "bebas", label: "Bebas Neue", family: "'Bebas Neue', sans-serif", weight: 400 },
-  { id: "oswald", label: "Oswald", family: "'Oswald', sans-serif", weight: 600 },
-  { id: "poppins", label: "Poppins", family: "'Poppins', sans-serif", weight: 600 },
-  { id: "montserrat", label: "Montserrat", family: "'Montserrat', sans-serif", weight: 700 },
-  { id: "playfair", label: "Playfair Display", family: "'Playfair Display', serif", weight: 700 },
+  { id: "anton", label: "Anton", family: "'Anton', sans-serif", weight: 400, weights: [400] },
+  {
+    id: "archivo",
+    label: "Archivo",
+    family: "'Archivo Black', sans-serif",
+    weight: 400,
+    weights: [400],
+  },
+  { id: "bebas", label: "Bebas Neue", family: "'Bebas Neue', sans-serif", weight: 400, weights: [400] },
+  {
+    id: "oswald",
+    label: "Oswald",
+    family: "'Oswald', sans-serif",
+    weight: 600,
+    weights: [300, 400, 500, 600, 700],
+  },
+  {
+    id: "poppins",
+    label: "Poppins",
+    family: "'Poppins', sans-serif",
+    weight: 600,
+    weights: [400, 500, 600, 700, 800],
+  },
+  {
+    id: "montserrat",
+    label: "Montserrat",
+    family: "'Montserrat', sans-serif",
+    weight: 700,
+    weights: [400, 500, 600, 700, 800],
+  },
+  {
+    id: "playfair",
+    label: "Playfair Display",
+    family: "'Playfair Display', serif",
+    weight: 700,
+    weights: [400, 500, 600, 700, 800],
+  },
 ];
 
 export function fontById(id: string): EditorFont {
   return EDITOR_FONTS.find((font) => font.id === id) ?? EDITOR_FONTS[0];
 }
 
+// The Google Fonts family name (the quoted primary of the CSS stack).
+function googleFamilyName(font: EditorFont): string {
+  return font.family.match(/'([^']+)'/)?.[1] ?? font.label;
+}
+
+// Snap a desired weight to the nearest one the font actually ships, so the
+// preview (which can faux-bold) and the canvas export (which can't) agree.
+export function nearestWeight(font: EditorFont, target: number): number {
+  return font.weights.reduce((best, w) =>
+    Math.abs(w - target) < Math.abs(best - target) ? w : best,
+  );
+}
+
 // The <link> href that loads every catalog family (display swap) so previews and
-// the picker render in the real typeface.
+// the picker render in the real typeface, including every weight the font ships.
 export function editorFontsHref(): string {
-  const families = [
-    "Anton",
-    "Archivo Black",
-    "Bebas Neue",
-    "Oswald:wght@400;600",
-    "Poppins:wght@400;600;700",
-    "Montserrat:wght@400;600;700",
-    "Playfair Display:wght@400;600;700",
-  ]
-    .map((family) => `family=${family.trim().replace(/\s+/g, "+")}`)
-    .join("&");
+  const families = EDITOR_FONTS.map((font) => {
+    const name = googleFamilyName(font).trim().replace(/\s+/g, "+");
+    return `family=${name}:wght@${font.weights.join(";")}`;
+  }).join("&");
   return `https://fonts.googleapis.com/css2?${families}&display=swap`;
 }
+
+// Drop-shadow behind text. Expressed in em for CSS so it scales with font size;
+// the canvas export derives px offsets/blur from the same ratios.
+export const TEXT_SHADOW_CSS = "0 0.04em 0.25em rgba(0,0,0,0.35)";
+export const TEXT_SHADOW = { color: "rgba(0,0,0,0.35)", offsetYRatio: 0.04, blurRatio: 0.25 };
+
+export interface ResolvedTextStyle {
+  sizeScale: number;
+  weight: number;
+  letterSpacing: number;
+  align: TextAlign;
+  shadow: boolean;
+}
+
+// The effective style for a text layer: explicit overrides, else sensible
+// defaults. Weight is always snapped to one the chosen font ships. The default
+// weight matches the LAYOUT/MOODBOARD defaults by layer kind (header/title 800,
+// description 500, cta 600).
+export function resolveTextStyle(layer: TextLayer): ResolvedTextStyle {
+  const font = fontById(layer.fontId);
+  const baseWeight = layer.kind === "description" ? 500 : layer.kind === "cta" ? 600 : 800;
+  return {
+    sizeScale: layer.sizeScale ?? 1,
+    weight: nearestWeight(font, layer.weight ?? baseWeight),
+    letterSpacing: layer.letterSpacing ?? 0,
+    align: layer.align ?? "center",
+    shadow: layer.shadow ?? false,
+  };
+}
+
+// Human labels for the catalog weights shown in the weight picker.
+export const WEIGHT_LABELS: Record<number, string> = {
+  300: "Light",
+  400: "Regular",
+  500: "Medium",
+  600: "Semibold",
+  700: "Bold",
+  800: "Extrabold",
+  900: "Black",
+};
 
 // Perceived brightness (0–1) of a hex colour.
 export function colorLuminance(hex: string): number {
@@ -228,6 +318,7 @@ const TEMPLATE_28: RemixEditorTemplate = {
       color: "#ffffff",
       fontId: "anton",
       uppercase: true,
+      shadow: true,
       suggestions: ["Barcelona", "Lisbon", "Tokyo", "New York", "Marrakech"],
     },
   ],

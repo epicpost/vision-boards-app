@@ -1,6 +1,9 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
   ArrowLeft,
   ChevronDown,
   ChevronRight,
@@ -16,6 +19,7 @@ import {
   Sparkles,
   ThumbsDown,
   ThumbsUp,
+  Type,
   Undo2,
   Wand2,
   ZoomIn,
@@ -41,8 +45,12 @@ import {
   isLightColor,
   LAYOUT,
   MOODBOARD_LAYOUT,
+  nearestWeight,
   readableTextColor,
+  resolveTextStyle,
+  TEXT_SHADOW_CSS,
   transformCss,
+  WEIGHT_LABELS,
   type EditorColor,
   type EditorLayer,
   type ExportFormat,
@@ -50,10 +58,12 @@ import {
   type ImageTransform,
   type LayerKind,
   type RemixEditorTemplate,
+  type TextAlign,
   type TextLayer,
 } from "@/lib/remix-editor";
 import { exportCreative } from "@/lib/remix-editor-export";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 
 export const Route = createFileRoute("/editor/$templateId")({
   validateSearch: (search: Record<string, unknown>): { caption?: string } => ({
@@ -394,6 +404,10 @@ function CreativePreview({
   const pct = (value: number) => `${value * 100}%`;
   const cqi = (value: number) => `${value * 100}cqi`;
 
+  const headerStyle = header ? resolveTextStyle(header) : null;
+  const descriptionStyle = description ? resolveTextStyle(description) : null;
+  const ctaStyle = cta ? resolveTextStyle(cta) : null;
+
   return (
     <div
       className="relative w-full overflow-hidden shadow-2xl"
@@ -417,49 +431,59 @@ function CreativePreview({
         />
       )}
 
-      {header?.visible && (
+      {header?.visible && headerStyle && (
         <div
-          className="absolute text-center"
+          className="absolute"
           style={{
             left: pct(LAYOUT.padX),
             right: pct(LAYOUT.padX),
             top: pct(LAYOUT.header.top),
             fontFamily: fontById(header.fontId).family,
-            fontWeight: LAYOUT.header.weight,
-            fontSize: cqi(LAYOUT.header.size),
+            fontWeight: headerStyle.weight,
+            fontSize: cqi(LAYOUT.header.size * headerStyle.sizeScale),
             lineHeight: LAYOUT.header.lineHeight,
+            letterSpacing: `${headerStyle.letterSpacing}em`,
+            textAlign: headerStyle.align,
             color: header.color,
             textTransform: header.uppercase ? "uppercase" : "none",
+            textShadow: headerStyle.shadow ? TEXT_SHADOW_CSS : "none",
           }}
         >
           {header.text}
         </div>
       )}
 
-      {description?.visible && (
+      {description?.visible && descriptionStyle && (
         <div
-          className="absolute text-center"
+          className="absolute"
           style={{
             left: pct(LAYOUT.padX),
             right: pct(LAYOUT.padX),
             top: pct(LAYOUT.description.top),
             fontFamily: fontById(description.fontId).family,
-            fontWeight: LAYOUT.description.weight,
-            fontSize: cqi(LAYOUT.description.size),
+            fontWeight: descriptionStyle.weight,
+            fontSize: cqi(LAYOUT.description.size * descriptionStyle.sizeScale),
             lineHeight: LAYOUT.description.lineHeight,
+            letterSpacing: `${descriptionStyle.letterSpacing}em`,
+            textAlign: descriptionStyle.align,
             color: description.color,
             textTransform: description.uppercase ? "uppercase" : "none",
+            textShadow: descriptionStyle.shadow ? TEXT_SHADOW_CSS : "none",
           }}
         >
           {description.text}
         </div>
       )}
 
-      {cta?.visible && cta.text.trim() && (
+      {cta?.visible && ctaStyle && cta.text.trim() && (
         <div
-          className="absolute flex -translate-x-1/2 items-center whitespace-nowrap rounded-full"
+          className="absolute flex items-center whitespace-nowrap rounded-full"
           style={{
-            left: "50%",
+            ...(ctaStyle.align === "left"
+              ? { left: pct(LAYOUT.padX) }
+              : ctaStyle.align === "right"
+                ? { right: pct(LAYOUT.padX) }
+                : { left: "50%", transform: "translateX(-50%)" }),
             top: pct(LAYOUT.cta.top),
             height: pct(LAYOUT.cta.height),
             paddingLeft: cqi(LAYOUT.cta.padX),
@@ -467,9 +491,11 @@ function CreativePreview({
             backgroundColor: cta.color,
             color: readableTextColor(cta.color),
             fontFamily: fontById(cta.fontId).family,
-            fontWeight: LAYOUT.cta.weight,
-            fontSize: cqi(LAYOUT.cta.size),
+            fontWeight: ctaStyle.weight,
+            fontSize: cqi(LAYOUT.cta.size * ctaStyle.sizeScale),
+            letterSpacing: `${ctaStyle.letterSpacing}em`,
             textTransform: cta.uppercase ? "uppercase" : "none",
+            textShadow: ctaStyle.shadow ? TEXT_SHADOW_CSS : "none",
           }}
         >
           {cta.text}
@@ -521,6 +547,7 @@ function MoodboardPreview({
     (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image",
   );
   const header = layers.find((layer): layer is TextLayer => layer.kind === "header");
+  const headerStyle = header ? resolveTextStyle(header) : null;
   const bandHeight = 100 / Math.max(photos.length, 1);
   const cqi = (value: number) => `${value * 100}cqi`;
 
@@ -554,20 +581,22 @@ function MoodboardPreview({
         ) : null,
       )}
 
-      {header?.visible && header.text.trim() && (
+      {header?.visible && headerStyle && header.text.trim() && (
         <div
-          className="absolute -translate-y-1/2 text-center"
+          className="absolute -translate-y-1/2"
           style={{
             left: `${MOODBOARD_LAYOUT.title.padX * 100}%`,
             right: `${MOODBOARD_LAYOUT.title.padX * 100}%`,
             top: `${MOODBOARD_LAYOUT.title.centerY * 100}%`,
             fontFamily: fontById(header.fontId).family,
-            fontWeight: MOODBOARD_LAYOUT.title.weight,
-            fontSize: cqi(MOODBOARD_LAYOUT.title.size),
+            fontWeight: headerStyle.weight,
+            fontSize: cqi(MOODBOARD_LAYOUT.title.size * headerStyle.sizeScale),
             lineHeight: MOODBOARD_LAYOUT.title.lineHeight,
+            letterSpacing: `${headerStyle.letterSpacing}em`,
+            textAlign: headerStyle.align,
             color: header.color,
             textTransform: header.uppercase ? "uppercase" : "none",
-            textShadow: "0 2px 20px rgba(0,0,0,0.35)",
+            textShadow: headerStyle.shadow ? TEXT_SHADOW_CSS : "none",
           }}
         >
           {header.text}
@@ -590,6 +619,11 @@ type LayerPatch = Partial<{
   fontId: string;
   uppercase: boolean;
   suggestions: string[];
+  sizeScale: number;
+  weight: number;
+  letterSpacing: number;
+  align: TextAlign;
+  shadow: boolean;
 }>;
 
 // Which edit sections start expanded. Keyed by layer id so moodboard photos
@@ -1018,6 +1052,10 @@ function EditorScreen({
                       onChange={(hex) => updateLayer(header.id, { color: hex })}
                     />
                   </div>
+                  <TextStyleControls
+                    layer={header}
+                    onChange={(patch, key) => updateLayer(header.id, patch, key)}
+                  />
                 </EditorSection>
               )}
             </>
@@ -1084,6 +1122,10 @@ function EditorScreen({
                   onChange={(hex) => updateLayer("header", { color: hex })}
                 />
               </div>
+              <TextStyleControls
+                layer={header}
+                onChange={(patch, key) => updateLayer("header", patch, key)}
+              />
             </EditorSection>
           )}
 
@@ -1120,6 +1162,10 @@ function EditorScreen({
                   onChange={(hex) => updateLayer("description", { color: hex })}
                 />
               </div>
+              <TextStyleControls
+                layer={description}
+                onChange={(patch, key) => updateLayer("description", patch, key)}
+              />
             </EditorSection>
           )}
 
@@ -1146,6 +1192,10 @@ function EditorScreen({
                 palette={template.palette}
                 value={cta.color}
                 onChange={(hex) => updateLayer("cta", { color: hex })}
+              />
+              <TextStyleControls
+                layer={cta}
+                onChange={(patch, key) => updateLayer("cta", patch, key)}
               />
             </EditorSection>
           )}
@@ -1245,6 +1295,123 @@ function ImageControls({
         <RotateCcw className="h-3.5 w-3.5" />
         Reset position
       </button>
+    </div>
+  );
+}
+
+// Type styling for a text layer: size, weight (limited to the font's weights),
+// letter spacing, alignment, drop shadow, and uppercase. Renders below the
+// existing font + colour controls in each text section.
+function TextStyleControls({
+  layer,
+  onChange,
+}: {
+  layer: TextLayer;
+  onChange: (patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const font = fontById(layer.fontId);
+  const style = resolveTextStyle(layer);
+  const alignments: ReadonlyArray<[TextAlign, typeof AlignLeft]> = [
+    ["left", AlignLeft],
+    ["center", AlignCenter],
+    ["right", AlignRight],
+  ];
+  return (
+    <div className="mt-4 space-y-4 border-t border-border pt-4">
+      <div>
+        <div className="mb-2 flex items-center justify-between text-[13px] font-medium text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <Type className="h-3.5 w-3.5" />
+            Size
+          </span>
+          <span className="tabular-nums">{Math.round(style.sizeScale * 100)}%</span>
+        </div>
+        <Slider
+          value={[style.sizeScale]}
+          min={0.5}
+          max={2}
+          step={0.01}
+          onValueChange={([value]) => onChange({ sizeScale: value }, `size-${layer.id}`)}
+        />
+      </div>
+
+      {font.weights.length > 1 && (
+        <div>
+          <p className="mb-2 text-[13px] font-medium text-muted-foreground">Weight</p>
+          <div className="flex flex-wrap gap-2">
+            {font.weights.map((w) => {
+              const active = style.weight === w;
+              return (
+                <button
+                  key={w}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => onChange({ weight: w })}
+                  style={{ fontWeight: w }}
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-[13px] transition",
+                    active
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-border text-foreground hover:bg-secondary",
+                  )}
+                >
+                  {WEIGHT_LABELS[w] ?? w}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <div className="mb-2 flex items-center justify-between text-[13px] font-medium text-muted-foreground">
+          <span>Letter spacing</span>
+          <span className="tabular-nums">{style.letterSpacing.toFixed(2)}em</span>
+        </div>
+        <Slider
+          value={[style.letterSpacing]}
+          min={-0.05}
+          max={0.3}
+          step={0.01}
+          onValueChange={([value]) => onChange({ letterSpacing: value }, `spacing-${layer.id}`)}
+        />
+      </div>
+
+      <div>
+        <p className="mb-2 text-[13px] font-medium text-muted-foreground">Alignment</p>
+        <div className="inline-flex gap-1 rounded-full border border-border p-1">
+          {alignments.map(([value, Icon]) => {
+            const active = style.align === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-label={`Align ${value}`}
+                aria-pressed={active}
+                onClick={() => onChange({ align: value })}
+                className={cn(
+                  "flex h-8 w-9 items-center justify-center rounded-full transition",
+                  active ? "bg-foreground text-background" : "text-foreground hover:bg-secondary",
+                )}
+              >
+                <Icon className="h-4 w-4" />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <span className="text-[14px] font-medium text-foreground">Drop shadow</span>
+        <Switch checked={style.shadow} onCheckedChange={(value) => onChange({ shadow: value })} />
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-[14px] font-medium text-foreground">Uppercase</span>
+        <Switch
+          checked={layer.uppercase}
+          onCheckedChange={(value) => onChange({ uppercase: value })}
+        />
+      </div>
     </div>
   );
 }

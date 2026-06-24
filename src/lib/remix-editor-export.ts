@@ -6,13 +6,16 @@ import {
   EXPORT_FORMATS,
   LAYOUT,
   MOODBOARD_LAYOUT,
+  TEXT_SHADOW,
   fontById,
   imageTransform,
   readableTextColor,
+  resolveTextStyle,
   type EditorLayer,
   type ExportFormat,
   type ImageTransform,
   type RemixEditorTemplate,
+  type ResolvedTextStyle,
   type TextLayer,
 } from "@/lib/remix-editor";
 
@@ -24,6 +27,21 @@ function parseRatio(aspectRatio: string): number {
 
 function primaryFamily(stack: string): string {
   return stack.split(",")[0]?.trim() ?? stack;
+}
+
+// Horizontal draw anchor (paired with ctx.textAlign = align) within a padded box.
+function alignX(align: ResolvedTextStyle["align"], leftPx: number, rightPx: number): number {
+  if (align === "left") return leftPx;
+  if (align === "right") return rightPx;
+  return (leftPx + rightPx) / 2;
+}
+
+// Apply (or clear) the text drop shadow for a given font size on the context.
+function applyTextShadow(ctx: CanvasRenderingContext2D, on: boolean, sizePx: number) {
+  if (!on) return;
+  ctx.shadowColor = TEXT_SHADOW.color;
+  ctx.shadowBlur = sizePx * TEXT_SHADOW.blurRatio;
+  ctx.shadowOffsetY = sizePx * TEXT_SHADOW.offsetYRatio;
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -182,27 +200,29 @@ async function exportMoodboard(
   );
   if (header && header.text.trim()) {
     const font = fontById(header.fontId);
-    const size = MOODBOARD_LAYOUT.title.size * width;
+    const style = resolveTextStyle(header);
+    const padX = MOODBOARD_LAYOUT.title.padX;
+    const size = MOODBOARD_LAYOUT.title.size * style.sizeScale * width;
     if (typeof document !== "undefined" && document.fonts) {
       await document.fonts
-        .load(`${MOODBOARD_LAYOUT.title.weight} ${size}px ${primaryFamily(font.family)}`)
+        .load(`${style.weight} ${size}px ${primaryFamily(font.family)}`)
         .catch(() => undefined);
     }
     const text = header.uppercase ? header.text.toUpperCase() : header.text;
-    ctx.font = `${MOODBOARD_LAYOUT.title.weight} ${size}px ${font.family}`;
-    const lines = wrapLines(ctx, text, (1 - 2 * MOODBOARD_LAYOUT.title.padX) * width);
+    ctx.save();
+    ctx.font = `${style.weight} ${size}px ${font.family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    const lines = wrapLines(ctx, text, (1 - 2 * padX) * width);
     const lineHeight = size * MOODBOARD_LAYOUT.title.lineHeight;
     const totalHeight = lines.length * lineHeight;
     const startY = MOODBOARD_LAYOUT.title.centerY * height - totalHeight / 2 + lineHeight / 2;
-    ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.35)";
-    ctx.shadowBlur = size * 0.25;
-    ctx.shadowOffsetY = size * 0.04;
+    applyTextShadow(ctx, style.shadow, size);
     ctx.fillStyle = header.color;
-    ctx.textAlign = "center";
+    ctx.textAlign = style.align;
     ctx.textBaseline = "middle";
+    const x = alignX(style.align, padX * width, (1 - padX) * width);
     lines.forEach((line, index) => {
-      ctx.fillText(line, width / 2, startY + index * lineHeight);
+      ctx.fillText(line, x, startY + index * lineHeight);
     });
     ctx.restore();
   }
@@ -246,7 +266,7 @@ export async function exportCreative(
       textLayers.map((layer) => {
         const font = fontById(layer.fontId);
         return document.fonts
-          .load(`${font.weight} 100px ${primaryFamily(font.family)}`)
+          .load(`${resolveTextStyle(layer).weight} 100px ${primaryFamily(font.family)}`)
           .catch(() => undefined);
       }),
     ).catch(() => undefined);
@@ -301,56 +321,78 @@ export async function exportCreative(
   const header = byId<TextLayer>("header");
   if (header?.visible && header.text.trim()) {
     const font = fontById(header.fontId);
-    const size = LAYOUT.header.size * width;
-    ctx.font = `${LAYOUT.header.weight} ${size}px ${font.family}`;
+    const style = resolveTextStyle(header);
+    const size = LAYOUT.header.size * style.sizeScale * width;
+    ctx.save();
+    ctx.font = `${style.weight} ${size}px ${font.family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    applyTextShadow(ctx, style.shadow, size);
     ctx.fillStyle = header.color;
-    ctx.textAlign = "center";
+    ctx.textAlign = style.align;
     ctx.textBaseline = "top";
     const text = header.uppercase ? header.text.toUpperCase() : header.text;
     const lines = wrapLines(ctx, text, (1 - 2 * LAYOUT.padX) * width);
     const lineHeight = size * LAYOUT.header.lineHeight;
+    const x = alignX(style.align, LAYOUT.padX * width, (1 - LAYOUT.padX) * width);
     lines.forEach((line, index) => {
-      ctx.fillText(line, width / 2, LAYOUT.header.top * height + index * lineHeight);
+      ctx.fillText(line, x, LAYOUT.header.top * height + index * lineHeight);
     });
+    ctx.restore();
   }
 
   // Description.
   const description = byId<TextLayer>("description");
   if (description?.visible && description.text.trim()) {
     const font = fontById(description.fontId);
-    const size = LAYOUT.description.size * width;
-    ctx.font = `${LAYOUT.description.weight} ${size}px ${font.family}`;
+    const style = resolveTextStyle(description);
+    const size = LAYOUT.description.size * style.sizeScale * width;
+    ctx.save();
+    ctx.font = `${style.weight} ${size}px ${font.family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    applyTextShadow(ctx, style.shadow, size);
     ctx.fillStyle = description.color;
-    ctx.textAlign = "center";
+    ctx.textAlign = style.align;
     ctx.textBaseline = "top";
     const text = description.uppercase ? description.text.toUpperCase() : description.text;
     const lines = wrapLines(ctx, text, (1 - 2 * LAYOUT.padX) * width);
     const lineHeight = size * LAYOUT.description.lineHeight;
+    const x = alignX(style.align, LAYOUT.padX * width, (1 - LAYOUT.padX) * width);
     lines.forEach((line, index) => {
-      ctx.fillText(line, width / 2, LAYOUT.description.top * height + index * lineHeight);
+      ctx.fillText(line, x, LAYOUT.description.top * height + index * lineHeight);
     });
+    ctx.restore();
   }
 
-  // Call to action (pill button).
+  // Call to action (pill button). Alignment positions the pill left/center/right.
   const cta = byId<TextLayer>("cta");
   if (cta?.visible && cta.text.trim()) {
     const font = fontById(cta.fontId);
-    const size = LAYOUT.cta.size * width;
+    const style = resolveTextStyle(cta);
+    const size = LAYOUT.cta.size * style.sizeScale * width;
     const label = cta.uppercase ? cta.text.toUpperCase() : cta.text;
-    ctx.font = `${LAYOUT.cta.weight} ${size}px ${font.family}`;
+    ctx.save();
+    ctx.font = `${style.weight} ${size}px ${font.family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
     const labelWidth = ctx.measureText(label).width;
     const pillHeight = LAYOUT.cta.height * height;
     const pillWidth = labelWidth + 2 * LAYOUT.cta.padX * width;
-    const pillX = (width - pillWidth) / 2;
     const pillY = LAYOUT.cta.top * height;
+    const pillX =
+      style.align === "left"
+        ? LAYOUT.padX * width
+        : style.align === "right"
+          ? (1 - LAYOUT.padX) * width - pillWidth
+          : (width - pillWidth) / 2;
     ctx.fillStyle = cta.color;
     ctx.beginPath();
     ctx.roundRect(pillX, pillY, pillWidth, pillHeight, pillHeight / 2);
     ctx.fill();
+    applyTextShadow(ctx, style.shadow, size);
     ctx.fillStyle = readableTextColor(cta.color);
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(label, width / 2, pillY + pillHeight / 2 + size * 0.05);
+    ctx.fillText(label, pillX + pillWidth / 2, pillY + pillHeight / 2 + size * 0.05);
+    ctx.restore();
   }
 
   const meta = EXPORT_FORMATS[format];
