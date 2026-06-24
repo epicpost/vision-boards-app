@@ -96,3 +96,4 @@ npm run dev
 If the dev server starts but API-backed data does not load, confirm `VITE_API_BASE_URL` points to a reachable backend and that you are signed in when viewing authenticated pages.
 
 If a production build fails in the Nitro/Vercel bundling step with a TanStack export mismatch, verify the TanStack package versions in `package.json` and the lockfile are aligned before changing app code.
+
