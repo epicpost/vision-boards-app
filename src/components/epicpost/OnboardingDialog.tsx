@@ -221,28 +221,28 @@ export function OnboardingDialog({
               Continue
             </button>
           ) : (
-            <>
-              <button
-                type="button"
-                disabled={data.interests.length < MIN_INTERESTS || isSubmitting}
-                onClick={() => finish(true)}
-                className="h-12 rounded-[14px] bg-[#e60023] hover:bg-[#ad081b] transition text-white font-semibold text-[15px] disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {isSubmitting
-                  ? "Finishing"
-                  : data.interests.length < MIN_INTERESTS
-                    ? `Pick ${MIN_INTERESTS} or more to continue`
-                    : "Finish"}
-              </button>
+            <div className="flex items-center justify-end gap-3">
               <button
                 type="button"
                 disabled={isSubmitting}
                 onClick={() => finish(false)}
-                className="text-sm font-semibold text-muted-foreground hover:text-foreground transition disabled:opacity-50"
+                className="px-4 h-12 rounded-[14px] text-sm font-semibold text-muted-foreground hover:text-foreground transition disabled:opacity-50"
               >
                 Skip for now
               </button>
-            </>
+              <button
+                type="button"
+                disabled={data.interests.length < MIN_INTERESTS || isSubmitting}
+                onClick={() => finish(true)}
+                className="px-6 h-12 rounded-[14px] bg-[#e60023] hover:bg-[#ad081b] transition text-white font-semibold text-[15px] disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {isSubmitting
+                  ? "Finishing"
+                  : data.interests.length < MIN_INTERESTS
+                    ? `Pick ${MIN_INTERESTS} or more`
+                    : "Finish"}
+              </button>
+            </div>
           )}
         </div>
       </DialogContent>
