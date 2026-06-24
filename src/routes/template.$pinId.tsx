@@ -913,7 +913,7 @@ function PinDetail() {
         <main className="px-3 md:px-6 pb-10">
           <div className="flex gap-3 items-start">
             <div className="w-full xl:w-4/5 2xl:w-4/6">
-              <article className="rounded-[16px] border border-border bg-background overflow-hidden">
+              <article className="border border-border bg-background overflow-hidden">
                 <div className="grid grid-cols-1 md:grid-cols-2">
                   {/* Image side */}
                   <div className="group/preview relative bg-white">

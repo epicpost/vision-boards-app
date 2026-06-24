@@ -236,7 +236,7 @@ export async function exportCreative(
           w: (1 - 2 * LAYOUT.padX) * width,
           h: (LAYOUT.image.bottom - LAYOUT.image.top) * height,
         },
-        0.03 * width,
+        0,
       );
     } catch {
       // Skip the image rather than failing the whole export.
