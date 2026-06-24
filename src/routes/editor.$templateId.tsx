@@ -277,10 +277,15 @@ function EditorSection({
 // ── canvas preview ───────────────────────────────────────────────────────────
 
 // An image positioned inside its frame, draggable to pan. The wrapper is the
-// clip "frame" (absolutely positioned by the caller); the inner <img> carries
+// "frame" (absolutely positioned by the caller); an inner clipped <img> carries
 // the move/zoom/rotate transform and is cover/contain-fit to the frame. Dragging
 // converts the pointer delta to frame-fraction units, so it works at any preview
 // scale and on touch.
+//
+// While dragging we also render the *whole* photo (dimmed, un-clipped) so the
+// user can see the parts that fall outside the frame instead of a hard crop. The
+// selection border lives in a high-z overlay so it always draws above the photo
+// and any text layered over the frame.
 function DraggableImage({
   layer,
   fit,
@@ -299,52 +304,92 @@ function DraggableImage({
   style?: React.CSSProperties;
 }) {
   const t = imageTransform(layer);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
-  const drag = useRef<{
-    startX: number;
-    startY: number;
-    baseX: number;
-    baseY: number;
-    w: number;
-    h: number;
-  } | null>(null);
+  const [box, setBox] = useState<{ w: number; h: number } | null>(null);
+  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const drag = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(null);
 
-  // The furthest the photo can pan (as a frame fraction) before its edge pulls
-  // inside the frame — for "cover" that means a gap appears; for "contain" it
-  // means the photo clips out. Either way we stop at the edge. Rotation is
-  // ignored here (clamped on the unrotated box), which is fine for the MVP.
-  function maxOffset(boxW: number, boxH: number): { x: number; y: number } {
+  // Cached images can finish before React's onLoad attaches, so read the natural
+  // size on mount too.
+  useEffect(() => {
     const img = imgRef.current;
-    if (!img || !img.naturalWidth || !img.naturalHeight) return { x: Infinity, y: Infinity };
-    const base =
-      fit === "cover"
-        ? Math.max(boxW / img.naturalWidth, boxH / img.naturalHeight)
-        : Math.min(boxW / img.naturalWidth, boxH / img.naturalHeight);
-    const dispW = img.naturalWidth * base * t.scale;
-    const dispH = img.naturalHeight * base * t.scale;
-    return { x: Math.abs(dispW - boxW) / (2 * boxW), y: Math.abs(dispH - boxH) / (2 * boxH) };
+    if (img?.complete && img.naturalWidth) {
+      setNatural({ w: img.naturalWidth, h: img.naturalHeight });
+    }
+  }, [layer.src]);
+
+  // Track the frame's pixel size so the photo can be drawn at its true scaled
+  // size (the way the canvas export does) rather than object-fit. ResizeObserver
+  // keeps it correct when the preview is resized.
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const measure = () => setBox({ w: el.clientWidth, h: el.clientHeight });
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // The base fit scale (cover/contain) of the photo within the frame.
+  function baseScale(nw: number, nh: number, boxW: number, boxH: number): number {
+    return fit === "cover" ? Math.max(boxW / nw, boxH / nh) : Math.min(boxW / nw, boxH / nh);
+  }
+
+  // The photo drawn at its full scaled size, centred in the frame, then panned
+  // and rotated — identical geometry to `drawImageCover`/`drawImageContain` in the
+  // export, so panning reveals real image (not the frame background) and the
+  // preview matches the download. Falls back to object-fit until measured.
+  function photoStyle(): React.CSSProperties {
+    if (!box || !natural) {
+      return {
+        width: "100%",
+        height: "100%",
+        objectFit: fit,
+        transform: transformCss(t),
+        transformOrigin: "center",
+      };
+    }
+    const base = baseScale(natural.w, natural.h, box.w, box.h);
+    return {
+      position: "absolute",
+      left: "50%",
+      top: "50%",
+      width: natural.w * base * t.scale,
+      height: natural.h * base * t.scale,
+      maxWidth: "none",
+      transform: `translate(-50%, -50%) translate(${t.offsetX * box.w}px, ${t.offsetY * box.h}px) rotate(${t.rotation}deg)`,
+    };
+  }
+
+  // The furthest the photo can pan (frame fraction) before its edge pulls inside
+  // the frame — cover would show a gap, contain would clip out. Stop at the edge.
+  function maxOffset(): { x: number; y: number } {
+    if (!box || !natural) return { x: Infinity, y: Infinity };
+    const base = baseScale(natural.w, natural.h, box.w, box.h);
+    const dispW = natural.w * base * t.scale;
+    const dispH = natural.h * base * t.scale;
+    return {
+      x: Math.abs(dispW - box.w) / (2 * box.w),
+      y: Math.abs(dispH - box.h) / (2 * box.h),
+    };
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
     onSelect();
-    const rect = event.currentTarget.getBoundingClientRect();
-    drag.current = {
-      startX: event.clientX,
-      startY: event.clientY,
-      baseX: t.offsetX,
-      baseY: t.offsetY,
-      w: rect.width,
-      h: rect.height,
-    };
+    drag.current = { startX: event.clientX, startY: event.clientY, baseX: t.offsetX, baseY: t.offsetY };
+    setDragging(true);
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
   function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
     const state = drag.current;
-    if (!state) return;
-    const dx = (event.clientX - state.startX) / state.w;
-    const dy = (event.clientY - state.startY) / state.h;
-    const limit = maxOffset(state.w, state.h);
+    if (!state || !box) return;
+    const dx = (event.clientX - state.startX) / box.w;
+    const dy = (event.clientY - state.startY) / box.h;
+    const limit = maxOffset();
     const clamp = (value: number, max: number) => Math.max(-max, Math.min(max, value));
     onPan(clamp(state.baseX + dx, limit.x), clamp(state.baseY + dy, limit.y));
   }
@@ -352,30 +397,60 @@ function DraggableImage({
   function endDrag(event: React.PointerEvent<HTMLDivElement>) {
     if (!drag.current) return;
     drag.current = null;
+    setDragging(false);
     event.currentTarget.releasePointerCapture(event.pointerId);
   }
 
+  const photo = photoStyle();
+
   return (
     <div
-      className={cn(
-        "absolute touch-none select-none overflow-hidden",
-        selected ? "cursor-grabbing ring-2 ring-inset ring-white/80" : "cursor-grab",
-        className,
-      )}
-      style={style}
+      ref={wrapperRef}
+      className={cn("absolute touch-none select-none cursor-grab", className)}
+      // Lift the whole frame above its neighbours while dragging so the dimmed
+      // overflow shows on top of the other bands.
+      style={{ ...style, zIndex: dragging ? 30 : style?.zIndex }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
     >
-      <img
-        ref={imgRef}
-        src={layer.src}
-        alt=""
-        draggable={false}
-        className={cn("h-full w-full", fit === "cover" ? "object-cover" : "object-contain")}
-        style={{ transform: transformCss(t), transformOrigin: "center" }}
-      />
+      {/* Whole photo, dimmed, un-clipped — only while dragging, so the user sees
+          the parts that fall outside the frame instead of a hard crop. */}
+      {dragging && box && natural && (
+        <img
+          src={layer.src}
+          alt=""
+          aria-hidden
+          draggable={false}
+          className="pointer-events-none absolute opacity-40"
+          style={photo}
+        />
+      )}
+
+      {/* The actual crop the frame keeps. */}
+      <div className="absolute inset-0 overflow-hidden">
+        <img
+          ref={imgRef}
+          src={layer.src}
+          alt=""
+          draggable={false}
+          onLoad={(event) =>
+            setNatural({
+              w: event.currentTarget.naturalWidth,
+              h: event.currentTarget.naturalHeight,
+            })
+          }
+          className={cn(box && natural ? "" : "h-full w-full")}
+          style={photo}
+        />
+      </div>
+
+      {/* Selection / drag border — high z so it sits above the photo and any
+          text overlaid on the frame. */}
+      {(selected || dragging) && (
+        <div className="pointer-events-none absolute inset-0 z-50 ring-2 ring-inset ring-white/90" />
+      )}
     </div>
   );
 }
