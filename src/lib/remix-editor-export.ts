@@ -2,13 +2,16 @@
 // (`LAYOUT`) the live DOM preview uses, so the download matches what's on screen.
 
 import {
+  DEFAULT_IMAGE_TRANSFORM,
   EXPORT_FORMATS,
   LAYOUT,
   MOODBOARD_LAYOUT,
   fontById,
+  imageTransform,
   readableTextColor,
   type EditorLayer,
   type ExportFormat,
+  type ImageTransform,
   type RemixEditorTemplate,
   type TextLayer,
 } from "@/lib/remix-editor";
@@ -51,22 +54,41 @@ function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number
   return lines;
 }
 
+// Draw an image scaled+rotated+panned around the box centre, reproducing the CSS
+// `transformCss` order (rotate → scale → pan) so the export matches the preview.
+// `baseScale` is the fit scale (cover or contain) computed by the caller.
+function drawTransformedImage(
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  box: { x: number; y: number; w: number; h: number },
+  baseScale: number,
+  transform: ImageTransform,
+) {
+  const scale = baseScale * transform.scale;
+  const dw = image.width * scale;
+  const dh = image.height * scale;
+  const cx = box.x + box.w / 2 + transform.offsetX * box.w;
+  const cy = box.y + box.h / 2 + transform.offsetY * box.h;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate((transform.rotation * Math.PI) / 180);
+  ctx.drawImage(image, -dw / 2, -dh / 2, dw, dh);
+  ctx.restore();
+}
+
 // Cover-fit an image into a box (crop to fill), clipped to the box bounds.
 function drawImageCover(
   ctx: CanvasRenderingContext2D,
   image: HTMLImageElement,
   box: { x: number; y: number; w: number; h: number },
+  transform: ImageTransform = DEFAULT_IMAGE_TRANSFORM,
 ) {
-  const scale = Math.max(box.w / image.width, box.h / image.height);
-  const dw = image.width * scale;
-  const dh = image.height * scale;
-  const dx = box.x + (box.w - dw) / 2;
-  const dy = box.y + (box.h - dh) / 2;
+  const baseScale = Math.max(box.w / image.width, box.h / image.height);
   ctx.save();
   ctx.beginPath();
   ctx.rect(box.x, box.y, box.w, box.h);
   ctx.clip();
-  ctx.drawImage(image, dx, dy, dw, dh);
+  drawTransformedImage(ctx, image, box, baseScale, transform);
   ctx.restore();
 }
 
@@ -76,22 +98,25 @@ function drawImageContain(
   box: { x: number; y: number; w: number; h: number },
   radius = 0,
   align: "center" | "left" = "center",
+  transform: ImageTransform = DEFAULT_IMAGE_TRANSFORM,
 ) {
-  const scale = Math.min(box.w / image.width, box.h / image.height);
-  const dw = image.width * scale;
-  const dh = image.height * scale;
-  const dx = align === "left" ? box.x : box.x + (box.w - dw) / 2;
-  const dy = box.y + (box.h - dh) / 2;
-  if (radius > 0) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.roundRect(dx, dy, dw, dh, radius);
-    ctx.clip();
+  const baseScale = Math.min(box.w / image.width, box.h / image.height);
+  // Left-aligned, untransformed images (the logo) keep the simple fast path.
+  if (align === "left" && transform === DEFAULT_IMAGE_TRANSFORM) {
+    const dw = image.width * baseScale;
+    const dh = image.height * baseScale;
+    const dx = box.x;
+    const dy = box.y + (box.h - dh) / 2;
     ctx.drawImage(image, dx, dy, dw, dh);
-    ctx.restore();
-  } else {
-    ctx.drawImage(image, dx, dy, dw, dh);
+    return;
   }
+  ctx.save();
+  ctx.beginPath();
+  if (radius > 0) ctx.roundRect(box.x, box.y, box.w, box.h, radius);
+  else ctx.rect(box.x, box.y, box.w, box.h);
+  ctx.clip();
+  drawTransformedImage(ctx, image, box, baseScale, transform);
+  ctx.restore();
 }
 
 function canvasToBlob(canvas: HTMLCanvasElement, format: ExportFormat): Promise<Blob> {
@@ -136,12 +161,17 @@ async function exportMoodboard(
     if (!layer.visible || layer.kind !== "image") continue;
     try {
       const img = await loadImage(layer.src);
-      drawImageCover(ctx, img, {
-        x: 0,
-        y: index * bandHeight,
-        w: width,
-        h: bandHeight,
-      });
+      drawImageCover(
+        ctx,
+        img,
+        {
+          x: 0,
+          y: index * bandHeight,
+          w: width,
+          h: bandHeight,
+        },
+        imageTransform(layer),
+      );
     } catch {
       // Skip a band rather than failing the whole export.
     }
@@ -237,6 +267,8 @@ export async function exportCreative(
           h: (LAYOUT.image.bottom - LAYOUT.image.top) * height,
         },
         0,
+        "center",
+        imageTransform(imageLayer),
       );
     } catch {
       // Skip the image rather than failing the whole export.

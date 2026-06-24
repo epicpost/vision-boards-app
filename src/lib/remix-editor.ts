@@ -37,9 +37,23 @@ interface BaseLayer {
   hideable: boolean;
 }
 
+// How an image is positioned *within* its frame. The frame (band / image box)
+// stays put; these four numbers move/zoom/rotate the photo inside it so the user
+// can choose which part shows. Absent === identity (the template default crop).
+export interface ImageTransform {
+  // Pan, as a fraction of the frame's width/height (0 = centered).
+  offsetX: number;
+  offsetY: number;
+  // Zoom multiplier on top of the base cover/contain fit (1 = default fit).
+  scale: number;
+  // Rotation in degrees.
+  rotation: number;
+}
+
 export interface ImageLayer extends BaseLayer {
   kind: "image";
   src: string;
+  transform?: ImageTransform;
 }
 
 export interface TextLayer extends BaseLayer {
@@ -311,9 +325,36 @@ export function hasRemixEditorTemplate(id: string): boolean {
   return id in REMIX_EDITOR_TEMPLATES;
 }
 
-// Deep clone so editor state never mutates the shared static config.
+// Deep clone so editor state never mutates the shared static config. The image
+// `transform` is cloned too, so undo snapshots and the live state never share
+// the same mutable object.
 export function cloneLayers(template: RemixEditorTemplate): EditorLayer[] {
-  return template.layers.map((layer) => ({ ...layer }));
+  return template.layers.map((layer) =>
+    layer.kind === "image"
+      ? { ...layer, transform: layer.transform ? { ...layer.transform } : undefined }
+      : { ...layer },
+  );
+}
+
+// Identity transform — the template's default crop with no pan/zoom/rotation.
+export const DEFAULT_IMAGE_TRANSFORM: ImageTransform = {
+  offsetX: 0,
+  offsetY: 0,
+  scale: 1,
+  rotation: 0,
+};
+
+// The effective transform for an image layer (identity when unset).
+export function imageTransform(layer: ImageLayer): ImageTransform {
+  return layer.transform ?? DEFAULT_IMAGE_TRANSFORM;
+}
+
+// The CSS `transform` value for an in-frame image. Shared by the live preview and
+// the canvas export so both position the photo identically. CSS applies this
+// right-to-left (rotate → scale → pan), so the pan is screen-aligned regardless
+// of rotation. Pair with `transform-origin: center`.
+export function transformCss(t: ImageTransform): string {
+  return `translate(${t.offsetX * 100}%, ${t.offsetY * 100}%) scale(${t.scale}) rotate(${t.rotation}deg)`;
 }
 
 // ── Shared canvas geometry ───────────────────────────────────────────────────

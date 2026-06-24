@@ -10,12 +10,15 @@ import {
   Flag,
   Loader2,
   Redo2,
+  RotateCcw,
+  RotateCw,
   SlidersHorizontal,
   Sparkles,
   ThumbsDown,
   ThumbsUp,
   Undo2,
   Wand2,
+  ZoomIn,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -28,23 +31,29 @@ import {
 import { cn } from "@/lib/utils";
 import {
   cloneLayers,
+  DEFAULT_IMAGE_TRANSFORM,
   editorFontsHref,
   EDITOR_FONTS,
   EXPORT_FORMATS,
   fontById,
   getRemixEditorTemplate,
+  imageTransform,
   isLightColor,
   LAYOUT,
   MOODBOARD_LAYOUT,
   readableTextColor,
+  transformCss,
   type EditorColor,
   type EditorLayer,
   type ExportFormat,
+  type ImageLayer,
+  type ImageTransform,
   type LayerKind,
   type RemixEditorTemplate,
   type TextLayer,
 } from "@/lib/remix-editor";
 import { exportCreative } from "@/lib/remix-editor-export";
+import { Slider } from "@/components/ui/slider";
 
 export const Route = createFileRoute("/editor/$templateId")({
   validateSearch: (search: Record<string, unknown>): { caption?: string } => ({
@@ -257,12 +266,122 @@ function EditorSection({
 
 // ── canvas preview ───────────────────────────────────────────────────────────
 
+// An image positioned inside its frame, draggable to pan. The wrapper is the
+// clip "frame" (absolutely positioned by the caller); the inner <img> carries
+// the move/zoom/rotate transform and is cover/contain-fit to the frame. Dragging
+// converts the pointer delta to frame-fraction units, so it works at any preview
+// scale and on touch.
+function DraggableImage({
+  layer,
+  fit,
+  selected,
+  onSelect,
+  onPan,
+  className,
+  style,
+}: {
+  layer: ImageLayer;
+  fit: "cover" | "contain";
+  selected: boolean;
+  onSelect: () => void;
+  onPan: (offsetX: number, offsetY: number) => void;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  const t = imageTransform(layer);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const drag = useRef<{
+    startX: number;
+    startY: number;
+    baseX: number;
+    baseY: number;
+    w: number;
+    h: number;
+  } | null>(null);
+
+  // The furthest the photo can pan (as a frame fraction) before its edge pulls
+  // inside the frame — for "cover" that means a gap appears; for "contain" it
+  // means the photo clips out. Either way we stop at the edge. Rotation is
+  // ignored here (clamped on the unrotated box), which is fine for the MVP.
+  function maxOffset(boxW: number, boxH: number): { x: number; y: number } {
+    const img = imgRef.current;
+    if (!img || !img.naturalWidth || !img.naturalHeight) return { x: Infinity, y: Infinity };
+    const base =
+      fit === "cover"
+        ? Math.max(boxW / img.naturalWidth, boxH / img.naturalHeight)
+        : Math.min(boxW / img.naturalWidth, boxH / img.naturalHeight);
+    const dispW = img.naturalWidth * base * t.scale;
+    const dispH = img.naturalHeight * base * t.scale;
+    return { x: Math.abs(dispW - boxW) / (2 * boxW), y: Math.abs(dispH - boxH) / (2 * boxH) };
+  }
+
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    onSelect();
+    const rect = event.currentTarget.getBoundingClientRect();
+    drag.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      baseX: t.offsetX,
+      baseY: t.offsetY,
+      w: rect.width,
+      h: rect.height,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    const state = drag.current;
+    if (!state) return;
+    const dx = (event.clientX - state.startX) / state.w;
+    const dy = (event.clientY - state.startY) / state.h;
+    const limit = maxOffset(state.w, state.h);
+    const clamp = (value: number, max: number) => Math.max(-max, Math.min(max, value));
+    onPan(clamp(state.baseX + dx, limit.x), clamp(state.baseY + dy, limit.y));
+  }
+
+  function endDrag(event: React.PointerEvent<HTMLDivElement>) {
+    if (!drag.current) return;
+    drag.current = null;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+
+  return (
+    <div
+      className={cn(
+        "absolute touch-none select-none overflow-hidden",
+        selected ? "cursor-grabbing ring-2 ring-inset ring-white/80" : "cursor-grab",
+        className,
+      )}
+      style={style}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+    >
+      <img
+        ref={imgRef}
+        src={layer.src}
+        alt=""
+        draggable={false}
+        className={cn("h-full w-full", fit === "cover" ? "object-cover" : "object-contain")}
+        style={{ transform: transformCss(t), transformOrigin: "center" }}
+      />
+    </div>
+  );
+}
+
 function CreativePreview({
   template,
   layers,
+  selectedId,
+  onSelect,
+  updateLayer,
 }: {
   template: RemixEditorTemplate;
   layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
 }) {
   const find = <T extends EditorLayer>(id: LayerKind) =>
     layers.find((layer) => layer.id === id) as T | undefined;
@@ -358,19 +477,23 @@ function CreativePreview({
       )}
 
       {image?.visible && (
-        <img
-          src={image.src}
-          alt=""
-          className="absolute object-contain"
+        <DraggableImage
+          layer={image}
+          fit="contain"
+          selected={selectedId === image.id}
+          onSelect={() => onSelect(image.id)}
+          onPan={(offsetX, offsetY) =>
+            updateLayer(
+              image.id,
+              { transform: { ...imageTransform(image), offsetX, offsetY } },
+              `pan-${image.id}`,
+            )
+          }
           style={{
             left: pct(LAYOUT.padX),
             right: pct(LAYOUT.padX),
             top: pct(LAYOUT.image.top),
             bottom: pct(1 - LAYOUT.image.bottom),
-            width: "auto",
-            height: "auto",
-            maxWidth: pct(1 - 2 * LAYOUT.padX),
-            margin: "0 auto",
           }}
         />
       )}
@@ -384,9 +507,15 @@ function CreativePreview({
 function MoodboardPreview({
   template,
   layers,
+  selectedId,
+  onSelect,
+  updateLayer,
 }: {
   template: RemixEditorTemplate;
   layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
 }) {
   const photos = layers.filter(
     (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image",
@@ -406,11 +535,20 @@ function MoodboardPreview({
     >
       {photos.map((photo, index) =>
         photo.visible ? (
-          <img
+          <DraggableImage
             key={photo.id}
-            src={photo.src}
-            alt=""
-            className="absolute left-0 w-full object-cover"
+            layer={photo}
+            fit="cover"
+            selected={selectedId === photo.id}
+            onSelect={() => onSelect(photo.id)}
+            onPan={(offsetX, offsetY) =>
+              updateLayer(
+                photo.id,
+                { transform: { ...imageTransform(photo), offsetX, offsetY } },
+                `pan-${photo.id}`,
+              )
+            }
+            className="left-0 w-full"
             style={{ top: `${index * bandHeight}%`, height: `${bandHeight}%` }}
           />
         ) : null,
@@ -446,6 +584,7 @@ type LayerPatch = Partial<{
   visible: boolean;
   hideable: boolean;
   src: string;
+  transform: ImageTransform;
   text: string;
   color: string;
   fontId: string;
@@ -493,6 +632,8 @@ function EditorScreen({
   );
   const [reaction, setReaction] = useState<"up" | "down" | null>(null);
   const [flagged, setFlagged] = useState(false);
+  // Which image is highlighted for editing (drives the preview selection ring).
+  const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const replaceTargetRef = useRef<string | null>(null);
@@ -742,9 +883,21 @@ function EditorScreen({
             )}
           >
             {template.layout === "moodboard" ? (
-              <MoodboardPreview template={template} layers={layers} />
+              <MoodboardPreview
+                template={template}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
             ) : (
-              <CreativePreview template={template} layers={layers} />
+              <CreativePreview
+                template={template}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
             )}
           </div>
 
@@ -826,6 +979,13 @@ function EditorScreen({
                       Replace photo
                     </button>
                   </div>
+                  <ImageControls
+                    layer={photo}
+                    onChange={(transform, key) => updateLayer(photo.id, { transform }, key)}
+                    onReset={() =>
+                      updateLayer(photo.id, { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                    }
+                  />
                 </EditorSection>
               ))}
 
@@ -886,6 +1046,11 @@ function EditorScreen({
                   Edit image
                 </button>
               </div>
+              <ImageControls
+                layer={image}
+                onChange={(transform, key) => updateLayer("image", { transform }, key)}
+                onReset={() => updateLayer("image", { transform: { ...DEFAULT_IMAGE_TRANSFORM } })}
+              />
             </EditorSection>
           )}
 
@@ -1015,6 +1180,71 @@ function EditorScreen({
           )}
         </aside>
       </div>
+    </div>
+  );
+}
+
+// Move/zoom/rotate controls for an image layer: a reposition hint, zoom and
+// rotation sliders, and a reset. Panning is done by dragging the image in the
+// preview; these cover the rest. Shared by moodboard bands and the poster image.
+function ImageControls({
+  layer,
+  onChange,
+  onReset,
+}: {
+  layer: ImageLayer;
+  onChange: (transform: ImageTransform, coalesceKey: string) => void;
+  onReset: () => void;
+}) {
+  const t = imageTransform(layer);
+  const isDefault =
+    t.offsetX === 0 && t.offsetY === 0 && t.scale === 1 && t.rotation === 0;
+  return (
+    <div className="mt-4 space-y-4">
+      <p className="text-[13px] text-muted-foreground">
+        Drag the image in the preview to reposition it.
+      </p>
+      <div>
+        <div className="mb-2 flex items-center justify-between text-[13px] font-medium text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <ZoomIn className="h-3.5 w-3.5" />
+            Zoom
+          </span>
+          <span className="tabular-nums">{t.scale.toFixed(2)}×</span>
+        </div>
+        <Slider
+          value={[t.scale]}
+          min={0.5}
+          max={3}
+          step={0.01}
+          onValueChange={([value]) => onChange({ ...t, scale: value }, `zoom-${layer.id}`)}
+        />
+      </div>
+      <div>
+        <div className="mb-2 flex items-center justify-between text-[13px] font-medium text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <RotateCw className="h-3.5 w-3.5" />
+            Rotation
+          </span>
+          <span className="tabular-nums">{Math.round(t.rotation)}°</span>
+        </div>
+        <Slider
+          value={[t.rotation]}
+          min={-180}
+          max={180}
+          step={1}
+          onValueChange={([value]) => onChange({ ...t, rotation: value }, `rotate-${layer.id}`)}
+        />
+      </div>
+      <button
+        type="button"
+        onClick={onReset}
+        disabled={isDefault}
+        className="inline-flex h-9 items-center gap-2 rounded-full border border-border px-4 text-[13px] font-semibold text-foreground transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <RotateCcw className="h-3.5 w-3.5" />
+        Reset position
+      </button>
     </div>
   );
 }
