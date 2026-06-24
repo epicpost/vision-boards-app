@@ -35,6 +35,7 @@ import {
   getRemixEditorTemplate,
   isLightColor,
   LAYOUT,
+  MOODBOARD_LAYOUT,
   readableTextColor,
   type EditorColor,
   type EditorLayer,
@@ -265,11 +266,11 @@ function CreativePreview({
 }) {
   const find = <T extends EditorLayer>(id: LayerKind) =>
     layers.find((layer) => layer.id === id) as T | undefined;
-  const image = find<Extract<EditorLayer, { id: "image" }>>("image");
+  const image = find<Extract<EditorLayer, { kind: "image" }>>("image");
   const header = find<TextLayer>("header");
   const description = find<TextLayer>("description");
   const cta = find<TextLayer>("cta");
-  const logo = find<Extract<EditorLayer, { id: "logo" }>>("logo");
+  const logo = find<Extract<EditorLayer, { kind: "logo" }>>("logo");
 
   const pct = (value: number) => `${value * 100}%`;
   const cqi = (value: number) => `${value * 100}cqi`;
@@ -377,6 +378,67 @@ function CreativePreview({
   );
 }
 
+// Moodboard preview — equal full-bleed photo bands with the city title centred
+// over the middle one. Geometry mirrors `exportMoodboard` so the download
+// matches the live preview.
+function MoodboardPreview({
+  template,
+  layers,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+}) {
+  const photos = layers.filter(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image",
+  );
+  const header = layers.find((layer): layer is TextLayer => layer.kind === "header");
+  const bandHeight = 100 / Math.max(photos.length, 1);
+  const cqi = (value: number) => `${value * 100}cqi`;
+
+  return (
+    <div
+      className="relative w-full overflow-hidden rounded-[20px] shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+      }}
+    >
+      {photos.map((photo, index) =>
+        photo.visible ? (
+          <img
+            key={photo.id}
+            src={photo.src}
+            alt=""
+            className="absolute left-0 w-full object-cover"
+            style={{ top: `${index * bandHeight}%`, height: `${bandHeight}%` }}
+          />
+        ) : null,
+      )}
+
+      {header?.visible && header.text.trim() && (
+        <div
+          className="absolute -translate-y-1/2 text-center"
+          style={{
+            left: `${MOODBOARD_LAYOUT.title.padX * 100}%`,
+            right: `${MOODBOARD_LAYOUT.title.padX * 100}%`,
+            top: `${MOODBOARD_LAYOUT.title.centerY * 100}%`,
+            fontFamily: fontById(header.fontId).family,
+            fontWeight: MOODBOARD_LAYOUT.title.weight,
+            fontSize: cqi(MOODBOARD_LAYOUT.title.size),
+            lineHeight: MOODBOARD_LAYOUT.title.lineHeight,
+            color: header.color,
+            textTransform: header.uppercase ? "uppercase" : "none",
+            textShadow: "0 2px 20px rgba(0,0,0,0.35)",
+          }}
+        >
+          {header.text}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── editor screen ────────────────────────────────────────────────────────────
 
 type LayerPatch = Partial<{
@@ -391,13 +453,18 @@ type LayerPatch = Partial<{
   suggestions: string[];
 }>;
 
-const DEFAULT_OPEN: Record<LayerKind, boolean> = {
-  image: true,
-  header: true,
-  description: false,
-  cta: false,
-  logo: false,
-};
+// Which edit sections start expanded. Keyed by layer id so moodboard photos
+// (which share the "image" kind) each get their own state.
+function defaultOpenSections(template: RemixEditorTemplate): Record<string, boolean> {
+  if (template.layout === "moodboard") {
+    const open: Record<string, boolean> = {};
+    template.layers.forEach((layer, index) => {
+      open[layer.id] = layer.kind === "header" || index === 0;
+    });
+    return open;
+  }
+  return { image: true, header: true, description: false, cta: false, logo: false };
+}
 
 function EditorScreen({
   template,
@@ -412,7 +479,7 @@ function EditorScreen({
     const cloned = cloneLayers(template);
     if (initialCaption?.trim()) {
       return cloned.map((layer) =>
-        layer.id === "header" ? { ...layer, text: initialCaption.trim() } : layer,
+        layer.kind === "header" ? { ...layer, text: initialCaption.trim() } : layer,
       );
     }
     return cloned;
@@ -421,12 +488,14 @@ function EditorScreen({
   const [future, setFuture] = useState<EditorLayer[][]>([]);
   const coalesceRef = useRef<{ key: string; time: number } | null>(null);
 
-  const [openSections, setOpenSections] = useState<Record<LayerKind, boolean>>(DEFAULT_OPEN);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() =>
+    defaultOpenSections(template),
+  );
   const [reaction, setReaction] = useState<"up" | "down" | null>(null);
   const [flagged, setFlagged] = useState(false);
   const [exporting, setExporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const replaceTargetRef = useRef<LayerKind | null>(null);
+  const replaceTargetRef = useRef<string | null>(null);
 
   // Load the editor's webfonts once so previews and the picker render correctly.
   useEffect(() => {
@@ -454,7 +523,7 @@ function EditorScreen({
     setLayers(next);
   }
 
-  function updateLayer(id: LayerKind, patch: LayerPatch, coalesceKey?: string) {
+  function updateLayer(id: string, patch: LayerPatch, coalesceKey?: string) {
     apply(
       layers.map((layer) => (layer.id === id ? ({ ...layer, ...patch } as EditorLayer) : layer)),
       coalesceKey,
@@ -482,12 +551,12 @@ function EditorScreen({
   function resetDesign() {
     apply(
       cloneLayers(template).map((layer) =>
-        layer.id === "header" && initialCaption?.trim()
+        layer.kind === "header" && initialCaption?.trim()
           ? { ...layer, text: initialCaption.trim() }
           : layer,
       ),
     );
-    setOpenSections(DEFAULT_OPEN);
+    setOpenSections(defaultOpenSections(template));
     toast.success("Design reset to the template defaults.");
   }
 
@@ -500,7 +569,7 @@ function EditorScreen({
     updateLayer(layer.id, { text: next });
   }
 
-  function openReplace(id: LayerKind) {
+  function openReplace(id: string) {
     replaceTargetRef.current = id;
     fileInputRef.current?.click();
   }
@@ -538,18 +607,21 @@ function EditorScreen({
     }
   }
 
-  const find = <T extends EditorLayer>(id: LayerKind) =>
-    layers.find((layer) => layer.id === id) as T | undefined;
-  const image = find<Extract<EditorLayer, { id: "image" }>>("image");
-  const header = find<TextLayer>("header");
-  const description = find<TextLayer>("description");
-  const cta = find<TextLayer>("cta");
-  const logo = find<Extract<EditorLayer, { id: "logo" }>>("logo");
+  const findByKind = <T extends EditorLayer>(kind: LayerKind) =>
+    layers.find((layer) => layer.kind === kind) as T | undefined;
+  const image = findByKind<Extract<EditorLayer, { kind: "image" }>>("image");
+  const header = findByKind<TextLayer>("header");
+  const description = findByKind<TextLayer>("description");
+  const cta = findByKind<TextLayer>("cta");
+  const logo = findByKind<Extract<EditorLayer, { kind: "logo" }>>("logo");
+  const photos = layers.filter(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image",
+  );
 
-  const toggleOpen = (id: LayerKind) =>
+  const toggleOpen = (id: string) =>
     setOpenSections((current) => ({ ...current, [id]: !current[id] }));
-  const isVisible = (id: LayerKind) => layers.find((layer) => layer.id === id)?.visible ?? false;
-  const toggleVisible = (id: LayerKind) =>
+  const isVisible = (id: string) => layers.find((layer) => layer.id === id)?.visible ?? false;
+  const toggleVisible = (id: string) =>
     updateLayer(id, { visible: !(layers.find((layer) => layer.id === id)?.visible ?? false) });
 
   return (
@@ -663,8 +735,17 @@ function EditorScreen({
             </button>
           </div>
 
-          <div className="w-full max-w-[360px]">
-            <CreativePreview template={template} layers={layers} />
+          <div
+            className={cn(
+              "w-full",
+              template.layout === "moodboard" ? "max-w-[300px]" : "max-w-[360px]",
+            )}
+          >
+            {template.layout === "moodboard" ? (
+              <MoodboardPreview template={template} layers={layers} />
+            ) : (
+              <CreativePreview template={template} layers={layers} />
+            )}
           </div>
 
           {/* Bottom toolbar */}
@@ -719,8 +800,71 @@ function EditorScreen({
             <h2 className="text-lg font-bold text-foreground">Edit creative</h2>
           </div>
 
+          {/* Moodboard: one replaceable photo per band + the city title. */}
+          {template.layout === "moodboard" && (
+            <>
+              {photos.map((photo) => (
+                <EditorSection
+                  key={photo.id}
+                  title={photo.label}
+                  open={openSections[photo.id] ?? false}
+                  onToggleOpen={() => toggleOpen(photo.id)}
+                  hideable={photo.hideable}
+                  visible={photo.visible}
+                  onToggleVisible={() => toggleVisible(photo.id)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+                      <img src={photo.src} alt="" className="h-full w-full object-cover" />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openReplace(photo.id)}
+                      className="inline-flex h-11 items-center gap-2 rounded-full border border-border px-5 text-[15px] font-semibold text-foreground transition hover:bg-secondary"
+                    >
+                      <Wand2 className="h-4 w-4" />
+                      Replace photo
+                    </button>
+                  </div>
+                </EditorSection>
+              ))}
+
+              {header && (
+                <EditorSection
+                  title={header.label}
+                  open={openSections[header.id] ?? true}
+                  onToggleOpen={() => toggleOpen(header.id)}
+                  hideable={header.hideable}
+                  visible={header.visible}
+                  onToggleVisible={() => toggleVisible(header.id)}
+                >
+                  <TextField
+                    label="Title text"
+                    value={header.text}
+                    onChange={(value) => updateLayer(header.id, { text: value }, "header-text")}
+                    onSuggest={() => cycleSuggestion(header)}
+                  />
+                  <div className="mt-4">
+                    <FontDropdown
+                      value={header.fontId}
+                      color={header.color}
+                      onChange={(fontId) => updateLayer(header.id, { fontId })}
+                    />
+                  </div>
+                  <div className="mt-4">
+                    <ColorSwatches
+                      palette={template.palette}
+                      value={header.color}
+                      onChange={(hex) => updateLayer(header.id, { color: hex })}
+                    />
+                  </div>
+                </EditorSection>
+              )}
+            </>
+          )}
+
           {/* Image */}
-          {image && (
+          {template.layout === "poster" && image && (
             <EditorSection
               title="Image"
               open={openSections.image}
@@ -746,7 +890,7 @@ function EditorScreen({
           )}
 
           {/* Header */}
-          {header && (
+          {template.layout === "poster" && header && (
             <EditorSection
               title="Header"
               open={openSections.header}

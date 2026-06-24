@@ -4,6 +4,7 @@
 import {
   EXPORT_FORMATS,
   LAYOUT,
+  MOODBOARD_LAYOUT,
   fontById,
   readableTextColor,
   type EditorLayer,
@@ -50,6 +51,25 @@ function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number
   return lines;
 }
 
+// Cover-fit an image into a box (crop to fill), clipped to the box bounds.
+function drawImageCover(
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  box: { x: number; y: number; w: number; h: number },
+) {
+  const scale = Math.max(box.w / image.width, box.h / image.height);
+  const dw = image.width * scale;
+  const dh = image.height * scale;
+  const dx = box.x + (box.w - dw) / 2;
+  const dy = box.y + (box.h - dh) / 2;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(box.x, box.y, box.w, box.h);
+  ctx.clip();
+  ctx.drawImage(image, dx, dy, dw, dh);
+  ctx.restore();
+}
+
 function drawImageContain(
   ctx: CanvasRenderingContext2D,
   image: HTMLImageElement,
@@ -74,12 +94,102 @@ function drawImageContain(
   }
 }
 
+function canvasToBlob(canvas: HTMLCanvasElement, format: ExportFormat): Promise<Blob> {
+  const meta = EXPORT_FORMATS[format];
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("Could not export the creative."));
+      },
+      meta.mime,
+      meta.quality,
+    );
+  });
+}
+
+// Rasterize a moodboard creative: equal full-bleed photo bands with the city
+// title centred over the middle band — mirroring `MoodboardPreview`.
+async function exportMoodboard(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  // Order matters: `layers` keeps the template order, so band index = position.
+  const photoLayers = layers.filter((layer) => layer.kind === "image");
+  const bandHeight = height / Math.max(photoLayers.length, 1);
+  for (let index = 0; index < photoLayers.length; index++) {
+    const layer = photoLayers[index];
+    if (!layer.visible || layer.kind !== "image") continue;
+    try {
+      const img = await loadImage(layer.src);
+      drawImageCover(ctx, img, {
+        x: 0,
+        y: index * bandHeight,
+        w: width,
+        h: bandHeight,
+      });
+    } catch {
+      // Skip a band rather than failing the whole export.
+    }
+  }
+
+  const header = layers.find(
+    (layer): layer is TextLayer => layer.kind === "header" && layer.visible,
+  );
+  if (header && header.text.trim()) {
+    const font = fontById(header.fontId);
+    const size = MOODBOARD_LAYOUT.title.size * width;
+    if (typeof document !== "undefined" && document.fonts) {
+      await document.fonts
+        .load(`${MOODBOARD_LAYOUT.title.weight} ${size}px ${primaryFamily(font.family)}`)
+        .catch(() => undefined);
+    }
+    const text = header.uppercase ? header.text.toUpperCase() : header.text;
+    ctx.font = `${MOODBOARD_LAYOUT.title.weight} ${size}px ${font.family}`;
+    const lines = wrapLines(ctx, text, (1 - 2 * MOODBOARD_LAYOUT.title.padX) * width);
+    const lineHeight = size * MOODBOARD_LAYOUT.title.lineHeight;
+    const totalHeight = lines.length * lineHeight;
+    const startY = MOODBOARD_LAYOUT.title.centerY * height - totalHeight / 2 + lineHeight / 2;
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.35)";
+    ctx.shadowBlur = size * 0.25;
+    ctx.shadowOffsetY = size * 0.04;
+    ctx.fillStyle = header.color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    lines.forEach((line, index) => {
+      ctx.fillText(line, width / 2, startY + index * lineHeight);
+    });
+    ctx.restore();
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
 export async function exportCreative(
   template: RemixEditorTemplate,
   layers: EditorLayer[],
   format: ExportFormat = "png",
   width = 1080,
 ): Promise<Blob> {
+  if (template.layout === "moodboard") {
+    return exportMoodboard(template, layers, format, width);
+  }
+
   const ratio = parseRatio(template.aspectRatio);
   const height = Math.round(width / ratio);
 
@@ -113,7 +223,7 @@ export async function exportCreative(
   }
 
   // Product image.
-  const imageLayer = byId<Extract<EditorLayer, { id: "image" }>>("image");
+  const imageLayer = byId<Extract<EditorLayer, { kind: "image" }>>("image");
   if (imageLayer?.visible) {
     try {
       const img = await loadImage(imageLayer.src);
@@ -134,7 +244,7 @@ export async function exportCreative(
   }
 
   // Logo (top-left).
-  const logoLayer = byId<Extract<EditorLayer, { id: "logo" }>>("logo");
+  const logoLayer = byId<Extract<EditorLayer, { kind: "logo" }>>("logo");
   if (logoLayer?.visible) {
     try {
       const logo = await loadImage(logoLayer.src);

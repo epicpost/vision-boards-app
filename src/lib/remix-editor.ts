@@ -25,7 +25,12 @@ export interface EditorColor {
 }
 
 interface BaseLayer {
-  id: LayerKind;
+  // Unique within a template. For single-slot poster templates this equals the
+  // layer's `kind`; moodboard templates have several "image" layers, so they use
+  // distinct ids (photo-1, photo-2, …) while sharing the "image" kind.
+  id: string;
+  // What the layer is — drives which controls and renderer the editor uses.
+  kind: LayerKind;
   label: string;
   visible: boolean;
   // Whether the section can be toggled off the creative (the eye toggle).
@@ -33,12 +38,12 @@ interface BaseLayer {
 }
 
 export interface ImageLayer extends BaseLayer {
-  id: "image";
+  kind: "image";
   src: string;
 }
 
 export interface TextLayer extends BaseLayer {
-  id: "header" | "description" | "cta";
+  kind: "header" | "description" | "cta";
   text: string;
   // For header/description this is the text colour; for the CTA it's the
   // button's background colour (label colour is derived for contrast).
@@ -50,7 +55,7 @@ export interface TextLayer extends BaseLayer {
 }
 
 export interface LogoLayer extends BaseLayer {
-  id: "logo";
+  kind: "logo";
   src: string;
 }
 
@@ -76,9 +81,15 @@ export const EXPORT_FORMATS: Record<ExportFormat, ExportFormatMeta> = {
   webp: { id: "webp", label: "WebP", mime: "image/webp", extension: "webp", quality: 0.92 },
 };
 
+// How a template's canvas is composed. "poster" is the single product-shot
+// layout (header / description / CTA over one image); "moodboard" is a
+// full-bleed vertical stack of photo bands with a city title overlaid.
+export type TemplateLayout = "poster" | "moodboard";
+
 export interface RemixEditorTemplate {
   id: string;
   title: string;
+  layout: TemplateLayout;
   // CSS aspect-ratio string, e.g. "4 / 5".
   aspectRatio: string;
   // Canvas background fill (solid colour for the MVP).
@@ -151,75 +162,59 @@ export function isLightColor(hex: string): boolean {
   return colorLuminance(hex) > 0.62;
 }
 
+// Barcelona "City Mood Board" — a full-bleed vertical stack of three city
+// photos with the city name set large across the middle band. Each band is an
+// independently replaceable photo; the title is live, editable text.
 const TEMPLATE_28: RemixEditorTemplate = {
   id: "11000000-0000-0000-0000-000000000028",
-  title: "Upgrade to Chickpea",
-  aspectRatio: "4 / 5",
-  background: "#1f7a5e",
+  title: "City Mood Board",
+  layout: "moodboard",
+  aspectRatio: "9 / 16",
+  background: "#0e1413",
   palette: [
-    { label: "Coral", value: "#e8542a" },
-    { label: "Teal", value: "#1f7a5e" },
-    { label: "Mist", value: "#c9c9c9" },
-    { label: "Ink", value: "#141414" },
     { label: "Paper", value: "#ffffff" },
+    { label: "Sand", value: "#f5ecd9" },
+    { label: "Coral", value: "#e8542a" },
+    { label: "Sky", value: "#1f7a5e" },
+    { label: "Ink", value: "#141414" },
   ],
   formats: ["png", "jpeg", "webp"],
   layers: [
     {
-      id: "image",
-      label: "Image",
+      id: "photo-1",
+      kind: "image",
+      label: "Top photo",
       visible: true,
-      hideable: true,
-      src: "/templates/shared/Supermercado.jpg",
+      hideable: false,
+      src: "/templates/shared/barcelona-skyline.jpg",
+    },
+    {
+      id: "photo-2",
+      kind: "image",
+      label: "Middle photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/Beach Quotes.jpg",
+    },
+    {
+      id: "photo-3",
+      kind: "image",
+      label: "Bottom photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/barcelona-park.jpg",
     },
     {
       id: "header",
-      label: "Header",
+      kind: "header",
+      label: "City name",
       visible: true,
       hideable: true,
-      text: "Upgrade to chickpea",
+      text: "Barcelona",
       color: "#ffffff",
       fontId: "anton",
       uppercase: true,
-      suggestions: [
-        "Upgrade to chickpea",
-        "Pasta, but better",
-        "More protein, same comfort",
-        "Real food, real fuel",
-      ],
-    },
-    {
-      id: "description",
-      label: "Description",
-      visible: true,
-      hideable: true,
-      text: "20g protein · 13g fiber · made from chickpeas",
-      color: "#eafff6",
-      fontId: "poppins",
-      uppercase: false,
-      suggestions: [
-        "20g protein · 13g fiber · made from chickpeas",
-        "Half the carbs of regular pasta",
-        "Plant-based goodness in every bite",
-      ],
-    },
-    {
-      id: "cta",
-      label: "Call to action",
-      visible: true,
-      hideable: true,
-      text: "Learn more",
-      color: "#e8542a",
-      fontId: "poppins",
-      uppercase: false,
-      suggestions: ["Learn more", "Shop now", "Try the swap", "Find in store"],
-    },
-    {
-      id: "logo",
-      label: "Logo",
-      visible: false,
-      hideable: true,
-      src: "/transparent-logo.png",
+      suggestions: ["Barcelona", "Lisbon", "Tokyo", "New York", "Marrakech"],
     },
   ],
 };
@@ -227,6 +222,7 @@ const TEMPLATE_28: RemixEditorTemplate = {
 const TEMPLATE_205: RemixEditorTemplate = {
   id: "13000000-0000-0000-0000-000000000205",
   title: "Explore the Wild",
+  layout: "poster",
   aspectRatio: "4 / 5",
   background: "#13303a",
   palette: [
@@ -240,6 +236,7 @@ const TEMPLATE_205: RemixEditorTemplate = {
   layers: [
     {
       id: "image",
+      kind: "image",
       label: "Image",
       visible: true,
       hideable: true,
@@ -247,6 +244,7 @@ const TEMPLATE_205: RemixEditorTemplate = {
     },
     {
       id: "header",
+      kind: "header",
       label: "Header",
       visible: true,
       hideable: true,
@@ -263,6 +261,7 @@ const TEMPLATE_205: RemixEditorTemplate = {
     },
     {
       id: "description",
+      kind: "description",
       label: "Description",
       visible: true,
       hideable: true,
@@ -278,6 +277,7 @@ const TEMPLATE_205: RemixEditorTemplate = {
     },
     {
       id: "cta",
+      kind: "cta",
       label: "Call to action",
       visible: true,
       hideable: true,
@@ -289,6 +289,7 @@ const TEMPLATE_205: RemixEditorTemplate = {
     },
     {
       id: "logo",
+      kind: "logo",
       label: "Logo",
       visible: false,
       hideable: true,
@@ -326,4 +327,12 @@ export const LAYOUT = {
   description: { top: 0.34, size: 0.033, lineHeight: 1.3, weight: 500 },
   cta: { top: 0.43, height: 0.07, size: 0.032, padX: 0.05, weight: 600 },
   image: { top: 0.53, bottom: 0.95 },
+} as const;
+
+// ── Moodboard geometry ───────────────────────────────────────────────────────
+// Photos fill the canvas as equal, edge-to-edge horizontal bands; the city
+// title is centred over the middle band. `padX` keeps long titles off the edges.
+export const MOODBOARD_LAYOUT = {
+  bands: 3,
+  title: { centerY: 0.5, size: 0.135, lineHeight: 1, weight: 800, padX: 0.04 },
 } as const;
