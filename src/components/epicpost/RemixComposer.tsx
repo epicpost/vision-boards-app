@@ -516,7 +516,7 @@ export function RemixComposer({
                 <X className="h-3 w-3" strokeWidth={2.6} />
               </button>
               {isColorPaletteOpen && captionColorOptions.length > 0 && (
-                <div className="absolute bottom-full left-0 z-10 mb-2 w-max max-w-[200px] rounded-xl border border-border bg-popover p-2 shadow-md">
+                <div className="absolute bottom-full left-0 z-10 mb-2 w-max max-w-[200px] rounded-[16px] border border-border bg-popover p-2 shadow-md">
                   {templateColorOptions.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
                       {templateColorOptions.map((option) => renderColorSwatch(option))}
