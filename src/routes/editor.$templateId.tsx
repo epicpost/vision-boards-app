@@ -5,6 +5,8 @@ import {
   AlignLeft,
   AlignRight,
   ArrowLeft,
+  BarChart3,
+  Calendar,
   Check,
   ChevronDown,
   ChevronRight,
@@ -14,11 +16,22 @@ import {
   Eye,
   EyeOff,
   Flag,
+  FolderInput,
+  Globe,
+  Instagram,
+  Link2,
   Loader2,
+  Lock,
+  MoreHorizontal,
+  Plus,
   Redo2,
   RotateCcw,
   RotateCw,
+  Search,
+  Settings,
+  Share2,
   SlidersHorizontal,
+  Smartphone,
   Sparkles,
   ThumbsDown,
   ThumbsUp,
@@ -35,6 +48,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import {
   cloneLayers,
@@ -222,6 +236,229 @@ function DownloadFormatMenu({
         })}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function ShareMenu({
+  formats,
+  exporting,
+  onDownload,
+}: {
+  formats: ExportFormat[];
+  exporting: boolean;
+  onDownload: (format: ExportFormat) => void;
+}) {
+  const [accessOpen, setAccessOpen] = useState(false);
+  const [access, setAccess] = useState<"private" | "public">("private");
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success("Link copied to clipboard");
+    } catch {
+      toast.error("Could not copy the link.");
+    }
+  }
+
+  const accessLabel =
+    access === "private" ? "Only you can access" : "Anyone with the link";
+
+  const actions: { key: string; label: string; icon: React.ReactNode; onClick?: () => void }[] = [
+    {
+      key: "instagram",
+      label: "Instagram",
+      icon: <Instagram className="h-5 w-5" />,
+    },
+    {
+      key: "public",
+      label: "Public view link",
+      icon: <Link2 className="h-5 w-5" />,
+      onClick: copyLink,
+    },
+    {
+      key: "schedule",
+      label: "Schedule",
+      icon: <Calendar className="h-5 w-5" />,
+    },
+    {
+      key: "move",
+      label: "Move",
+      icon: <FolderInput className="h-5 w-5" />,
+    },
+    {
+      key: "phone",
+      label: "Send to phone",
+      icon: <Smartphone className="h-5 w-5" />,
+    },
+    {
+      key: "more",
+      label: "See all",
+      icon: <MoreHorizontal className="h-5 w-5" />,
+    },
+  ];
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex h-11 shrink-0 items-center gap-2 rounded-full bg-primary px-5 text-base font-bold text-primary-foreground transition hover:brightness-90"
+        >
+          <Share2 className="h-5 w-5" />
+          Share
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[360px] rounded-2xl p-5">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-foreground">Share design</h3>
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-sm font-medium text-foreground">
+              <BarChart3 className="h-4 w-4" />0 visitors
+            </span>
+            <button
+              type="button"
+              aria-label="Share settings"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-foreground transition hover:bg-secondary"
+            >
+              <Settings className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* People with access */}
+        <p className="mt-4 text-sm font-semibold text-foreground">People with access</p>
+        <div className="mt-2 flex items-center gap-2 rounded-xl border border-border px-3 py-2.5">
+          <Search className="h-4 w-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Add people"
+            className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          />
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#6b5b54] text-sm font-semibold text-white">
+            C
+          </span>
+          <button
+            type="button"
+            aria-label="Add people"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-foreground transition hover:bg-secondary"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Access level */}
+        <p className="mt-4 text-sm font-semibold text-foreground">Access level</p>
+        <div className="relative mt-2">
+          <button
+            type="button"
+            onClick={() => setAccessOpen((value) => !value)}
+            className="flex w-full items-center gap-3 rounded-xl bg-secondary px-3 py-3 text-left transition hover:brightness-95"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background">
+              {access === "private" ? (
+                <Lock className="h-4 w-4" />
+              ) : (
+                <Globe className="h-4 w-4" />
+              )}
+            </span>
+            <span className="flex-1 text-sm font-medium text-foreground">{accessLabel}</span>
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          </button>
+          {accessOpen && (
+            <div className="absolute left-0 right-0 top-full z-10 mt-1 overflow-hidden rounded-xl border border-border bg-background shadow-lg">
+              <button
+                type="button"
+                onClick={() => {
+                  setAccess("private");
+                  setAccessOpen(false);
+                }}
+                className="flex w-full items-start gap-3 px-3 py-3 text-left transition hover:bg-secondary"
+              >
+                <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+                <span className="flex-1">
+                  <span className="block text-sm font-semibold text-foreground">
+                    Only you can access
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    Only you can access the design using this link.
+                  </span>
+                </span>
+                {access === "private" && <Check className="h-4 w-4 text-foreground" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAccess("public");
+                  setAccessOpen(false);
+                }}
+                className="flex w-full items-start gap-3 px-3 py-3 text-left transition hover:bg-secondary"
+              >
+                <Globe className="mt-0.5 h-4 w-4 shrink-0" />
+                <span className="flex-1">
+                  <span className="block text-sm font-semibold text-foreground">
+                    Anyone with the link
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    Anyone can access the design using this link. No sign in required.
+                  </span>
+                </span>
+                {access === "public" && <Check className="h-4 w-4 text-foreground" />}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Copy link */}
+        <button
+          type="button"
+          onClick={copyLink}
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-primary py-3 text-base font-bold text-primary-foreground transition hover:brightness-90"
+        >
+          <Link2 className="h-5 w-5" />
+          Copy link
+        </button>
+
+        <div className="my-4 border-t border-border" />
+
+        {/* Action grid */}
+        <div className="grid grid-cols-4 gap-y-4">
+          <DownloadFormatMenu formats={formats} align="center" onSelect={onDownload}>
+            <button
+              type="button"
+              disabled={exporting}
+              className="flex flex-col items-center gap-1.5 text-center disabled:opacity-60"
+            >
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary text-foreground">
+                {exporting ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Download className="h-5 w-5" />
+                )}
+              </span>
+              <span className="text-xs font-medium text-foreground">Download</span>
+            </button>
+          </DownloadFormatMenu>
+          {actions.map((action) => (
+            <button
+              key={action.key}
+              type="button"
+              onClick={action.onClick}
+              className="flex flex-col items-center gap-1.5 text-center"
+            >
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary text-foreground">
+                {action.icon}
+              </span>
+              <span className="text-xs font-medium leading-tight text-foreground">
+                {action.label}
+              </span>
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -969,21 +1206,11 @@ function EditorScreen({
           </div>
           <SaveStatus status={draftStatus} />
         </div>
-        <DownloadFormatMenu formats={template.formats} align="end" onSelect={handleDownload}>
-          <button
-            type="button"
-            disabled={exporting}
-            className="flex h-11 shrink-0 items-center gap-2 rounded-full bg-primary px-5 text-base font-bold text-primary-foreground transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {exporting ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Download className="h-5 w-5" />
-            )}
-            Download
-            <ChevronDown className="h-4 w-4 opacity-80" />
-          </button>
-        </DownloadFormatMenu>
+        <ShareMenu
+          formats={template.formats}
+          exporting={exporting}
+          onDownload={handleDownload}
+        />
       </header>
 
       <div className="flex flex-1 flex-col lg:min-h-0 lg:flex-row">
