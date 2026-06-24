@@ -277,7 +277,7 @@ function CreativePreview({
 
   return (
     <div
-      className="relative w-full overflow-hidden rounded-[20px] shadow-2xl"
+      className="relative w-full overflow-hidden shadow-2xl"
       style={{
         aspectRatio: template.aspectRatio,
         background: template.background,
@@ -361,7 +361,7 @@ function CreativePreview({
         <img
           src={image.src}
           alt=""
-          className="absolute rounded-[12px] object-contain"
+          className="absolute object-contain"
           style={{
             left: pct(LAYOUT.padX),
             right: pct(LAYOUT.padX),
@@ -397,7 +397,7 @@ function MoodboardPreview({
 
   return (
     <div
-      className="relative w-full overflow-hidden rounded-[20px] shadow-2xl"
+      className="relative w-full overflow-hidden shadow-2xl"
       style={{
         aspectRatio: template.aspectRatio,
         background: template.background,
