@@ -238,6 +238,62 @@ export const WEIGHT_LABELS: Record<number, string> = {
   900: "Black",
 };
 
+// The quoted primary family of a CSS stack (e.g. "'Anton'"), used for measuring
+// and for `FontFaceSet.check` (which only tells the truth when given a single,
+// specific family — a stack including "sans-serif" always reports loaded).
+function fontPrimary(font: EditorFont): string {
+  return font.family.split(",")[0].trim();
+}
+
+let measureCtx: CanvasRenderingContext2D | null = null;
+function getMeasureCtx(): CanvasRenderingContext2D | null {
+  if (typeof document === "undefined") return null;
+  if (!measureCtx) measureCtx = document.createElement("canvas").getContext("2d");
+  return measureCtx;
+}
+
+// When the user switches a text layer's font, return the `sizeScale` that keeps
+// the rendered text the same width — so its proportion to the layout is
+// preserved and a wider face doesn't overflow the frame. Width scales linearly
+// with font size for a given face, so the new scale is just the current scale
+// times the old/new single-line width ratio (measured at a reference size).
+//
+// Async because the target face (a specific family + weight) may not be loaded
+// yet — Google fonts load per-weight on demand. Resolves to the layer's current
+// scale unchanged whenever it can't measure reliably (no DOM, empty text, or a
+// face that fails to load), so it is never a wrong guess — only a no-op fallback.
+export async function sizeScaleForFontChange(
+  layer: TextLayer,
+  newFontId: string,
+): Promise<number> {
+  const current = resolveTextStyle(layer);
+  const ctx = getMeasureCtx();
+  const display = (layer.uppercase ? layer.text.toUpperCase() : layer.text).trim();
+  if (!ctx || !display || typeof document === "undefined" || !("fonts" in document)) {
+    return current.sizeScale;
+  }
+  const oldFont = fontById(layer.fontId);
+  const newFont = fontById(newFontId);
+  const newWeight = resolveTextStyle({ ...layer, fontId: newFontId }).weight;
+  const oldFace = `${current.weight} 100px ${fontPrimary(oldFont)}`;
+  const newFace = `${newWeight} 100px ${fontPrimary(newFont)}`;
+  try {
+    await Promise.all([document.fonts.load(oldFace), document.fonts.load(newFace)]);
+  } catch {
+    // Fall through — measure with whatever is available.
+  }
+  if (!document.fonts.check(oldFace) || !document.fonts.check(newFace)) {
+    return current.sizeScale;
+  }
+  ctx.font = `${current.weight} 100px ${oldFont.family}`;
+  const widthOld = ctx.measureText(display).width;
+  ctx.font = `${newWeight} 100px ${newFont.family}`;
+  const widthNew = ctx.measureText(display).width;
+  if (!widthOld || !widthNew) return current.sizeScale;
+  // Keep within the size slider's range so the control stays consistent.
+  return Math.min(2, Math.max(0.5, current.sizeScale * (widthOld / widthNew)));
+}
+
 // Perceived brightness (0–1) of a hex colour.
 export function colorLuminance(hex: string): number {
   const normalized = hex.replace("#", "");

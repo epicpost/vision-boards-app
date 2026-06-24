@@ -48,6 +48,7 @@ import {
   nearestWeight,
   readableTextColor,
   resolveTextStyle,
+  sizeScaleForFontChange,
   TEXT_SHADOW_CSS,
   transformCss,
   WEIGHT_LABELS,
@@ -780,6 +781,20 @@ function EditorScreen({
     );
   }
 
+  // Switching a text layer's font also rescales it so the text keeps the same
+  // width (proportion to the layout); both changes land in one undo step. The
+  // size fit is async (it may need to load the target font weight first).
+  function changeFont(id: string, fontId: string) {
+    const layer = layers.find((current) => current.id === id);
+    if (layer && (layer.kind === "header" || layer.kind === "description" || layer.kind === "cta")) {
+      void sizeScaleForFontChange(layer, fontId).then((sizeScale) =>
+        updateLayer(id, { fontId, sizeScale }),
+      );
+    } else {
+      updateLayer(id, { fontId });
+    }
+  }
+
   function undo() {
     if (!past.length) return;
     const previous = past[past.length - 1];
@@ -1117,7 +1132,7 @@ function EditorScreen({
                     <FontDropdown
                       value={header.fontId}
                       color={header.color}
-                      onChange={(fontId) => updateLayer(header.id, { fontId })}
+                      onChange={(fontId) => changeFont(header.id, fontId)}
                     />
                   </div>
                   <div className="mt-4">
@@ -1187,7 +1202,7 @@ function EditorScreen({
                 <FontDropdown
                   value={header.fontId}
                   color={header.color}
-                  onChange={(fontId) => updateLayer("header", { fontId })}
+                  onChange={(fontId) => changeFont("header", fontId)}
                 />
               </div>
               <div className="mt-4">
@@ -1227,7 +1242,7 @@ function EditorScreen({
                 <FontDropdown
                   value={description.fontId}
                   color={description.color}
-                  onChange={(fontId) => updateLayer("description", { fontId })}
+                  onChange={(fontId) => changeFont("description", fontId)}
                 />
               </div>
               <div className="mt-4">
