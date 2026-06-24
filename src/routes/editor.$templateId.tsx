@@ -5,8 +5,11 @@ import {
   AlignLeft,
   AlignRight,
   ArrowLeft,
+  Check,
   ChevronDown,
   ChevronRight,
+  CloudOff,
+  CloudUpload,
   Download,
   Eye,
   EyeOff,
@@ -63,6 +66,7 @@ import {
   type TextLayer,
 } from "@/lib/remix-editor";
 import { exportCreative } from "@/lib/remix-editor-export";
+import { useEditorDraft } from "@/lib/use-editor-draft";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 
@@ -682,6 +686,40 @@ function MoodboardPreview({
   );
 }
 
+// A compact "Saving… / Saved / Offline" pill reflecting the autosave state.
+function SaveStatus({ status }: { status: ReturnType<typeof useEditorDraft>["status"] }) {
+  if (status === "loading" || status === "saving") {
+    return (
+      <span className="hidden items-center gap-1.5 text-xs font-medium text-muted-foreground sm:inline-flex">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        {status === "loading" ? "Loading…" : "Saving…"}
+      </span>
+    );
+  }
+  if (status === "saved") {
+    return (
+      <span className="hidden items-center gap-1.5 text-xs font-medium text-emerald-600 sm:inline-flex">
+        <Check className="h-3.5 w-3.5" />
+        Saved
+      </span>
+    );
+  }
+  if (status === "error") {
+    return (
+      <span className="hidden items-center gap-1.5 text-xs font-medium text-rose-600 sm:inline-flex">
+        <CloudOff className="h-3.5 w-3.5" />
+        Not saved
+      </span>
+    );
+  }
+  return (
+    <span className="hidden items-center gap-1.5 text-xs font-medium text-muted-foreground sm:inline-flex">
+      <CloudUpload className="h-3.5 w-3.5" />
+      Autosave on
+    </span>
+  );
+}
+
 // ── editor screen ────────────────────────────────────────────────────────────
 
 type LayerPatch = Partial<{
@@ -736,6 +774,15 @@ function EditorScreen({
   const [past, setPast] = useState<EditorLayer[][]>([]);
   const [future, setFuture] = useState<EditorLayer[][]>([]);
   const coalesceRef = useRef<{ key: string; time: number } | null>(null);
+
+  // Autosave every canvas change to the backend, and restore the last saved
+  // draft on load. Hydrating replaces the working layers and clears the
+  // session's undo/redo history (the restored state is the new baseline).
+  const { status: draftStatus } = useEditorDraft(template.id, layers, (saved) => {
+    setLayers(saved);
+    setPast([]);
+    setFuture([]);
+  });
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() =>
     defaultOpenSections(template),
@@ -910,7 +957,7 @@ function EditorScreen({
             type="button"
             aria-label="Back"
             onClick={() => router.history.back()}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-foreground transition hover:bg-secondary"
+            className="flex h-10 w-10 items-center justify-center rounded-[16px] text-foreground transition hover:bg-secondary"
           >
             <ArrowLeft className="h-5 w-5" strokeWidth={2.2} />
           </button>
@@ -920,6 +967,7 @@ function EditorScreen({
             </p>
             <p className="text-xs text-muted-foreground">Edit creative</p>
           </div>
+          <SaveStatus status={draftStatus} />
         </div>
         <DownloadFormatMenu formats={template.formats} align="end" onSelect={handleDownload}>
           <button

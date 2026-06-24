@@ -31,3 +31,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local autosaved editor drafts (file-backed dev store)
+.data/

@@ -1279,7 +1279,7 @@ function PinDetail() {
                           />
                         ) : (
                           <div className="mt-auto pt-6">
-                            <div className="flex items-center gap-2 h-14 rounded-[28px] bg-secondary px-5">
+                            <div className="flex items-center gap-2 h-14 rounded-[16px] bg-secondary p-2">
                               <input
                                 type="text"
                                 placeholder="Add a comment to start the conversation"

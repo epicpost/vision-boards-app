@@ -574,7 +574,7 @@ export function RemixComposer({
         </div>
       )}
 
-      <div className="flex h-14 items-center gap-2 rounded-[28px] bg-secondary px-5">
+      <div className="flex h-14 items-center gap-2 rounded-[16px] bg-secondary p-2">
         <input
           type="text"
           value={caption}
