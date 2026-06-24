@@ -101,8 +101,8 @@ export function editorFontsHref(): string {
   return `https://fonts.googleapis.com/css2?${families}&display=swap`;
 }
 
-// Pick black or white text for contrast against a solid background colour.
-export function readableTextColor(hex: string): string {
+// Perceived brightness (0–1) of a hex colour.
+export function colorLuminance(hex: string): number {
   const normalized = hex.replace("#", "");
   const full =
     normalized.length === 3
@@ -111,13 +111,22 @@ export function readableTextColor(hex: string): string {
           .map((char) => char + char)
           .join("")
       : normalized;
-  if (full.length !== 6) return "#ffffff";
+  if (full.length !== 6) return 1;
   const r = parseInt(full.slice(0, 2), 16);
   const g = parseInt(full.slice(2, 4), 16);
   const b = parseInt(full.slice(4, 6), 16);
-  // Relative luminance (sRGB) — bright backgrounds get dark text.
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.6 ? "#141414" : "#ffffff";
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+
+// Pick black or white text for contrast against a solid background colour.
+export function readableTextColor(hex: string): string {
+  return colorLuminance(hex) > 0.6 ? "#141414" : "#ffffff";
+}
+
+// Whether a colour is too light to read as text on a light (near-white) surface
+// like the edit panel — used to keep the font-picker label legible.
+export function isLightColor(hex: string): boolean {
+  return colorLuminance(hex) > 0.62;
 }
 
 const TEMPLATE_28: RemixEditorTemplate = {

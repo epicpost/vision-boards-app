@@ -31,6 +31,7 @@ import {
   EDITOR_FONTS,
   fontById,
   getRemixEditorTemplate,
+  isLightColor,
   LAYOUT,
   readableTextColor,
   type EditorColor,
@@ -129,6 +130,9 @@ function FontDropdown({
   onChange: (fontId: string) => void;
 }) {
   const current = fontById(value);
+  // Tint the label with the chosen text colour, but fall back to the panel's
+  // foreground when that colour is too light to read on the light pill.
+  const labelColor = isLightColor(color) ? undefined : color;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -136,7 +140,7 @@ function FontDropdown({
           type="button"
           className="inline-flex h-10 items-center gap-2 rounded-full bg-secondary px-4 text-[15px] font-semibold text-foreground transition hover:brightness-95"
         >
-          <span style={{ fontFamily: current.family, color }}>{current.label}</span>
+          <span style={{ fontFamily: current.family, color: labelColor }}>{current.label}</span>
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
         </button>
       </DropdownMenuTrigger>
