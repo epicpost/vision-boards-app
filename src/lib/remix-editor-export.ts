@@ -2,10 +2,12 @@
 // (`LAYOUT`) the live DOM preview uses, so the download matches what's on screen.
 
 import {
+  EXPORT_FORMATS,
   LAYOUT,
   fontById,
   readableTextColor,
   type EditorLayer,
+  type ExportFormat,
   type RemixEditorTemplate,
   type TextLayer,
 } from "@/lib/remix-editor";
@@ -72,9 +74,10 @@ function drawImageContain(
   }
 }
 
-export async function exportCreativePng(
+export async function exportCreative(
   template: RemixEditorTemplate,
   layers: EditorLayer[],
+  format: ExportFormat = "png",
   width = 1080,
 ): Promise<Blob> {
   const ratio = parseRatio(template.aspectRatio);
@@ -208,10 +211,15 @@ export async function exportCreativePng(
     ctx.fillText(label, width / 2, pillY + pillHeight / 2 + size * 0.05);
   }
 
+  const meta = EXPORT_FORMATS[format];
   return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob);
-      else reject(new Error("Could not export the creative."));
-    }, "image/png");
+    canvas.toBlob(
+      (blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("Could not export the creative."));
+      },
+      meta.mime,
+      meta.quality,
+    );
   });
 }

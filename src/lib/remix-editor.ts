@@ -56,6 +56,26 @@ export interface LogoLayer extends BaseLayer {
 
 export type EditorLayer = ImageLayer | TextLayer | LogoLayer;
 
+// The download formats a template's renderer can produce. Mirrors the
+// post-template `output_spec.supported_formats` contract; kept static for the MVP
+// so each template can advertise a different set.
+export type ExportFormat = "png" | "jpeg" | "webp";
+
+export interface ExportFormatMeta {
+  id: ExportFormat;
+  label: string;
+  mime: string;
+  extension: string;
+  // Lossy formats take a 0–1 quality; PNG ignores it.
+  quality?: number;
+}
+
+export const EXPORT_FORMATS: Record<ExportFormat, ExportFormatMeta> = {
+  png: { id: "png", label: "PNG", mime: "image/png", extension: "png" },
+  jpeg: { id: "jpeg", label: "JPEG", mime: "image/jpeg", extension: "jpg", quality: 0.92 },
+  webp: { id: "webp", label: "WebP", mime: "image/webp", extension: "webp", quality: 0.92 },
+};
+
 export interface RemixEditorTemplate {
   id: string;
   title: string;
@@ -64,6 +84,8 @@ export interface RemixEditorTemplate {
   // Canvas background fill (solid colour for the MVP).
   background: string;
   palette: EditorColor[];
+  // Download formats this template supports (first is the default).
+  formats: ExportFormat[];
   // Layers in the order the edit panel lists them.
   layers: EditorLayer[];
 }
@@ -141,6 +163,7 @@ const TEMPLATE_28: RemixEditorTemplate = {
     { label: "Ink", value: "#141414" },
     { label: "Paper", value: "#ffffff" },
   ],
+  formats: ["png", "jpeg", "webp"],
   layers: [
     {
       id: "image",
@@ -213,6 +236,7 @@ const TEMPLATE_205: RemixEditorTemplate = {
     { label: "Deep", value: "#13303a" },
     { label: "Paper", value: "#ffffff" },
   ],
+  formats: ["png", "jpeg"],
   layers: [
     {
       id: "image",

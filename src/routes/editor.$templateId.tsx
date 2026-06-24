@@ -22,6 +22,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ import {
   cloneLayers,
   editorFontsHref,
   EDITOR_FONTS,
+  EXPORT_FORMATS,
   fontById,
   getRemixEditorTemplate,
   isLightColor,
@@ -36,11 +38,12 @@ import {
   readableTextColor,
   type EditorColor,
   type EditorLayer,
+  type ExportFormat,
   type LayerKind,
   type RemixEditorTemplate,
   type TextLayer,
 } from "@/lib/remix-editor";
-import { exportCreativePng } from "@/lib/remix-editor-export";
+import { exportCreative } from "@/lib/remix-editor-export";
 
 export const Route = createFileRoute("/editor/$templateId")({
   validateSearch: (search: Record<string, unknown>): { caption?: string } => ({
@@ -155,6 +158,43 @@ function FontDropdown({
             {font.label}
           </DropdownMenuItem>
         ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function DownloadFormatMenu({
+  formats,
+  align = "end",
+  onSelect,
+  children,
+}: {
+  formats: ExportFormat[];
+  align?: "start" | "center" | "end";
+  onSelect: (format: ExportFormat) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
+      <DropdownMenuContent align={align} className="w-48">
+        <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Download as
+        </DropdownMenuLabel>
+        {formats.map((format) => {
+          const meta = EXPORT_FORMATS[format];
+          return (
+            <DropdownMenuItem
+              key={format}
+              onSelect={() => onSelect(format)}
+              className="cursor-pointer"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {meta.label}
+              <span className="ml-auto text-xs text-muted-foreground">.{meta.extension}</span>
+            </DropdownMenuItem>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -476,14 +516,14 @@ function EditorScreen({
     updateLayer(id, { src: url, visible: true });
   }
 
-  async function handleDownload() {
+  async function handleDownload(format: ExportFormat) {
     try {
       setExporting(true);
-      const blob = await exportCreativePng(template, layers);
+      const blob = await exportCreative(template, layers, format);
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `epicpost-${template.id}.png`;
+      anchor.download = `epicpost-${template.id}.${EXPORT_FORMATS[format].extension}`;
       anchor.rel = "noopener";
       document.body.appendChild(anchor);
       anchor.click();
@@ -544,19 +584,21 @@ function EditorScreen({
             <p className="text-xs text-muted-foreground">Edit creative</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={handleDownload}
-          disabled={exporting}
-          className="flex h-11 shrink-0 items-center gap-2 rounded-full bg-primary px-5 text-base font-bold text-primary-foreground transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {exporting ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
-          ) : (
-            <Download className="h-5 w-5" />
-          )}
-          Download
-        </button>
+        <DownloadFormatMenu formats={template.formats} align="end" onSelect={handleDownload}>
+          <button
+            type="button"
+            disabled={exporting}
+            className="flex h-11 shrink-0 items-center gap-2 rounded-full bg-primary px-5 text-base font-bold text-primary-foreground transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {exporting ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Download className="h-5 w-5" />
+            )}
+            Download
+            <ChevronDown className="h-4 w-4 opacity-80" />
+          </button>
+        </DownloadFormatMenu>
       </header>
 
       <div className="flex flex-1 flex-col lg:min-h-0 lg:flex-row">
@@ -653,19 +695,20 @@ function EditorScreen({
               <Wand2 className="h-4 w-4" />
               Fix design
             </button>
-            <button
-              type="button"
-              aria-label="Download"
-              onClick={handleDownload}
-              disabled={exporting}
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-40"
-            >
-              {exporting ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <Download className="h-5 w-5" />
-              )}
-            </button>
+            <DownloadFormatMenu formats={template.formats} align="center" onSelect={handleDownload}>
+              <button
+                type="button"
+                aria-label="Download"
+                disabled={exporting}
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-40"
+              >
+                {exporting ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Download className="h-5 w-5" />
+                )}
+              </button>
+            </DownloadFormatMenu>
           </div>
         </div>
 
