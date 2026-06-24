@@ -15,6 +15,9 @@ export interface UserProfile {
   language_id?: string | null;
   visibility: "public" | "private";
   user_plan: "free" | "paid";
+  website?: string | null;
+  interests?: string[];
+  onboarding_completed: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -24,6 +27,13 @@ export interface ProfileUpdateInput {
   last_name?: string | null;
   username?: string | null;
   about?: string | null;
+}
+
+export interface OnboardingInput {
+  first_name?: string | null;
+  last_name?: string | null;
+  website?: string | null;
+  interests?: string[];
 }
 
 interface ProfileResponse {
@@ -87,6 +97,21 @@ export async function updateMyProfile(input: ProfileUpdateInput): Promise<UserPr
     body: JSON.stringify(input),
   });
   if (!response.ok) await throwApiError(response, "Failed to update your profile.");
+  const payload = (await response.json()) as ProfileResponse;
+  return payload.data;
+}
+
+export async function completeOnboarding(input: OnboardingInput): Promise<UserProfile> {
+  const token = requireToken("finish onboarding");
+  const response = await fetch(new URL("/api/v1/me/onboarding", API_BASE_URL), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) await throwApiError(response, "Failed to finish onboarding.");
   const payload = (await response.json()) as ProfileResponse;
   return payload.data;
 }

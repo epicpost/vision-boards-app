@@ -9,7 +9,9 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { SignupDialog } from "@/components/epicpost/SignupDialog";
+import { OnboardingDialog } from "@/components/epicpost/OnboardingDialog";
 import { AUTH_REQUIRED_EVENT, AUTH_SESSION_CHANGED_EVENT, hasAuthSession } from "@/lib/auth";
+import { getMyProfile } from "@/lib/profile";
 import {
   clearCachedSearchMenu,
   prefetchSearchMenu,
@@ -163,6 +165,7 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const [authOpen, setAuthOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
 
   useEffect(() => {
     const openAuthDialog = () => setAuthOpen(true);
@@ -171,6 +174,36 @@ function RootComponent() {
 
     return () => {
       window.removeEventListener(AUTH_REQUIRED_EVENT, openAuthDialog);
+    };
+  }, []);
+
+  // After (and only after) a session exists, check whether the user still needs
+  // onboarding. The server's `onboarding_completed` flag is the source of truth,
+  // so a user who finished on another device is never asked again. Runs on load
+  // and whenever the session changes (e.g. right after first sign-in).
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkOnboarding = () => {
+      if (!hasAuthSession()) {
+        setOnboardingOpen(false);
+        return;
+      }
+      void getMyProfile()
+        .then((profile) => {
+          if (!cancelled && !profile.onboarding_completed) setOnboardingOpen(true);
+        })
+        .catch(() => {
+          // Network/auth errors shouldn't trap the user in onboarding.
+        });
+    };
+
+    checkOnboarding();
+    window.addEventListener(AUTH_SESSION_CHANGED_EVENT, checkOnboarding);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(AUTH_SESSION_CHANGED_EVENT, checkOnboarding);
     };
   }, []);
 
@@ -244,6 +277,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <Outlet />
       <SignupDialog open={authOpen} onOpenChange={setAuthOpen} />
+      <OnboardingDialog open={onboardingOpen} onOpenChange={setOnboardingOpen} />
       <Toaster position="top-center" />
     </QueryClientProvider>
   );
