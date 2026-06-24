@@ -513,7 +513,7 @@ function EditorScreen({
     updateLayer(id, { visible: !(layers.find((layer) => layer.id === id)?.visible ?? false) });
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col bg-background lg:h-screen lg:min-h-0 lg:overflow-hidden">
       <input
         ref={fileInputRef}
         type="file"
@@ -559,9 +559,10 @@ function EditorScreen({
         </button>
       </header>
 
-      <div className="flex flex-1 flex-col lg:flex-row">
-        {/* Canvas stage */}
-        <div className="flex flex-1 flex-col items-center justify-center gap-5 bg-[#0e1413] px-4 py-8 lg:py-10">
+      <div className="flex flex-1 flex-col lg:min-h-0 lg:flex-row">
+        {/* Canvas stage — fixed to the viewport on desktop; scrolls only if the
+            preview itself is taller than the stage, never resized by the panel. */}
+        <div className="flex flex-1 flex-col items-center justify-center gap-5 bg-[#0e1413] px-4 py-8 lg:min-h-0 lg:overflow-y-auto lg:py-10">
           {/* Preview toolbar */}
           <div className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-white/80">
             <button
@@ -669,7 +670,7 @@ function EditorScreen({
         </div>
 
         {/* Edit panel */}
-        <aside className="w-full shrink-0 overflow-y-auto border-t border-border bg-background px-5 pb-12 lg:w-[400px] lg:border-l lg:border-t-0">
+        <aside className="w-full shrink-0 overflow-y-auto border-t border-border bg-background px-5 pb-12 lg:h-full lg:min-h-0 lg:w-[400px] lg:border-l lg:border-t-0">
           <div className="flex items-center gap-2 py-5">
             <SlidersHorizontal className="h-5 w-5 text-foreground" />
             <h2 className="text-lg font-bold text-foreground">Edit creative</h2>
