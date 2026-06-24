@@ -913,14 +913,14 @@ function PinDetail() {
         <main className="px-3 md:px-6 pb-10">
           <div className="flex gap-3 items-start">
             <div className="w-full xl:w-4/5 2xl:w-4/6">
-              <article className="border border-border bg-background overflow-hidden">
+              <article className="rounded-[16px] border border-border bg-background overflow-hidden">
                 <div className="grid grid-cols-1 md:grid-cols-2">
                   {/* Image side */}
                   <div className="group/preview relative bg-white">
                     <button
                       aria-label="Back"
                       onClick={() => router.history.back()}
-                      className="absolute top-4 left-4 z-10 h-11 w-11 rounded-[14px] bg-background shadow-md flex items-center justify-center hover:bg-secondary transition"
+                      className="absolute top-4 left-4 z-10 h-11 w-11 rounded-[16px] bg-background shadow-md flex items-center justify-center hover:bg-secondary transition"
                     >
                       <ArrowLeft className="h-5 w-5 text-foreground" strokeWidth={2.4} />
                     </button>

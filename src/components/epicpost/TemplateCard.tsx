@@ -32,7 +32,7 @@ export function TemplateCard({ pin }: { pin: Pin }) {
       <Link
         to="/template/$pinId"
         params={{ pinId: pin.id }}
-        className="relative block w-full overflow-hidden bg-secondary cursor-pointer"
+        className="relative block w-full overflow-hidden rounded-[16px] bg-secondary cursor-pointer"
         style={{ aspectRatio }}
       >
         {pin.src && pin.mediaType === "video" ? (
@@ -79,7 +79,7 @@ export function TemplateCard({ pin }: { pin: Pin }) {
             <Video className="h-4 w-4 text-foreground" />
           </div>
         )}
-        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition">
+        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition rounded-[16px]">
           <div className="absolute top-3 right-3">
             <span
               className={`inline-flex px-4 py-2.5 text-sm font-bold text-white ${

@@ -943,12 +943,12 @@ function EditorScreen({
             preview itself is taller than the stage, never resized by the panel. */}
         <div className="flex flex-1 flex-col items-center justify-center gap-5 bg-[#0e1413] px-4 py-8 lg:min-h-0 lg:overflow-y-auto lg:py-10">
           {/* Preview toolbar */}
-          <div className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-white/80">
+          <div className="flex items-center gap-2 rounded-[16px] border border-white/15 bg-white/5 px-3 py-1.5 text-white/80">
             <button
               type="button"
               aria-label="Previous"
               disabled
-              className="flex h-7 w-7 items-center justify-center rounded-full opacity-40"
+              className="flex h-7 w-7 items-center justify-center rounded-[16px] opacity-40"
             >
               <ChevronRight className="h-4 w-4 rotate-180" />
             </button>
@@ -957,7 +957,7 @@ function EditorScreen({
               type="button"
               aria-label="Next"
               disabled
-              className="flex h-7 w-7 items-center justify-center rounded-full opacity-40"
+              className="flex h-7 w-7 items-center justify-center rounded-[16px] opacity-40"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -968,7 +968,7 @@ function EditorScreen({
               aria-pressed={reaction === "up"}
               onClick={() => setReaction((value) => (value === "up" ? null : "up"))}
               className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-full transition hover:bg-white/10",
+                "flex h-7 w-7 items-center justify-center rounded-[16px] transition hover:bg-white/10",
                 reaction === "up" && "text-emerald-400",
               )}
             >
@@ -980,7 +980,7 @@ function EditorScreen({
               aria-pressed={reaction === "down"}
               onClick={() => setReaction((value) => (value === "down" ? null : "down"))}
               className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-full transition hover:bg-white/10",
+                "flex h-7 w-7 items-center justify-center rounded-[16px] transition hover:bg-white/10",
                 reaction === "down" && "text-rose-400",
               )}
             >
@@ -992,7 +992,7 @@ function EditorScreen({
               aria-pressed={flagged}
               onClick={() => setFlagged((value) => !value)}
               className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-full transition hover:bg-white/10",
+                "flex h-7 w-7 items-center justify-center rounded-[16px] transition hover:bg-white/10",
                 flagged && "text-amber-400",
               )}
             >
@@ -1032,7 +1032,7 @@ function EditorScreen({
               aria-label="Undo"
               onClick={undo}
               disabled={past.length === 0}
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Undo2 className="h-5 w-5" />
             </button>
@@ -1041,14 +1041,14 @@ function EditorScreen({
               aria-label="Redo"
               onClick={redo}
               disabled={future.length === 0}
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-white/10 text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Redo2 className="h-5 w-5" />
             </button>
             <button
               type="button"
               onClick={resetDesign}
-              className="flex h-11 items-center gap-2 rounded-full bg-white/10 px-5 text-[15px] font-semibold text-white transition hover:bg-white/20"
+              className="flex h-11 items-center gap-2 rounded-[16px] bg-white/10 px-5 text-[15px] font-semibold text-white transition hover:bg-white/20"
             >
               <Wand2 className="h-4 w-4" />
               Fix design
@@ -1058,7 +1058,7 @@ function EditorScreen({
                 type="button"
                 aria-label="Download"
                 disabled={exporting}
-                className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-40"
+                className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-40"
               >
                 {exporting ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
