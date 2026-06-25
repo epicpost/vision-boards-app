@@ -274,7 +274,7 @@ function StepName({
       <p className="mt-3 text-[15px] text-muted-foreground">
         Your answers to the next few questions will help us find the right ideas for you.
       </p>
-      <label className="mt-8 flex flex-col rounded-[14px] border border-border px-4 py-2.5 focus-within:border-foreground transition">
+      <label className="mt-8 flex flex-col rounded-[14px] border border-border px-4 py-2.5 transition focus-within:ring-2 focus-within:ring-ring">
         <span className="text-xs font-semibold text-muted-foreground">Name</span>
         <input
           autoFocus
@@ -308,7 +308,7 @@ function StepWebsite({
         We&apos;ll use it to tailor templates to your brand. This information will always be
         private.
       </p>
-      <label className="mt-8 flex flex-col rounded-[14px] border border-border px-4 py-2.5 focus-within:border-foreground transition">
+      <label className="mt-8 flex flex-col rounded-[14px] border border-border px-4 py-2.5 transition focus-within:ring-2 focus-within:ring-ring">
         <span className="text-xs font-semibold text-muted-foreground">Website</span>
         <input
           autoFocus

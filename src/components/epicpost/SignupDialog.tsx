@@ -216,7 +216,7 @@ export function SignupDialog({
               }}
               placeholder="you@example.com"
               aria-invalid={Boolean(error)}
-              className="h-12 rounded-[14px] border border-border bg-background px-4 text-[15px] text-foreground outline-none focus:border-foreground transition"
+              className="h-12 rounded-[14px] border border-border bg-background px-4 text-[15px] text-foreground outline-none transition focus:ring-2 focus:ring-ring"
             />
             {error ? <p className="text-sm font-medium text-destructive">{error}</p> : null}
             <button

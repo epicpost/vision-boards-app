@@ -104,7 +104,7 @@ export function CreateBoardDialog({
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder={`Like "Places to Go" or "Recipes to Make"`}
-              className="h-12 rounded-[14px] border border-border bg-background px-4 text-[15px] text-foreground outline-none transition focus:border-foreground placeholder:text-muted-foreground"
+              className="h-12 rounded-[14px] border border-border bg-background px-4 text-[15px] text-foreground outline-none transition focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
             />
 
             <div className="mt-6 flex items-center justify-between">
@@ -126,7 +126,7 @@ export function CreateBoardDialog({
               Add collaborators{" "}
               <span className="font-normal text-muted-foreground">(optional)</span>
             </p>
-            <label className="flex h-12 items-center gap-2 rounded-[14px] border border-border bg-background px-4 transition focus-within:border-foreground">
+            <label className="flex h-12 items-center gap-2 rounded-[14px] border border-border bg-background px-4 transition focus-within:ring-2 focus-within:ring-ring">
               <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
               <input
                 type="search"

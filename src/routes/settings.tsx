@@ -73,7 +73,7 @@ function SettingsPage() {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block rounded-[16px] border border-border px-4 py-3">
+    <label className="block rounded-[16px] border border-border px-4 py-3 transition focus-within:ring-2 focus-within:ring-ring">
       <div className="text-[13px] font-semibold text-foreground">{label}</div>
       <div className="mt-1">{children}</div>
     </label>

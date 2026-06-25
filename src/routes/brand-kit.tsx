@@ -1450,7 +1450,7 @@ function BrandColorPicker({ hex, onChange }: { hex: string; onChange: (value: st
         onChange={onChange}
         prefixed
         aria-label="Hex color"
-        className="mt-3 h-10 w-full rounded-[16px] border border-border bg-background px-3 text-center text-sm font-semibold text-foreground outline-none focus:border-foreground/40"
+        className="mt-3 h-10 w-full rounded-[16px] border border-border bg-background px-3 text-center text-sm font-semibold text-foreground outline-none focus:ring-2 focus:ring-ring"
       />
     </>
   );
@@ -1535,7 +1535,7 @@ function AddColorButton({
                 handleAdd();
               }
             }}
-            className="min-w-0 flex-1 rounded-full border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-foreground/40"
+            className="min-w-0 flex-1 rounded-full border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground outline-none focus:ring-2 focus:ring-ring"
           />
           <button
             type="button"

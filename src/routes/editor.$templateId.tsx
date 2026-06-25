@@ -1795,7 +1795,7 @@ function TextField({
   multiline?: boolean;
 }) {
   return (
-    <div className="relative rounded-[14px] border border-border bg-secondary/60 px-4 pb-3 pt-2 focus-within:border-foreground/40">
+    <div className="relative rounded-[14px] border border-border bg-secondary/60 px-4 pb-3 pt-2 focus-within:ring-2 focus-within:ring-ring">
       <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
         {label}
       </label>
