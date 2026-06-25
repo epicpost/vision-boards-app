@@ -77,7 +77,7 @@ export function Sidebar() {
           aria-label="EpicPost home"
           className="flex h-12 w-12 items-center justify-center rounded-full hover:bg-secondary transition"
         >
-          <img src="/transparent-logo.png" alt="" className="h-9 w-9 object-contain" />
+          <img src="/transpared-logo3.png" alt="" className="h-9 w-9 object-contain" />
         </a>
         {items.map((it) =>
           it.label === "Notifications" ? (
