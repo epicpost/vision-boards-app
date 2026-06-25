@@ -240,6 +240,10 @@ type ShareTarget = {
 
 type ShareRecipient = { id: string; name: string; handle: string };
 
+function isEmailAddress(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
 // Reusable Share popover — rendered both in the detail header and the
 // fullscreen viewer (each with its own open state and trigger).
 function SharePopover({
@@ -263,6 +267,12 @@ function SharePopover({
   onSearchChange: (value: string) => void;
   onSend: (recipient: ShareRecipient) => void;
 }) {
+  const emailSearch = search.trim();
+  const canSendEmail = recipients.length === 0 && isEmailAddress(emailSearch);
+  const emailRecipient: ShareRecipient | null = canSendEmail
+    ? { id: `email:${emailSearch}`, name: emailSearch, handle: emailSearch }
+    : null;
+
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
@@ -321,7 +331,22 @@ function SharePopover({
             />
           </label>
 
-          {recipients.length === 0 ? (
+          {emailRecipient ? (
+            <div className="flex items-center gap-3 rounded-[14px] px-2 py-2">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-base font-semibold text-foreground">
+                  {emailRecipient.name}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onSend(emailRecipient)}
+                className="h-10 shrink-0 rounded-full bg-secondary px-5 text-sm font-semibold text-foreground transition hover:brightness-95"
+              >
+                Send
+              </button>
+            </div>
+          ) : recipients.length === 0 ? (
             <p className="px-2 py-6 text-center text-sm text-muted-foreground">
               No people match your search.
             </p>
