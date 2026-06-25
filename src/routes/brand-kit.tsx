@@ -184,6 +184,8 @@ function BrandKitPage() {
   const queryClient = useQueryClient();
   const [signedIn, setSignedIn] = useState(false);
   const [selectedId, setSelectedId] = useState<string | "new" | null>(null);
+  const [editorRefreshKey, setEditorRefreshKey] = useState(0);
+  const [optimisticSelectedKit, setOptimisticSelectedKit] = useState<BrandKit | null>(null);
 
   useEffect(() => {
     const update = () => setSignedIn(hasAuthSession());
@@ -212,10 +214,15 @@ function BrandKitPage() {
     setSelectedId(kits[0]?.id ?? "new");
   }, [kits, selectedId]);
 
-  const selectedKit =
+  const cachedSelectedKit =
     selectedId && selectedId !== "new" ? (kits?.find((k) => k.id === selectedId) ?? null) : null;
+  const selectedKit =
+    optimisticSelectedKit && optimisticSelectedKit.id === selectedId
+      ? optimisticSelectedKit
+      : cachedSelectedKit;
 
   function handleSaved(saved: BrandKit) {
+    setOptimisticSelectedKit(saved);
     queryClient.setQueryData<BrandKit[]>(brandKitsQueryKey(), (old) => {
       const list = old ?? [];
       return list.some((k) => k.id === saved.id)
@@ -223,10 +230,12 @@ function BrandKitPage() {
         : [saved, ...list];
     });
     setSelectedId(saved.id);
+    setEditorRefreshKey((current) => current + 1);
     void queryClient.invalidateQueries({ queryKey: brandKitsQueryKey() });
   }
 
   function handleDeleted(deletedId: string) {
+    setOptimisticSelectedKit(null);
     queryClient.setQueryData<BrandKit[]>(brandKitsQueryKey(), (old) =>
       (old ?? []).filter((k) => k.id !== deletedId),
     );
@@ -268,7 +277,7 @@ function BrandKitPage() {
             />
           ) : (
             <BrandKitEditor
-              key={selectedId ?? "loading"}
+              key={`${selectedId ?? "loading"}:${editorRefreshKey}`}
               kit={selectedKit}
               onSaved={handleSaved}
               onDeleted={handleDeleted}
