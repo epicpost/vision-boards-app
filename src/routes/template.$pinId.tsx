@@ -58,7 +58,8 @@ import {
   type Board,
 } from "@/lib/boards";
 import { likedTemplatesQueryKey, likeTemplate, unlikeTemplate } from "@/lib/likes";
-import { getAccessToken } from "@/lib/auth";
+import { shareTemplateByEmail } from "@/lib/template-share";
+import { getAccessToken, getAuthUser } from "@/lib/auth";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 const APP_BASE_URL = import.meta.env.VITE_APP_BASE_URL ?? "https://www.epicpost.app";
@@ -244,6 +245,10 @@ function isEmailAddress(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function normalizeEmail(value: string | null | undefined) {
+  return value?.trim().toLowerCase() ?? "";
+}
+
 // Reusable Share popover — rendered both in the detail header and the
 // fullscreen viewer (each with its own open state and trigger).
 function SharePopover({
@@ -256,6 +261,8 @@ function SharePopover({
   search,
   onSearchChange,
   onSend,
+  isSending,
+  currentUserEmail,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -266,9 +273,13 @@ function SharePopover({
   search: string;
   onSearchChange: (value: string) => void;
   onSend: (recipient: ShareRecipient) => void;
+  isSending: boolean;
+  currentUserEmail: string | null;
 }) {
   const emailSearch = search.trim();
   const canSendEmail = recipients.length === 0 && isEmailAddress(emailSearch);
+  const isSelfEmail =
+    canSendEmail && normalizeEmail(emailSearch) === normalizeEmail(currentUserEmail);
   const emailRecipient: ShareRecipient | null = canSendEmail
     ? { id: `email:${emailSearch}`, name: emailSearch, handle: emailSearch }
     : null;
@@ -320,7 +331,13 @@ function SharePopover({
 
           <div className="mb-4 h-px bg-border" />
 
-          <label className="mb-4 flex h-12 items-center gap-2 rounded-[16px] bg-input px-4 transition focus-within:ring-2 focus-within:ring-ring">
+          <label
+            className={`mb-4 flex h-12 items-center gap-2 rounded-[16px] bg-input px-4 transition focus-within:ring-2 ${
+              isSelfEmail
+                ? "ring-2 ring-destructive focus-within:ring-destructive"
+                : "focus-within:ring-ring"
+            }`}
+          >
             <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
             <input
               type="search"
@@ -331,7 +348,11 @@ function SharePopover({
             />
           </label>
 
-          {emailRecipient ? (
+          {isSelfEmail ? (
+            <p className="px-2 py-5 text-center text-sm font-medium text-destructive">
+              You cannot share a template with yourself.
+            </p>
+          ) : emailRecipient ? (
             <div className="flex items-center gap-3 rounded-[14px] px-2 py-2">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-base font-semibold text-foreground">
@@ -340,10 +361,11 @@ function SharePopover({
               </div>
               <button
                 type="button"
+                disabled={isSending}
                 onClick={() => onSend(emailRecipient)}
-                className="h-10 shrink-0 rounded-full bg-secondary px-5 text-sm font-semibold text-foreground transition hover:brightness-95"
+                className="h-10 shrink-0 rounded-full bg-secondary px-5 text-sm font-semibold text-foreground transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Send
+                {isSending ? "Sending" : "Send"}
               </button>
             </div>
           ) : recipients.length === 0 ? (
@@ -366,10 +388,11 @@ function SharePopover({
                   </div>
                   <button
                     type="button"
+                    disabled={isSending}
                     onClick={() => onSend(recipient)}
-                    className="h-10 shrink-0 rounded-full bg-secondary px-5 text-sm font-semibold text-foreground transition hover:brightness-95"
+                    className="h-10 shrink-0 rounded-full bg-secondary px-5 text-sm font-semibold text-foreground transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    Send
+                    {isSending ? "Sending" : "Send"}
                   </button>
                 </div>
               ))}
@@ -578,6 +601,7 @@ function PinDetail() {
   const [isFirstMediaLoaded, setIsFirstMediaLoaded] = useState(false);
   const [showRequiredInfo, setShowRequiredInfo] = useState(false);
   const isSignedIn = Boolean(getAccessToken());
+  const currentUserEmail = getAuthUser()?.email ?? null;
   // Prefetch and cache boards as soon as the pin detail opens so that opening
   // the save dropdown reads from the cache instead of showing "Loading boards...".
   const boardsQuery = useQuery({
@@ -632,6 +656,18 @@ function PinDetail() {
     },
     onError: (error: unknown) => {
       toast.error(error instanceof Error ? error.message : "Could not update like.");
+    },
+  });
+  const shareMutation = useMutation({
+    mutationFn: (email: string) => shareTemplateByEmail(pinId, email),
+    onSuccess: () => {
+      setIsShareOpen(false);
+      setFsShareOpen(false);
+      setShareSearch("");
+      toast.success("Email sent");
+    },
+    onError: (error: unknown) => {
+      toast.error(error instanceof Error ? error.message : "Could not send email.");
     },
   });
   const boards = useMemo(() => boardsQuery.data?.data ?? [], [boardsQuery.data]);
@@ -712,18 +748,7 @@ function PinDetail() {
     ],
     [shareUrl, shareTitle],
   );
-  const shareRecipients = useMemo(
-    () => [
-      { id: "ella", name: "ELLA", handle: "@ella_contentclub" },
-      {
-        id: "global-travel",
-        name: "Global Travel Inspiration",
-        handle: "@GlobalTravelCollection2",
-      },
-      { id: "uae", name: "UAE", handle: "@uaestories" },
-    ],
-    [],
-  );
+  const shareRecipients = useMemo<ShareRecipient[]>(() => [], []);
   const filteredRecipients = useMemo(() => {
     const query = shareSearch.trim().toLowerCase();
     if (!query) return shareRecipients;
@@ -802,7 +827,11 @@ function PinDetail() {
       setIsAuthOpen(true);
       return;
     }
-    toast.success(`Sent to ${recipient.name}`);
+    if (!recipient.id.startsWith("email:")) {
+      toast.error("Type an email address to share this template.");
+      return;
+    }
+    shareMutation.mutate(recipient.handle);
   }
 
   function openCreateBoard() {
@@ -1099,6 +1128,8 @@ function PinDetail() {
                               search={shareSearch}
                               onSearchChange={setShareSearch}
                               onSend={handleSendRecipient}
+                              isSending={shareMutation.isPending}
+                              currentUserEmail={currentUserEmail}
                               trigger={
                                 <button
                                   aria-label="Share"
@@ -1391,6 +1422,8 @@ function PinDetail() {
                 search={shareSearch}
                 onSearchChange={setShareSearch}
                 onSend={handleSendRecipient}
+                isSending={shareMutation.isPending}
+                currentUserEmail={currentUserEmail}
                 trigger={
                   <button className="click-bounce flex h-10 items-center gap-1.5 rounded-[12px] px-3 text-sm font-semibold text-foreground hover:bg-secondary">
                     Share
