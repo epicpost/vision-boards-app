@@ -945,7 +945,7 @@ function PinDetail() {
                     <button
                       aria-label="Back"
                       onClick={() => router.history.back()}
-                      className="absolute top-4 left-4 z-10 h-11 w-11 rounded-[16px] bg-background shadow-md flex items-center justify-center hover:bg-secondary transition"
+                      className="click-bounce absolute left-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-[16px] bg-background shadow-md hover:bg-secondary"
                     >
                       <ArrowLeft className="h-5 w-5 text-foreground" strokeWidth={2.4} />
                     </button>
@@ -969,7 +969,7 @@ function PinDetail() {
                           <button
                             aria-label="Expand"
                             onClick={openFullscreen}
-                            className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-background shadow-md transition hover:bg-secondary"
+                            className="click-bounce flex h-11 w-11 items-center justify-center rounded-[14px] bg-background shadow-md hover:bg-secondary"
                           >
                             <Maximize2 className="h-5 w-5 text-foreground" />
                           </button>
@@ -990,7 +990,7 @@ function PinDetail() {
                           <button
                             aria-label="Expand"
                             onClick={openFullscreen}
-                            className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-background shadow-md transition hover:bg-secondary"
+                            className="click-bounce flex h-11 w-11 items-center justify-center rounded-[14px] bg-background shadow-md hover:bg-secondary"
                           >
                             <Maximize2 className="h-5 w-5 text-foreground" />
                           </button>
@@ -1074,7 +1074,7 @@ function PinDetail() {
                                 }
                                 likeMutation.mutate(!template?.is_liked);
                               }}
-                              className="flex items-center gap-1 px-2 h-10 rounded-full hover:bg-secondary transition disabled:opacity-60"
+                              className="click-bounce flex h-10 items-center gap-1 rounded-full px-2 hover:bg-secondary disabled:opacity-60"
                             >
                               <Heart
                                 className={`h-6 w-6 transition ${
@@ -1102,7 +1102,7 @@ function PinDetail() {
                               trigger={
                                 <button
                                   aria-label="Share"
-                                  className="h-10 w-10 rounded-full hover:bg-secondary flex items-center justify-center transition"
+                                  className="click-bounce flex h-10 w-10 items-center justify-center rounded-full hover:bg-secondary"
                                 >
                                   <Upload className="h-5 w-5 text-foreground" strokeWidth={2.2} />
                                 </button>
@@ -1112,7 +1112,7 @@ function PinDetail() {
                               <DropdownMenuTrigger asChild>
                                 <button
                                   aria-label="More"
-                                  className="h-10 w-10 rounded-full hover:bg-secondary flex items-center justify-center transition"
+                                  className="click-bounce flex h-10 w-10 items-center justify-center rounded-full hover:bg-secondary"
                                 >
                                   <MoreHorizontal
                                     className="h-6 w-6 text-foreground"
@@ -1154,7 +1154,7 @@ function PinDetail() {
                               onSelectBoard={(boardId) => saveMutation.mutate(boardId)}
                               onCreateBoard={openCreateBoard}
                               trigger={
-                                <button className="flex items-center gap-1 h-10 px-3 rounded-full hover:bg-secondary transition text-sm font-semibold text-foreground">
+                                <button className="click-bounce flex h-10 items-center gap-1 rounded-full px-3 text-sm font-semibold text-foreground hover:bg-secondary">
                                   <span className="md:hidden">Save</span>
                                   <span className="hidden md:inline">{saveButtonLabel}</span>
                                   <ChevronRight className="h-4 w-4 rotate-90" />
@@ -1171,7 +1171,7 @@ function PinDetail() {
                                   }
                                   setIsSaveOpen(true);
                                 }}
-                                className="h-11 px-5 rounded-[14px] bg-foreground text-background font-bold text-base hover:brightness-110 transition"
+                                className="click-bounce h-11 rounded-[14px] bg-foreground px-5 text-base font-bold text-background hover:brightness-110"
                               >
                                 Saved
                               </button>
@@ -1185,7 +1185,7 @@ function PinDetail() {
                                   }
                                   setIsSaveOpen(true);
                                 }}
-                                className="h-11 px-5 rounded-full bg-primary text-primary-foreground font-bold text-base hover:brightness-90 transition"
+                                className="click-bounce h-11 rounded-full bg-primary px-5 text-base font-bold text-primary-foreground hover:brightness-90"
                               >
                                 Save
                               </button>
@@ -1235,7 +1235,7 @@ function PinDetail() {
                                 </button>
                               ))}
                             </div>
-                            <button className="h-10 w-10 shrink-0 rounded-full hover:bg-secondary flex items-center justify-center">
+                            <button className="click-bounce flex h-10 w-10 shrink-0 items-center justify-center rounded-full hover:bg-secondary">
                               <ChevronRight className="h-5 w-5 text-foreground" />
                             </button>
                           </div>
@@ -1373,7 +1373,7 @@ function PinDetail() {
               type="button"
               aria-label="Close"
               onClick={closeFullscreen}
-              className="pointer-events-auto flex h-11 w-11 items-center justify-center rounded-[14px] bg-white text-foreground shadow-md transition hover:bg-secondary"
+              className="click-bounce pointer-events-auto flex h-11 w-11 items-center justify-center rounded-[14px] bg-white text-foreground shadow-md hover:bg-secondary"
             >
               <X className="h-5 w-5" strokeWidth={2.4} />
             </button>
@@ -1392,7 +1392,7 @@ function PinDetail() {
                 onSearchChange={setShareSearch}
                 onSend={handleSendRecipient}
                 trigger={
-                  <button className="flex h-10 items-center gap-1.5 rounded-[12px] px-3 text-sm font-semibold text-foreground transition hover:bg-secondary">
+                  <button className="click-bounce flex h-10 items-center gap-1.5 rounded-[12px] px-3 text-sm font-semibold text-foreground hover:bg-secondary">
                     Share
                     <Upload className="h-4 w-4" strokeWidth={2.2} />
                   </button>
@@ -1423,7 +1423,7 @@ function PinDetail() {
                 onSelectBoard={(boardId) => saveMutation.mutate(boardId)}
                 onCreateBoard={openCreateBoard}
                 trigger={
-                  <button className="flex h-10 max-w-[160px] items-center gap-1 rounded-[12px] px-3 text-sm font-semibold text-foreground transition hover:bg-secondary">
+                  <button className="click-bounce flex h-10 max-w-[160px] items-center gap-1 rounded-[12px] px-3 text-sm font-semibold text-foreground hover:bg-secondary">
                     <span className="truncate">{saveButtonLabel}</span>
                     <ChevronRight className="h-4 w-4 shrink-0 rotate-90" />
                   </button>
@@ -1435,7 +1435,7 @@ function PinDetail() {
                   if (!requireAuthToSave()) return;
                   setFsSaveOpen(true);
                 }}
-                className={`h-10 rounded-[12px] px-5 text-sm font-bold text-white transition ${
+                className={`click-bounce h-10 rounded-[12px] px-5 text-sm font-bold text-white ${
                   isSaved ? "bg-foreground hover:brightness-110" : "bg-primary hover:brightness-90"
                 }`}
               >
@@ -1508,7 +1508,7 @@ function PinDetail() {
               aria-label="Zoom in"
               onClick={zoomIn}
               disabled={zoom >= ZOOM_MAX}
-              className="flex h-11 w-11 items-center justify-center text-foreground transition hover:bg-secondary disabled:opacity-40"
+              className="click-bounce flex h-11 w-11 items-center justify-center text-foreground hover:bg-secondary disabled:opacity-40"
             >
               <Plus className="h-5 w-5" strokeWidth={2.4} />
             </button>
@@ -1518,7 +1518,7 @@ function PinDetail() {
               aria-label="Zoom out"
               onClick={zoomOut}
               disabled={zoom <= ZOOM_MIN}
-              className="flex h-11 w-11 items-center justify-center text-foreground transition hover:bg-secondary disabled:opacity-40"
+              className="click-bounce flex h-11 w-11 items-center justify-center text-foreground hover:bg-secondary disabled:opacity-40"
             >
               <Minus className="h-5 w-5" strokeWidth={2.4} />
             </button>

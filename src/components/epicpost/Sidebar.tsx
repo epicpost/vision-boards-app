@@ -13,7 +13,7 @@ const items = [
   { icon: LayoutGrid, label: "Saved", to: "/remixes" as const },
   { icon: Palette, label: "Brand Kit", to: "/brand-kit" as const },
   { icon: Plus, label: "Create" },
-  { icon: Bell, label: "Notifications" },
+  { icon: Bell, label: "Updates" },
 ];
 
 function NavButton({
@@ -29,7 +29,7 @@ function NavButton({
     <div className="group relative">
       <button
         aria-label={label}
-        className={`flex h-12 w-12 items-center justify-center rounded-[16px] transition ${
+        className={`click-bounce flex h-12 w-12 items-center justify-center rounded-[16px] ${
           active ? "bg-foreground text-background" : "hover:bg-secondary text-foreground"
         }`}
       >
@@ -75,38 +75,46 @@ export function Sidebar() {
         <a
           href="/"
           aria-label="EpicPost home"
-          className="flex h-12 w-12 items-center justify-center rounded-full hover:bg-secondary transition"
+          className="click-bounce flex h-12 w-12 items-center justify-center rounded-full hover:bg-secondary"
         >
           <img src="/transpared-logo3.png" alt="" className="h-9 w-9 object-contain" />
         </a>
         {items.map((it) =>
-          it.label === "Notifications" ? (
-            <Popover key={it.label}>
-              <PopoverTrigger asChild>
-                <button
-                  aria-label={it.label}
-                  className="relative flex h-12 w-12 items-center justify-center rounded-[16px] text-foreground transition hover:bg-secondary"
+          it.label === "Updates" ? (
+            <div key={it.label} className="group relative">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    aria-label={it.label}
+                    className="click-bounce relative flex h-12 w-12 items-center justify-center rounded-[16px] text-foreground hover:bg-secondary"
+                  >
+                    <it.icon className="h-6 w-6" strokeWidth={2.2} />
+                    {unreadCount > 0 ? (
+                      <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-[#e60023]" />
+                    ) : null}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  side="right"
+                  align="start"
+                  sideOffset={12}
+                  className="w-auto p-0 border-none bg-transparent shadow-[0_8px_30px_rgba(0,0,0,0.18)] rounded-[16px]"
                 >
-                  <it.icon className="h-6 w-6" strokeWidth={2.2} />
-                  {unreadCount > 0 ? (
-                    <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-[#e60023]" />
-                  ) : null}
-                </button>
-              </PopoverTrigger>
-              <PopoverContent
-                side="right"
-                align="start"
-                sideOffset={12}
-                className="w-auto p-0 border-none bg-transparent shadow-[0_8px_30px_rgba(0,0,0,0.18)] rounded-[16px]"
+                  <UpdatesPanel />
+                </PopoverContent>
+              </Popover>
+              <span
+                role="tooltip"
+                className="pointer-events-none absolute left-full top-1/2 ml-3 -translate-y-1/2 whitespace-nowrap rounded-[12px] bg-foreground text-background text-sm font-semibold px-3 py-2 opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition origin-left z-50 shadow-md"
               >
-                <UpdatesPanel />
-              </PopoverContent>
-            </Popover>
+                Updates
+              </span>
+            </div>
           ) : "to" in it && it.to ? (
             <Link key={it.label} to={it.to} className="group relative">
               <div
                 aria-label={it.label}
-                className={`flex h-12 w-12 items-center justify-center rounded-[16px] transition ${
+                className={`click-bounce flex h-12 w-12 items-center justify-center rounded-[16px] ${
                   pathname === it.to ||
                   (it.to === "/remixes" && (pathname === "/boards" || pathname === "/likes"))
                     ? "bg-foreground text-background"
@@ -139,7 +147,7 @@ function SettingsTrigger() {
       <PopoverTrigger asChild>
         <button
           aria-label="Settings"
-          className="flex h-12 w-12 items-center justify-center rounded-[16px] text-foreground transition hover:bg-secondary"
+          className="click-bounce flex h-12 w-12 items-center justify-center rounded-[16px] text-foreground hover:bg-secondary"
         >
           <Settings className="h-6 w-6" strokeWidth={2.2} />
         </button>

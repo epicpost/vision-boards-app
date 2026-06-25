@@ -172,6 +172,26 @@
   }
 }
 
+@layer components {
+  .click-bounce {
+    transform-origin: center;
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke,
+      opacity, box-shadow, transform, filter, backdrop-filter;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+  }
+
+  .click-bounce:active {
+    animation: mobile-nav-bounce 360ms ease-out;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .click-bounce:active {
+    animation: none;
+  }
+}
+
 /* Keep Google Identity Services One Tap / account chooser above the auth
    dialog overlay and clickable. Radix sets `pointer-events: none` on <body>
    while a dialog is open, and the dialog overlay sits at z-50; Google appends

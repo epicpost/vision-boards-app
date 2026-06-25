@@ -30,6 +30,8 @@ export interface BrandKit {
   images: BrandImage[];
   one_liner: string | null;
   brand_values: string[];
+  brand_aesthetic: string[];
+  brand_overview: string | null;
   tone_of_voice: string | null;
   website_url: string | null;
   created_at: string;
@@ -45,6 +47,8 @@ export interface BrandKitInput {
   image_asset_ids?: string[];
   one_liner?: string | null;
   brand_values?: string[];
+  brand_aesthetic?: string[];
+  brand_overview?: string | null;
   tone_of_voice?: string | null;
   website_url?: string | null;
 }

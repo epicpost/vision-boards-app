@@ -85,9 +85,12 @@ export const Route = createFileRoute("/brand-kit")({
 
 const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const MAX_TONE_OF_VOICE = 3;
+const MAX_BRAND_AESTHETIC = 5;
+const MAX_BRAND_AESTHETIC_LENGTH = 40;
 const MAX_BRAND_VALUES = 5;
 const MAX_BRAND_VALUE_LENGTH = 60;
 const MAX_ONE_LINER_LENGTH = 140;
+const MAX_BRAND_OVERVIEW_LENGTH = 600;
 const DEFAULT_NEW_COLOR = "#888888";
 const HEX_COLOR_PATTERN = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const TONE_OF_VOICE_PRESETS = [
@@ -101,6 +104,20 @@ const TONE_OF_VOICE_PRESETS = [
   "Minimal",
   "Premium",
   "Inspirational",
+];
+const BRAND_AESTHETIC_PRESETS = [
+  "Functional",
+  "Minimalist",
+  "Corporate",
+  "Professional",
+  "Reliable",
+  "Editorial",
+  "Premium",
+  "Modern",
+  "Warm",
+  "Playful",
+  "Bold",
+  "Clean",
 ];
 
 function areArraysEqual<T>(first: T[], second: T[]) {
@@ -142,6 +159,8 @@ function getBrandKitSnapshot(kit: BrandKit | null) {
     fontSecondaryId: kit?.secondary_font_id ?? null,
     oneLiner: kit?.one_liner ?? "",
     toneOfVoice: kit?.tone_of_voice ?? "",
+    brandAesthetic: kit?.brand_aesthetic ?? [],
+    brandOverview: kit?.brand_overview ?? "",
     palette: colorsToPalette(kit?.colors),
     brandValues: kit?.brand_values ?? [],
     logoAssetId: kit?.logo_asset_id ?? null,
@@ -341,6 +360,9 @@ function BrandKitEditor({
   const [oneLiner, setOneLiner] = useState(initial.oneLiner);
   const [toneOfVoice, setToneOfVoice] = useState(initial.toneOfVoice);
   const [tonePickerOpen, setTonePickerOpen] = useState(false);
+  const [brandAesthetic, setBrandAesthetic] = useState<string[]>(initial.brandAesthetic);
+  const [aestheticDraft, setAestheticDraft] = useState("");
+  const [brandOverview, setBrandOverview] = useState(initial.brandOverview);
   const [palette, setPalette] = useState<PaletteEntry[]>(initial.palette);
   const [brandValues, setBrandValues] = useState<string[]>(initial.brandValues);
   const [valueDraft, setValueDraft] = useState("");
@@ -398,9 +420,11 @@ function BrandKitEditor({
     fontSecondaryId !== savedSnapshot.fontSecondaryId ||
     oneLiner !== savedSnapshot.oneLiner ||
     toneOfVoice !== savedSnapshot.toneOfVoice ||
+    brandOverview !== savedSnapshot.brandOverview ||
     logoAssetId !== savedSnapshot.logoAssetId ||
     logoUrl !== savedSnapshot.logoUrl ||
     !arePalettesEqual(palette, savedSnapshot.palette) ||
+    !areArraysEqual(brandAesthetic, savedSnapshot.brandAesthetic) ||
     !areArraysEqual(brandValues, savedSnapshot.brandValues) ||
     !areImagesEqual(images, savedSnapshot.images);
 
@@ -424,6 +448,9 @@ function BrandKitEditor({
     setFontSecondaryId(snapshot.fontSecondaryId);
     setOneLiner(snapshot.oneLiner);
     setToneOfVoice(snapshot.toneOfVoice);
+    setBrandAesthetic(snapshot.brandAesthetic);
+    setAestheticDraft("");
+    setBrandOverview(snapshot.brandOverview);
     setPalette(snapshot.palette);
     setBrandValues(snapshot.brandValues);
     setLogoAssetId(snapshot.logoAssetId);
@@ -444,6 +471,8 @@ function BrandKitEditor({
         image_asset_ids: images.map((img) => img.asset_id),
         one_liner: oneLiner.trim() || null,
         brand_values: brandValues,
+        brand_aesthetic: brandAesthetic,
+        brand_overview: brandOverview.trim() || null,
         tone_of_voice: toneOfVoice.trim() || null,
         website_url: websiteUrl.trim() || null,
       };
@@ -500,6 +529,8 @@ function BrandKitEditor({
       image_asset_ids: images.map((img) => img.asset_id),
       one_liner: oneLiner.trim() || null,
       brand_values: brandValues,
+      brand_aesthetic: brandAesthetic,
+      brand_overview: brandOverview.trim() || null,
       tone_of_voice: toneOfVoice.trim() || null,
       website_url: websiteUrl.trim() || null,
     };
@@ -646,6 +677,20 @@ function BrandKitEditor({
     }
     setBrandValues((current) => [...current, v]);
     setValueDraft("");
+  }
+
+  function addAesthetic(value = aestheticDraft) {
+    const next = value.trim().slice(0, MAX_BRAND_AESTHETIC_LENGTH);
+    if (!next) return;
+    if (brandAesthetic.length >= MAX_BRAND_AESTHETIC) {
+      toast.error(`You can add up to ${MAX_BRAND_AESTHETIC} aesthetic tags.`);
+      return;
+    }
+    const exists = brandAesthetic.some((item) => item.toLowerCase() === next.toLowerCase());
+    if (!exists) {
+      setBrandAesthetic((current) => [...current, next]);
+    }
+    setAestheticDraft("");
   }
 
   function addToneOfVoice(value: string) {
@@ -890,65 +935,143 @@ function BrandKitEditor({
             </Card>
           </div>
 
-          {/* Tone of voice */}
-          <Card>
-            <SectionLabel>Tone of voice</SectionLabel>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              {toneOfVoiceValues.map((value) => (
-                <span
-                  key={value}
-                  className="group/tone flex items-center gap-1.5 rounded-[16px] bg-secondary px-3 py-1.5 text-sm font-semibold text-foreground"
-                >
-                  {value}
-                  <button
-                    onClick={() => removeToneOfVoice(value)}
-                    aria-label={`Remove ${value}`}
-                    className="text-muted-foreground opacity-0 transition group-hover/tone:opacity-100 group-focus-within/tone:opacity-100 hover:text-foreground"
+          {/* Brand aesthetic + Tone of voice */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Card>
+              <SectionLabel>Brand aesthetic</SectionLabel>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {brandAesthetic.map((value) => (
+                  <span
+                    key={value}
+                    className="group/aesthetic flex items-center gap-1.5 rounded-[16px] border border-secondary bg-transparent px-3 py-1.5 text-sm font-semibold text-foreground transition hover:bg-secondary focus-within:bg-secondary"
                   >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </span>
-              ))}
-              {toneOfVoiceValues.length < MAX_TONE_OF_VOICE && (
-                <Popover open={tonePickerOpen} onOpenChange={setTonePickerOpen}>
-                  <PopoverTrigger asChild>
+                    {value}
                     <button
-                      type="button"
-                      disabled={availableToneOfVoicePresets.length === 0}
-                      className="flex h-9 min-w-[180px] items-center justify-between gap-2 rounded-[16px] bg-secondary px-4 text-sm font-semibold text-foreground outline-none transition hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() =>
+                        setBrandAesthetic((current) => current.filter((item) => item !== value))
+                      }
+                      aria-label={`Remove ${value}`}
+                      className="text-muted-foreground opacity-0 transition group-hover/aesthetic:opacity-100 group-focus-within/aesthetic:opacity-100 hover:text-foreground"
                     >
-                      <span>
-                        {availableToneOfVoicePresets.length > 0
-                          ? "Add tone of voice"
-                          : "All tones added"}
-                      </span>
-                      <ChevronDown className="h-4 w-4 shrink-0" />
+                      <X className="h-3.5 w-3.5" />
                     </button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    align="start"
-                    sideOffset={10}
-                    className="w-[min(calc(100vw-32px),320px)] overflow-hidden rounded-[20px] border-0 bg-background p-0 text-foreground shadow-[0_12px_36px_rgba(0,0,0,0.18)]"
+                  </span>
+                ))}
+              </div>
+              {brandAesthetic.length < MAX_BRAND_AESTHETIC ? (
+                <>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {BRAND_AESTHETIC_PRESETS.filter(
+                      (preset) =>
+                        !brandAesthetic.some((item) => item.toLowerCase() === preset.toLowerCase()),
+                    )
+                      .slice(0, 5)
+                      .map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => addAesthetic(preset)}
+                          className="rounded-[16px] bg-secondary px-3 py-1.5 text-sm font-semibold text-foreground transition hover:bg-accent"
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                  </div>
+                  <input
+                    value={aestheticDraft}
+                    onChange={(e) =>
+                      setAestheticDraft(e.target.value.slice(0, MAX_BRAND_AESTHETIC_LENGTH))
+                    }
+                    maxLength={MAX_BRAND_AESTHETIC_LENGTH}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === ",") {
+                        e.preventDefault();
+                        addAesthetic();
+                      }
+                    }}
+                    onBlur={() => addAesthetic()}
+                    placeholder="Add an aesthetic and press Enter"
+                    className="mt-3 w-full bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
+                  />
+                </>
+              ) : null}
+            </Card>
+
+            <Card>
+              <SectionLabel>Tone of voice</SectionLabel>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {toneOfVoiceValues.map((value) => (
+                  <span
+                    key={value}
+                    className="group/tone flex items-center gap-1.5 rounded-[16px] bg-secondary px-3 py-1.5 text-sm font-semibold text-foreground"
                   >
-                    <div className="max-h-[320px] overflow-y-auto px-3 py-3">
-                      <h3 className="mb-2 text-center text-xl font-bold">Tone of voice</h3>
-                      <div className="space-y-1">
-                        {availableToneOfVoicePresets.map((tone) => (
-                          <button
-                            key={tone}
-                            type="button"
-                            onClick={() => addToneOfVoice(tone)}
-                            className="flex h-12 w-full items-center rounded-[14px] px-4 text-left text-base font-semibold transition hover:bg-secondary focus-visible:bg-secondary focus-visible:outline-none"
-                          >
-                            {tone}
-                          </button>
-                        ))}
+                    {value}
+                    <button
+                      onClick={() => removeToneOfVoice(value)}
+                      aria-label={`Remove ${value}`}
+                      className="text-muted-foreground opacity-0 transition group-hover/tone:opacity-100 group-focus-within/tone:opacity-100 hover:text-foreground"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                ))}
+                {toneOfVoiceValues.length < MAX_TONE_OF_VOICE && (
+                  <Popover open={tonePickerOpen} onOpenChange={setTonePickerOpen}>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        disabled={availableToneOfVoicePresets.length === 0}
+                        className="flex h-9 min-w-[180px] items-center justify-between gap-2 rounded-[16px] bg-secondary px-4 text-sm font-semibold text-foreground outline-none transition hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <span>
+                          {availableToneOfVoicePresets.length > 0
+                            ? "Add tone of voice"
+                            : "All tones added"}
+                        </span>
+                        <ChevronDown className="h-4 w-4 shrink-0" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="start"
+                      sideOffset={10}
+                      className="w-[min(calc(100vw-32px),320px)] overflow-hidden rounded-[20px] border-0 bg-background p-0 text-foreground shadow-[0_12px_36px_rgba(0,0,0,0.18)]"
+                    >
+                      <div className="max-h-[320px] overflow-y-auto px-3 py-3">
+                        <h3 className="mb-2 text-center text-xl font-bold">Tone of voice</h3>
+                        <div className="space-y-1">
+                          {availableToneOfVoicePresets.map((tone) => (
+                            <button
+                              key={tone}
+                              type="button"
+                              onClick={() => addToneOfVoice(tone)}
+                              className="flex h-12 w-full items-center rounded-[14px] px-4 text-left text-base font-semibold transition hover:bg-secondary focus-visible:bg-secondary focus-visible:outline-none"
+                            >
+                              {tone}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              )}
-            </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
+            </Card>
+          </div>
+
+          {/* Brand overview */}
+          <Card className="group/overview">
+            <SectionLabel>Brand overview</SectionLabel>
+            <textarea
+              value={brandOverview}
+              onChange={(e) => setBrandOverview(e.target.value.slice(0, MAX_BRAND_OVERVIEW_LENGTH))}
+              maxLength={MAX_BRAND_OVERVIEW_LENGTH}
+              placeholder="Describe what the brand does, who it serves, and what makes it distinctive."
+              rows={6}
+              className="mt-3 w-full resize-none bg-transparent text-base leading-7 text-foreground outline-none placeholder:text-muted-foreground"
+            />
+            <p className="mt-2 text-right text-xs text-muted-foreground opacity-0 transition group-hover/overview:opacity-100 group-focus-within/overview:opacity-100">
+              {brandOverview.length}/{MAX_BRAND_OVERVIEW_LENGTH}
+            </p>
           </Card>
         </div>
 
