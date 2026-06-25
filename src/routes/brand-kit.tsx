@@ -311,12 +311,15 @@ function KitActions({
     },
   });
 
-  function handleImportSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function submitImport() {
     const normalizedUrl = websiteUrl.trim();
     if (!normalizedUrl) return;
-
     importMutation.mutate(normalizedUrl);
+  }
+
+  function handleImportSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    submitImport();
   }
 
   return (
@@ -344,7 +347,8 @@ function KitActions({
               <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" />
               <input
                 id="brand-url"
-                type="url"
+                type="text"
+                inputMode="url"
                 value={websiteUrl}
                 onChange={(event) => setWebsiteUrl(event.target.value)}
                 placeholder="https://yourbrand.com"
@@ -362,7 +366,8 @@ function KitActions({
                 Cancel
               </button>
               <button
-                type="submit"
+                type="button"
+                onClick={submitImport}
                 disabled={!websiteUrl.trim() || importMutation.isPending}
                 className="inline-flex h-11 items-center gap-2 rounded-full bg-foreground px-5 text-[15px] font-semibold text-background transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
