@@ -70,22 +70,37 @@ export async function fetchFonts(): Promise<Font[]> {
 }
 
 // ── webfont loading ──────────────────────────────────────────────────────────
-// Load every catalog family once so the picker (and previews) render in their
-// own typeface. Built from the fetched catalog rather than a hardcoded list.
+// Load only the families that are actively previewed. The catalog can contain
+// thousands of Google Fonts families, so loading all of them would create a huge
+// stylesheet request and slow down the Brand Kit picker.
 
 const GOOGLE_FONTS_LINK_ID = "brand-kit-google-fonts";
+const loadedFontScopes = new Map<string, Font[]>();
 
-export function ensureFontsLoaded(fonts: Font[]) {
-  if (typeof document === "undefined" || fonts.length === 0) return;
-  const google = fonts.filter((font) => font.provider === "google");
-  if (google.length === 0) return;
+export function ensureFontsLoaded(fonts: Font[], scope = "default") {
+  if (typeof document === "undefined") return;
+  loadedFontScopes.set(scope, fonts);
+
+  const unique = new Map<string, Font>();
+  for (const scopedFonts of loadedFontScopes.values()) {
+    for (const font of scopedFonts) {
+      if (font.provider === "google") {
+        unique.set(font.family.trim().toLowerCase(), font);
+      }
+    }
+  }
+  const google = Array.from(unique.values());
+  const existing = document.getElementById(GOOGLE_FONTS_LINK_ID) as HTMLLinkElement | null;
+  if (google.length === 0) {
+    existing?.remove();
+    return;
+  }
 
   const families = google
     .map((font) => `family=${font.family.trim().replace(/\s+/g, "+")}`)
     .join("&");
   const href = `https://fonts.googleapis.com/css2?${families}&display=swap`;
 
-  const existing = document.getElementById(GOOGLE_FONTS_LINK_ID) as HTMLLinkElement | null;
   if (existing) {
     if (existing.href !== href) existing.href = href;
     return;

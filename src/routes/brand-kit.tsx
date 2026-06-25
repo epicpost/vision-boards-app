@@ -414,9 +414,7 @@ function BrandKitEditor({
     initial.toneOfVoiceAttributes,
   );
   const [toneDraft, setToneDraft] = useState("");
-  const [toneOfVoiceAvoid, setToneOfVoiceAvoid] = useState<string[]>(
-    initial.toneOfVoiceAvoid,
-  );
+  const [toneOfVoiceAvoid, setToneOfVoiceAvoid] = useState<string[]>(initial.toneOfVoiceAvoid);
   const [toneAvoidDraft, setToneAvoidDraft] = useState("");
   const [tonePickerOpen, setTonePickerOpen] = useState(false);
   const [brandAesthetic, setBrandAesthetic] = useState<string[]>(initial.brandAesthetic);
@@ -453,10 +451,6 @@ function BrandKitEditor({
   });
   const fonts = useMemo(() => fontsQuery.data ?? [], [fontsQuery.data]);
 
-  useEffect(() => {
-    ensureFontsLoaded(fonts);
-  }, [fonts]);
-
   const primaryFont = useMemo(
     () => fonts.find((font) => font.id === fontPrimaryId) ?? null,
     [fonts, fontPrimaryId],
@@ -466,6 +460,14 @@ function BrandKitEditor({
     [fonts, fontSecondaryId],
   );
   const oneLinerFont = secondaryFont ?? primaryFont;
+
+  useEffect(() => {
+    const selectedFonts = [primaryFont, secondaryFont].filter((font): font is Font =>
+      Boolean(font),
+    );
+    ensureFontsLoaded(selectedFonts, "brand-kit-selected");
+  }, [primaryFont, secondaryFont]);
+
   const availableToneOfVoicePresets = useMemo(() => {
     const selected = new Set(toneOfVoiceAttributes.map((tone) => tone.toLowerCase()));
     return TONE_OF_VOICE_PRESETS.filter((tone) => !selected.has(tone.toLowerCase()));
@@ -922,6 +924,7 @@ function BrandKitEditor({
                 <FontSlot
                   fonts={fonts}
                   loading={fontsQuery.isLoading}
+                  scope="brand-kit-primary-picker"
                   value={fontPrimaryId}
                   onChange={setFontPrimaryId}
                   placeholder="Headline font"
@@ -929,6 +932,7 @@ function BrandKitEditor({
                 <FontSlot
                   fonts={fonts}
                   loading={fontsQuery.isLoading}
+                  scope="brand-kit-secondary-picker"
                   value={fontSecondaryId}
                   onChange={setFontSecondaryId}
                   placeholder="Body font"
@@ -1399,21 +1403,35 @@ function normalizeHexColor(value: string) {
   return hex.toLowerCase();
 }
 
+const FONT_CATEGORY_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "sans-serif", label: "Sans" },
+  { value: "serif", label: "Serif" },
+  { value: "display", label: "Display" },
+  { value: "handwriting", label: "Hand" },
+  { value: "monospace", label: "Mono" },
+] as const;
+
+const FONT_PREVIEW_LIMIT = 48;
+
 function FontSlot({
   fonts,
   loading,
+  scope,
   value,
   onChange,
   placeholder,
 }: {
   fonts: Font[];
   loading: boolean;
+  scope: string;
   value: string | null;
   onChange: (value: string | null) => void;
   placeholder: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<(typeof FONT_CATEGORY_OPTIONS)[number]["value"]>("all");
 
   const selectedFont = useMemo(
     () => fonts.find((font) => font.id === value) ?? null,
@@ -1422,9 +1440,27 @@ function FontSlot({
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return fonts;
-    return fonts.filter((font) => font.family.toLowerCase().includes(q));
-  }, [fonts, query]);
+    return fonts.filter((font) => {
+      const matchesCategory = category === "all" || font.category === category;
+      const matchesQuery = !q || font.family.toLowerCase().includes(q);
+      return matchesCategory && matchesQuery;
+    });
+  }, [category, fonts, query]);
+
+  const visibleResults = useMemo(() => results.slice(0, FONT_PREVIEW_LIMIT), [results]);
+
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>([["all", fonts.length]]);
+    for (const font of fonts) {
+      counts.set(font.category, (counts.get(font.category) ?? 0) + 1);
+    }
+    return counts;
+  }, [fonts]);
+
+  useEffect(() => {
+    if (!open && !selectedFont) return;
+    ensureFontsLoaded(selectedFont ? [selectedFont, ...visibleResults] : visibleResults, scope);
+  }, [open, scope, selectedFont, visibleResults]);
 
   function handleSelect(id: string | null) {
     onChange(id);
@@ -1434,7 +1470,10 @@ function FontSlot({
 
   function handleOpenChange(next: boolean) {
     setOpen(next);
-    if (!next) setQuery("");
+    if (!next) {
+      setQuery("");
+      setCategory("all");
+    }
   }
 
   return (
@@ -1475,6 +1514,26 @@ function FontSlot({
             className="w-full bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground"
           />
         </div>
+        <div className="flex gap-1 overflow-x-auto border-b border-border px-2 py-2">
+          {FONT_CATEGORY_OPTIONS.map((option) => {
+            const active = category === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setCategory(option.value)}
+                className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition ${
+                  active
+                    ? "bg-foreground text-background"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                }`}
+              >
+                {option.label}
+                <span className="ml-1 opacity-70">{categoryCounts.get(option.value) ?? 0}</span>
+              </button>
+            );
+          })}
+        </div>
         <div className="max-h-[280px] overflow-y-auto py-1">
           {value && (
             <button
@@ -1496,28 +1555,36 @@ function FontSlot({
               No fonts found
             </div>
           ) : (
-            results.map((font) => {
-              const selected = font.id === value;
-              return (
-                <button
-                  key={font.id}
-                  type="button"
-                  onClick={() => handleSelect(font.id)}
-                  className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-accent"
-                >
-                  <span
-                    className="truncate text-lg text-foreground"
-                    style={{ fontFamily: fontFamilyStack(font) }}
+            <>
+              {visibleResults.map((font) => {
+                const selected = font.id === value;
+                return (
+                  <button
+                    key={font.id}
+                    type="button"
+                    onClick={() => handleSelect(font.id)}
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-accent"
                   >
-                    {font.family}
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    <span className="text-xs text-muted-foreground">{font.category}</span>
-                    {selected && <Check className="h-4 w-4 text-foreground" />}
-                  </span>
-                </button>
-              );
-            })
+                    <span
+                      className="truncate text-lg text-foreground"
+                      style={{ fontFamily: fontFamilyStack(font) }}
+                    >
+                      {font.family}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <span className="text-xs text-muted-foreground">{font.category}</span>
+                      {selected && <Check className="h-4 w-4 text-foreground" />}
+                    </span>
+                  </button>
+                );
+              })}
+              {results.length > visibleResults.length && (
+                <div className="px-3 py-2 text-xs font-medium text-muted-foreground">
+                  Showing first {visibleResults.length} of {results.length}. Search to narrow
+                  results.
+                </div>
+              )}
+            </>
           )}
         </div>
       </PopoverContent>
