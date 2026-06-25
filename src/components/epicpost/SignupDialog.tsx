@@ -191,7 +191,7 @@ export function SignupDialog({
       >
         <div className="flex flex-col items-center text-center">
           <div className="mb-4 flex h-16 w-16 items-center justify-center">
-            <img src="/transparent-logo.png" alt="" className="h-16 w-16 object-contain" />
+            <img src="/transpared-logo3.png" alt="" className="h-16 w-16 object-contain" />
           </div>
           <h2 className="text-[28px] font-bold text-foreground leading-tight mb-6">
             Welcome to EpicPost
