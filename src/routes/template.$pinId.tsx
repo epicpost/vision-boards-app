@@ -249,6 +249,18 @@ function normalizeEmail(value: string | null | undefined) {
   return value?.trim().toLowerCase() ?? "";
 }
 
+function getCanonicalMailbox(value: string | null | undefined) {
+  const normalized = normalizeEmail(value);
+  const [localPart, domain] = normalized.split("@");
+  if (!localPart || !domain) return normalized;
+
+  if (domain === "gmail.com" || domain === "googlemail.com") {
+    return `${localPart.split("+", 1)[0].replace(/\./g, "")}@gmail.com`;
+  }
+
+  return normalized;
+}
+
 // Reusable Share popover — rendered both in the detail header and the
 // fullscreen viewer (each with its own open state and trigger).
 function SharePopover({
@@ -279,7 +291,7 @@ function SharePopover({
   const emailSearch = search.trim();
   const canSendEmail = recipients.length === 0 && isEmailAddress(emailSearch);
   const isSelfEmail =
-    canSendEmail && normalizeEmail(emailSearch) === normalizeEmail(currentUserEmail);
+    canSendEmail && getCanonicalMailbox(emailSearch) === getCanonicalMailbox(currentUserEmail);
   const emailRecipient: ShareRecipient | null = canSendEmail
     ? { id: `email:${emailSearch}`, name: emailSearch, handle: emailSearch }
     : null;

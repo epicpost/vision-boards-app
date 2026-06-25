@@ -148,6 +148,33 @@
     cursor: pointer;
   }
 
+  :where(
+      a,
+      button,
+      input,
+      textarea,
+      select,
+      summary,
+      [role="button"],
+      [role="menuitem"],
+      [role="tab"],
+      [tabindex]
+    ):focus,
+  :where(
+      a,
+      button,
+      input,
+      textarea,
+      select,
+      summary,
+      [role="button"],
+      [role="menuitem"],
+      [role="tab"],
+      [tabindex]
+    ):focus-visible {
+    outline: none;
+  }
+
   button:disabled,
   [aria-disabled="true"] {
     cursor: not-allowed;

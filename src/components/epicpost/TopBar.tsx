@@ -1,4 +1,4 @@
-import { Search, Camera, Mic, ChevronDown, Check } from "lucide-react";
+import { Search, ChevronDown, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   AUTH_SESSION_CHANGED_EVENT,
@@ -146,18 +146,6 @@ export function TopBar({
                   }}
                   className="flex-1 bg-transparent outline-none text-foreground placeholder:text-muted-foreground text-base"
                 />
-                <button
-                  aria-label="Visual search"
-                  className="hidden sm:flex h-8 w-8 items-center justify-center rounded-full hover:bg-accent transition"
-                >
-                  <Camera className="h-5 w-5 text-foreground" strokeWidth={2.2} />
-                </button>
-                <button
-                  aria-label="Voice search"
-                  className="hidden sm:flex h-8 w-8 items-center justify-center rounded-full hover:bg-accent transition"
-                >
-                  <Mic className="h-5 w-5 text-foreground" strokeWidth={2.2} />
-                </button>
               </div>
             </PopoverAnchor>
             <PopoverContent

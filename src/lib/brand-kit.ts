@@ -33,6 +33,8 @@ export interface BrandKit {
   brand_aesthetic: string[];
   brand_overview: string | null;
   tone_of_voice: string | null;
+  tone_of_voice_attributes: string[];
+  tone_of_voice_avoid: string[];
   website_url: string | null;
   created_at: string;
   updated_at: string;
@@ -50,7 +52,15 @@ export interface BrandKitInput {
   brand_aesthetic?: string[];
   brand_overview?: string | null;
   tone_of_voice?: string | null;
+  tone_of_voice_attributes?: string[];
+  tone_of_voice_avoid?: string[];
   website_url?: string | null;
+}
+
+export interface BrandKitImportInput {
+  website_url: string;
+  profile_id?: string | null;
+  include_images?: boolean;
 }
 
 export const MAX_BRAND_IMAGES = 15;
@@ -196,6 +206,26 @@ export async function updateBrandKit(id: string, input: Partial<BrandKitInput>):
 
   if (!response.ok) {
     await throwApiError(response, "Update brand kit");
+  }
+
+  const payload = (await response.json()) as { data: BrandKit };
+  return payload.data;
+}
+
+export async function importBrandKitFromUrl(input: BrandKitImportInput): Promise<BrandKit> {
+  const token = requireToken("import a brand kit");
+
+  const response = await fetch(new URL("/api/v1/me/brand-profiles/import-from-url", API_BASE_URL), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    await throwApiError(response, "Brand kit import");
   }
 
   const payload = (await response.json()) as { data: BrandKit };

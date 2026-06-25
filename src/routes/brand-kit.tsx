@@ -62,6 +62,7 @@ import {
   createBrandKit,
   deleteBrandKit,
   fetchBrandKits,
+  importBrandKitFromUrl,
   paletteToColors,
   removeBrandImage,
   removeBrandLogo,
@@ -84,7 +85,10 @@ export const Route = createFileRoute("/brand-kit")({
 });
 
 const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
-const MAX_TONE_OF_VOICE = 3;
+const MAX_TONE_OF_VOICE = 10;
+const MAX_TONE_OF_VOICE_LENGTH = 40;
+const MAX_TONE_OF_VOICE_AVOID = 10;
+const MAX_TONE_OF_VOICE_AVOID_LENGTH = 60;
 const MAX_BRAND_AESTHETIC = 5;
 const MAX_BRAND_AESTHETIC_LENGTH = 40;
 const MAX_BRAND_VALUES = 5;
@@ -151,6 +155,12 @@ function serializeToneOfVoice(values: string[]) {
   return values.join(", ");
 }
 
+function toneAttributesForKit(kit: BrandKit | null) {
+  return kit?.tone_of_voice_attributes?.length
+    ? kit.tone_of_voice_attributes
+    : parseToneOfVoice(kit?.tone_of_voice ?? "");
+}
+
 function getBrandKitSnapshot(kit: BrandKit | null) {
   return {
     name: kit?.name ?? "",
@@ -158,7 +168,8 @@ function getBrandKitSnapshot(kit: BrandKit | null) {
     fontPrimaryId: kit?.font_id ?? null,
     fontSecondaryId: kit?.secondary_font_id ?? null,
     oneLiner: kit?.one_liner ?? "",
-    toneOfVoice: kit?.tone_of_voice ?? "",
+    toneOfVoiceAttributes: toneAttributesForKit(kit),
+    toneOfVoiceAvoid: kit?.tone_of_voice_avoid ?? [],
     brandAesthetic: kit?.brand_aesthetic ?? [],
     brandOverview: kit?.brand_overview ?? "",
     palette: colorsToPalette(kit?.colors),
@@ -237,7 +248,9 @@ function BrandKitPage() {
                 stays aligned to it.
               </p>
             </div>
-            {signedIn && !kitsQuery.isLoading && !kitsQuery.isError ? <KitActions /> : null}
+            {signedIn && !kitsQuery.isLoading && !kitsQuery.isError ? (
+              <KitActions profileId={selectedKit?.id ?? null} onImported={handleSaved} />
+            ) : null}
           </header>
 
           {!signedIn ? (
@@ -270,17 +283,40 @@ function BrandKitPage() {
 
 // ── kit switcher ──────────────────────────────────────────────────────────────
 
-function KitActions() {
+function KitActions({
+  profileId,
+  onImported,
+}: {
+  profileId: string | null;
+  onImported: (kit: BrandKit) => void;
+}) {
   const [importOpen, setImportOpen] = useState(false);
   const [websiteUrl, setWebsiteUrl] = useState("");
+
+  const importMutation = useMutation({
+    mutationFn: (url: string) =>
+      importBrandKitFromUrl({
+        website_url: url,
+        profile_id: profileId,
+        include_images: true,
+      }),
+    onSuccess: (kit) => {
+      onImported(kit);
+      setWebsiteUrl("");
+      setImportOpen(false);
+      toast.success("Brand kit imported");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Couldn't import brand kit.");
+    },
+  });
 
   function handleImportSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const normalizedUrl = websiteUrl.trim();
     if (!normalizedUrl) return;
 
-    setWebsiteUrl("");
-    setImportOpen(false);
+    importMutation.mutate(normalizedUrl);
   }
 
   return (
@@ -320,15 +356,17 @@ function KitActions() {
               <button
                 type="button"
                 onClick={() => setImportOpen(false)}
+                disabled={importMutation.isPending}
                 className="h-11 rounded-full bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:bg-accent"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={!websiteUrl.trim()}
-                className="h-11 rounded-full bg-foreground px-5 text-[15px] font-semibold text-background transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!websiteUrl.trim() || importMutation.isPending}
+                className="inline-flex h-11 items-center gap-2 rounded-full bg-foreground px-5 text-[15px] font-semibold text-background transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
+                {importMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Import
               </button>
             </DialogFooter>
@@ -358,7 +396,14 @@ function BrandKitEditor({
   const [fontPrimaryId, setFontPrimaryId] = useState<string | null>(initial.fontPrimaryId);
   const [fontSecondaryId, setFontSecondaryId] = useState<string | null>(initial.fontSecondaryId);
   const [oneLiner, setOneLiner] = useState(initial.oneLiner);
-  const [toneOfVoice, setToneOfVoice] = useState(initial.toneOfVoice);
+  const [toneOfVoiceAttributes, setToneOfVoiceAttributes] = useState<string[]>(
+    initial.toneOfVoiceAttributes,
+  );
+  const [toneDraft, setToneDraft] = useState("");
+  const [toneOfVoiceAvoid, setToneOfVoiceAvoid] = useState<string[]>(
+    initial.toneOfVoiceAvoid,
+  );
+  const [toneAvoidDraft, setToneAvoidDraft] = useState("");
   const [tonePickerOpen, setTonePickerOpen] = useState(false);
   const [brandAesthetic, setBrandAesthetic] = useState<string[]>(initial.brandAesthetic);
   const [aestheticDraft, setAestheticDraft] = useState("");
@@ -407,11 +452,10 @@ function BrandKitEditor({
     [fonts, fontSecondaryId],
   );
   const oneLinerFont = secondaryFont ?? primaryFont;
-  const toneOfVoiceValues = useMemo(() => parseToneOfVoice(toneOfVoice), [toneOfVoice]);
   const availableToneOfVoicePresets = useMemo(() => {
-    const selected = new Set(toneOfVoiceValues.map((tone) => tone.toLowerCase()));
+    const selected = new Set(toneOfVoiceAttributes.map((tone) => tone.toLowerCase()));
     return TONE_OF_VOICE_PRESETS.filter((tone) => !selected.has(tone.toLowerCase()));
-  }, [toneOfVoiceValues]);
+  }, [toneOfVoiceAttributes]);
 
   const hasUnsavedChanges =
     name !== savedSnapshot.name ||
@@ -419,11 +463,12 @@ function BrandKitEditor({
     fontPrimaryId !== savedSnapshot.fontPrimaryId ||
     fontSecondaryId !== savedSnapshot.fontSecondaryId ||
     oneLiner !== savedSnapshot.oneLiner ||
-    toneOfVoice !== savedSnapshot.toneOfVoice ||
     brandOverview !== savedSnapshot.brandOverview ||
     logoAssetId !== savedSnapshot.logoAssetId ||
     logoUrl !== savedSnapshot.logoUrl ||
     !arePalettesEqual(palette, savedSnapshot.palette) ||
+    !areArraysEqual(toneOfVoiceAttributes, savedSnapshot.toneOfVoiceAttributes) ||
+    !areArraysEqual(toneOfVoiceAvoid, savedSnapshot.toneOfVoiceAvoid) ||
     !areArraysEqual(brandAesthetic, savedSnapshot.brandAesthetic) ||
     !areArraysEqual(brandValues, savedSnapshot.brandValues) ||
     !areImagesEqual(images, savedSnapshot.images);
@@ -447,7 +492,10 @@ function BrandKitEditor({
     setFontPrimaryId(snapshot.fontPrimaryId);
     setFontSecondaryId(snapshot.fontSecondaryId);
     setOneLiner(snapshot.oneLiner);
-    setToneOfVoice(snapshot.toneOfVoice);
+    setToneOfVoiceAttributes(snapshot.toneOfVoiceAttributes);
+    setToneDraft("");
+    setToneOfVoiceAvoid(snapshot.toneOfVoiceAvoid);
+    setToneAvoidDraft("");
     setBrandAesthetic(snapshot.brandAesthetic);
     setAestheticDraft("");
     setBrandOverview(snapshot.brandOverview);
@@ -473,7 +521,9 @@ function BrandKitEditor({
         brand_values: brandValues,
         brand_aesthetic: brandAesthetic,
         brand_overview: brandOverview.trim() || null,
-        tone_of_voice: toneOfVoice.trim() || null,
+        tone_of_voice: serializeToneOfVoice(toneOfVoiceAttributes) || null,
+        tone_of_voice_attributes: toneOfVoiceAttributes,
+        tone_of_voice_avoid: toneOfVoiceAvoid,
         website_url: websiteUrl.trim() || null,
       };
       return kit ? updateBrandKit(kit.id, input) : createBrandKit(input);
@@ -531,7 +581,9 @@ function BrandKitEditor({
       brand_values: brandValues,
       brand_aesthetic: brandAesthetic,
       brand_overview: brandOverview.trim() || null,
-      tone_of_voice: toneOfVoice.trim() || null,
+      tone_of_voice: serializeToneOfVoice(toneOfVoiceAttributes) || null,
+      tone_of_voice_attributes: toneOfVoiceAttributes,
+      tone_of_voice_avoid: toneOfVoiceAvoid,
       website_url: websiteUrl.trim() || null,
     };
   }
@@ -693,24 +745,45 @@ function BrandKitEditor({
     setAestheticDraft("");
   }
 
-  function addToneOfVoice(value: string) {
-    const tone = value.trim();
+  function addToneOfVoice(value = toneDraft) {
+    const tone = value.trim().slice(0, MAX_TONE_OF_VOICE_LENGTH);
     if (!tone) return;
-    if (toneOfVoiceValues.length >= MAX_TONE_OF_VOICE) {
+    if (toneOfVoiceAttributes.length >= MAX_TONE_OF_VOICE) {
       setTonePickerOpen(false);
+      setToneDraft("");
       return;
     }
-    const exists = toneOfVoiceValues.some((item) => item.toLowerCase() === tone.toLowerCase());
+    const exists = toneOfVoiceAttributes.some((item) => item.toLowerCase() === tone.toLowerCase());
     if (exists) {
       setTonePickerOpen(false);
+      setToneDraft("");
       return;
     }
-    setToneOfVoice(serializeToneOfVoice([...toneOfVoiceValues, tone]));
+    setToneOfVoiceAttributes((current) => [...current, tone]);
+    setToneDraft("");
     setTonePickerOpen(false);
   }
 
   function removeToneOfVoice(value: string) {
-    setToneOfVoice(serializeToneOfVoice(toneOfVoiceValues.filter((item) => item !== value)));
+    setToneOfVoiceAttributes((current) => current.filter((item) => item !== value));
+  }
+
+  function addToneAvoid(value = toneAvoidDraft) {
+    const avoid = value.trim().slice(0, MAX_TONE_OF_VOICE_AVOID_LENGTH);
+    if (!avoid) return;
+    if (toneOfVoiceAvoid.length >= MAX_TONE_OF_VOICE_AVOID) {
+      setToneAvoidDraft("");
+      return;
+    }
+    const exists = toneOfVoiceAvoid.some((item) => item.toLowerCase() === avoid.toLowerCase());
+    if (!exists) {
+      setToneOfVoiceAvoid((current) => [...current, avoid]);
+    }
+    setToneAvoidDraft("");
+  }
+
+  function removeToneAvoid(value: string) {
+    setToneOfVoiceAvoid((current) => current.filter((item) => item !== value));
   }
 
   return (
@@ -1000,7 +1073,7 @@ function BrandKitEditor({
             <Card>
               <SectionLabel>Tone of voice</SectionLabel>
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                {toneOfVoiceValues.map((value) => (
+                {toneOfVoiceAttributes.map((value) => (
                   <span
                     key={value}
                     className="group/tone flex items-center gap-1.5 rounded-[16px] bg-secondary px-3 py-1.5 text-sm font-semibold text-foreground"
@@ -1015,7 +1088,7 @@ function BrandKitEditor({
                     </button>
                   </span>
                 ))}
-                {toneOfVoiceValues.length < MAX_TONE_OF_VOICE && (
+                {toneOfVoiceAttributes.length < MAX_TONE_OF_VOICE && (
                   <Popover open={tonePickerOpen} onOpenChange={setTonePickerOpen}>
                     <PopoverTrigger asChild>
                       <button
@@ -1054,6 +1127,60 @@ function BrandKitEditor({
                     </PopoverContent>
                   </Popover>
                 )}
+              </div>
+              {toneOfVoiceAttributes.length < MAX_TONE_OF_VOICE ? (
+                <input
+                  value={toneDraft}
+                  onChange={(e) => setToneDraft(e.target.value.slice(0, MAX_TONE_OF_VOICE_LENGTH))}
+                  maxLength={MAX_TONE_OF_VOICE_LENGTH}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === ",") {
+                      e.preventDefault();
+                      addToneOfVoice();
+                    }
+                  }}
+                  onBlur={() => addToneOfVoice()}
+                  placeholder="Add a voice attribute and press Enter"
+                  className="mt-3 w-full bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
+                />
+              ) : null}
+              <div className="mt-4 border-t border-border pt-3">
+                <SectionLabel>Avoid</SectionLabel>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {toneOfVoiceAvoid.map((value) => (
+                    <span
+                      key={value}
+                      className="group/avoid flex items-center gap-1.5 rounded-[16px] border border-secondary bg-transparent px-3 py-1.5 text-sm font-semibold text-foreground transition hover:bg-secondary focus-within:bg-secondary"
+                    >
+                      {value}
+                      <button
+                        onClick={() => removeToneAvoid(value)}
+                        aria-label={`Remove ${value}`}
+                        className="text-muted-foreground opacity-0 transition group-hover/avoid:opacity-100 group-focus-within/avoid:opacity-100 hover:text-foreground"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                {toneOfVoiceAvoid.length < MAX_TONE_OF_VOICE_AVOID ? (
+                  <input
+                    value={toneAvoidDraft}
+                    onChange={(e) =>
+                      setToneAvoidDraft(e.target.value.slice(0, MAX_TONE_OF_VOICE_AVOID_LENGTH))
+                    }
+                    maxLength={MAX_TONE_OF_VOICE_AVOID_LENGTH}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === ",") {
+                        e.preventDefault();
+                        addToneAvoid();
+                      }
+                    }}
+                    onBlur={() => addToneAvoid()}
+                    placeholder="Add something to avoid and press Enter"
+                    className="mt-3 w-full bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
+                  />
+                ) : null}
               </div>
             </Card>
           </div>

@@ -691,7 +691,7 @@ function DraggableImage({
       {/* Selection / drag border — high z so it sits above the photo and any
           text overlaid on the frame. */}
       {(selected || dragging) && (
-        <div className="pointer-events-none absolute inset-0 z-50 ring-2 ring-inset ring-white/90" />
+        <div className="pointer-events-none absolute inset-0 z-50 ring-2 ring-inset ring-destructive" />
       )}
     </div>
   );
