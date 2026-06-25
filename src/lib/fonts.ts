@@ -74,7 +74,7 @@ export async function fetchFonts(): Promise<Font[]> {
 // thousands of Google Fonts families, so loading all of them would create a huge
 // stylesheet request and slow down the Brand Kit picker.
 
-const GOOGLE_FONTS_LINK_ID = "brand-kit-google-fonts";
+const REMOTE_FONTS_LINK_ATTR = "data-brand-kit-remote-fonts";
 const loadedFontScopes = new Map<string, Font[]>();
 
 export function ensureFontsLoaded(fonts: Font[], scope = "default") {
@@ -89,27 +89,43 @@ export function ensureFontsLoaded(fonts: Font[], scope = "default") {
       }
     }
   }
-  const google = Array.from(unique.values());
-  const existing = document.getElementById(GOOGLE_FONTS_LINK_ID) as HTMLLinkElement | null;
-  if (google.length === 0) {
-    existing?.remove();
+  const remoteFonts = Array.from(unique.values()).filter((font) =>
+    ["google", "bunny", "fontshare"].includes(font.provider),
+  );
+  const existing = Array.from(
+    document.querySelectorAll<HTMLLinkElement>(`link[${REMOTE_FONTS_LINK_ATTR}]`),
+  );
+  if (remoteFonts.length === 0) {
+    existing.forEach((link) => link.remove());
     return;
   }
 
-  const families = google
-    .map((font) => `family=${font.family.trim().replace(/\s+/g, "+")}`)
-    .join("&");
-  const href = `https://fonts.googleapis.com/css2?${families}&display=swap`;
-
-  if (existing) {
-    if (existing.href !== href) existing.href = href;
-    return;
+  const hrefs = new Set(remoteFonts.map((font) => fontStylesheetHref(font)));
+  for (const link of existing) {
+    if (!hrefs.has(link.href)) link.remove();
+    hrefs.delete(link.href);
   }
-  const link = document.createElement("link");
-  link.id = GOOGLE_FONTS_LINK_ID;
-  link.rel = "stylesheet";
-  link.href = href;
-  document.head.appendChild(link);
+  for (const href of hrefs) {
+    const link = document.createElement("link");
+    link.setAttribute(REMOTE_FONTS_LINK_ATTR, "true");
+    link.rel = "stylesheet";
+    link.href = href;
+    document.head.appendChild(link);
+  }
+}
+
+function fontStylesheetHref(font: Font): string {
+  const provider = font.provider.toLowerCase();
+  const family = font.family.trim();
+  if (provider === "fontshare") {
+    const slug = family.toLowerCase().replace(/\s+/g, "-");
+    return `https://api.fontshare.com/v2/css?f[]=${slug}@300,400,500,600,700&display=swap`;
+  }
+  const spec = family.replace(/\s+/g, "+");
+  if (provider === "bunny") {
+    return `https://fonts.bunny.net/css?family=${spec}&display=swap`;
+  }
+  return `https://fonts.googleapis.com/css2?family=${spec}&display=swap`;
 }
 
 // The CSS `font-family` value for a font, including its generic fallback.
