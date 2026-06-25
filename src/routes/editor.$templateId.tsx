@@ -308,7 +308,7 @@ function ShareMenu({
           Share
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[360px] rounded-2xl p-5">
+      <PopoverContent align="end" className="w-[360px] rounded-[16px] p-5">
         {/* Header */}
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-bold text-foreground">Share design</h3>

@@ -735,7 +735,7 @@ function BrandKitEditor({
 
           {/* Logo + Fonts */}
           <div className="grid gap-3 sm:grid-cols-[200px_1fr]">
-            <Card className="flex flex-col">
+            <Card className="group flex flex-col">
               <SectionLabel>Logo</SectionLabel>
               <button
                 onClick={() => logoInputRef.current?.click()}
@@ -770,7 +770,7 @@ function BrandKitEditor({
                 <button
                   onClick={() => void handleRemoveLogo()}
                   disabled={deletingLogo}
-                  className="mt-2 text-sm font-semibold text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-2 text-sm font-semibold text-muted-foreground opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Remove
                 </button>
@@ -806,7 +806,7 @@ function BrandKitEditor({
           </div>
 
           {/* Colors */}
-          <Card>
+          <Card className="group/colors">
             <SectionLabel>Colors</SectionLabel>
             <div className="mt-4 flex flex-wrap items-start gap-4">
               {palette.map((entry, index) => (
@@ -822,7 +822,11 @@ function BrandKitEditor({
                 const used = new Set(palette.map((entry) => entry.type));
                 const available = COLOR_TYPES.filter((type) => !used.has(type));
                 return available.length > 0 ? (
-                  <AddColorButton availableTypes={available} onAdd={addSwatch} />
+                  <AddColorButton
+                    availableTypes={available}
+                    onAdd={addSwatch}
+                    className="opacity-0 transition group-hover/colors:opacity-100 group-focus-within/colors:opacity-100"
+                  />
                 ) : null;
               })()}
             </div>
@@ -830,7 +834,7 @@ function BrandKitEditor({
 
           {/* One liner + Brand values */}
           <div className="grid gap-3 sm:grid-cols-2">
-            <Card>
+            <Card className="group/one-liner">
               <SectionLabel>One liner</SectionLabel>
               <textarea
                 value={oneLiner}
@@ -841,7 +845,7 @@ function BrandKitEditor({
                 className="mt-3 w-full resize-none bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
                 style={{ fontFamily: oneLinerFont ? fontFamilyStack(oneLinerFont) : undefined }}
               />
-              <p className="mt-2 text-right text-xs text-muted-foreground">
+              <p className="mt-2 text-right text-xs text-muted-foreground opacity-0 transition group-hover/one-liner:opacity-100 group-focus-within/one-liner:opacity-100">
                 {oneLiner.length}/{MAX_ONE_LINER_LENGTH}
               </p>
             </Card>
@@ -852,7 +856,7 @@ function BrandKitEditor({
                 {brandValues.map((value) => (
                   <span
                     key={value}
-                    className="flex items-center gap-1.5 rounded-[16px] bg-secondary px-3 py-1.5 text-sm font-semibold text-foreground"
+                    className="group/value flex items-center gap-1.5 rounded-[16px] border border-secondary bg-transparent px-3 py-1.5 text-sm font-semibold text-foreground transition hover:bg-secondary focus-within:bg-secondary"
                   >
                     {value}
                     <button
@@ -860,7 +864,7 @@ function BrandKitEditor({
                         setBrandValues((current) => current.filter((v) => v !== value))
                       }
                       aria-label={`Remove ${value}`}
-                      className="text-muted-foreground hover:text-foreground"
+                      className="text-muted-foreground opacity-0 transition group-hover/value:opacity-100 group-focus-within/value:opacity-100 hover:text-foreground"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -893,13 +897,13 @@ function BrandKitEditor({
               {toneOfVoiceValues.map((value) => (
                 <span
                   key={value}
-                  className="flex items-center gap-1.5 rounded-[16px] bg-secondary px-3 py-1.5 text-sm font-semibold text-foreground"
+                  className="group/tone flex items-center gap-1.5 rounded-[16px] bg-secondary px-3 py-1.5 text-sm font-semibold text-foreground"
                 >
                   {value}
                   <button
                     onClick={() => removeToneOfVoice(value)}
                     aria-label={`Remove ${value}`}
-                    className="text-muted-foreground hover:text-foreground"
+                    className="text-muted-foreground opacity-0 transition group-hover/tone:opacity-100 group-focus-within/tone:opacity-100 hover:text-foreground"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -1332,9 +1336,11 @@ function BrandColorPicker({ hex, onChange }: { hex: string; onChange: (value: st
 function AddColorButton({
   availableTypes,
   onAdd,
+  className = "",
 }: {
   availableTypes: readonly ColorType[];
   onAdd: (type: ColorType, hex: string) => void;
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [hex, setHex] = useState(DEFAULT_NEW_COLOR);
@@ -1359,7 +1365,7 @@ function AddColorButton({
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
-      <div className="flex flex-col items-center gap-1.5">
+      <div className={`flex flex-col items-center gap-1.5 ${className}`}>
         <span className="h-[16px]" aria-hidden="true" />
         <PopoverTrigger asChild>
           <button
