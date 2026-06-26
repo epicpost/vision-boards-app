@@ -459,9 +459,84 @@ const TEMPLATE_205: RemixEditorTemplate = {
   ],
 };
 
+const PORTO_POSTER: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000031",
+  title: "Porto Travel Poster",
+  layout: "poster",
+  aspectRatio: "9 / 16",
+  background: "#f7f2ea",
+  palette: [
+    { label: "Paper", value: "#f7f2ea" },
+    { label: "Sunset", value: "#d86d5b" },
+    { label: "Port Wine", value: "#7b3048" },
+    { label: "River", value: "#4f6d8a" },
+    { label: "Ink", value: "#1f2326" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Porto image",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/porto-poster.jpg",
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Destination",
+      visible: true,
+      hideable: true,
+      text: "Porto",
+      color: "#7b3048",
+      fontId: "anton",
+      uppercase: false,
+      suggestions: ["Porto", "Lisbon", "Madeira", "Barcelona", "Valencia"],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Description",
+      visible: true,
+      hideable: true,
+      text: "A sunset city escape by the Douro.",
+      color: "#1f2326",
+      fontId: "montserrat",
+      uppercase: false,
+      suggestions: [
+        "A sunset city escape by the Douro.",
+        "Tiles, bridges, wine, and golden light.",
+        "A weekend framed by river views.",
+      ],
+    },
+    {
+      id: "cta",
+      kind: "cta",
+      label: "Call to action",
+      visible: true,
+      hideable: true,
+      text: "Plan the trip",
+      color: "#d86d5b",
+      fontId: "montserrat",
+      uppercase: false,
+      suggestions: ["Plan the trip", "Save this route", "Explore Porto", "Book now"],
+    },
+    {
+      id: "logo",
+      kind: "logo",
+      label: "Logo",
+      visible: false,
+      hideable: true,
+      src: "/transparent-logo.png",
+    },
+  ],
+};
+
 const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [TEMPLATE_28.id]: TEMPLATE_28,
   [TEMPLATE_205.id]: TEMPLATE_205,
+  [PORTO_POSTER.id]: PORTO_POSTER,
 };
 
 export function getRemixEditorTemplate(id: string): RemixEditorTemplate | null {
