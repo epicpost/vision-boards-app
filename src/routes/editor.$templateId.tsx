@@ -62,6 +62,7 @@ import {
   isLightColor,
   LAYOUT,
   MOODBOARD_LAYOUT,
+  PORTO_LAYOUT,
   nearestWeight,
   readableTextColor,
   resolveTextStyle,
@@ -923,6 +924,172 @@ function MoodboardPreview({
   );
 }
 
+function PortoPreview({
+  template,
+  layers,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const image = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image",
+  );
+  const caption = layers.find((layer): layer is TextLayer => layer.kind === "header");
+  const overview = layers.find((layer): layer is TextLayer => layer.kind === "description");
+  const captionStyle = caption ? resolveTextStyle(caption) : null;
+  const overviewStyle = overview ? resolveTextStyle(overview) : null;
+  const pct = (value: number) => `${value * 100}%`;
+  const cqi = (value: number) => `${value * 100}cqi`;
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: "#111111",
+        containerType: "inline-size",
+      }}
+    >
+      {image && (
+        <img
+          src={image.src}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+          draggable={false}
+        />
+      )}
+
+      <div
+        className="absolute"
+        style={{
+          left: pct(PORTO_LAYOUT.card.x),
+          top: pct(PORTO_LAYOUT.card.y),
+          width: pct(PORTO_LAYOUT.card.w),
+          height: pct(PORTO_LAYOUT.card.h),
+          background: template.background,
+        }}
+      />
+
+      {image?.visible && (
+        <DraggableImage
+          layer={image}
+          fit="cover"
+          selected={selectedId === image.id}
+          onSelect={() => onSelect(image.id)}
+          onPan={(offsetX, offsetY) =>
+            updateLayer(
+              image.id,
+              { transform: { ...imageTransform(image), offsetX, offsetY } },
+              `pan-${image.id}`,
+            )
+          }
+          style={{
+            left: pct(PORTO_LAYOUT.photo.x),
+            top: pct(PORTO_LAYOUT.photo.y),
+            width: pct(PORTO_LAYOUT.photo.w),
+            height: pct(PORTO_LAYOUT.photo.h),
+          }}
+        />
+      )}
+
+      <div
+        className="absolute"
+        style={{
+          left: pct(PORTO_LAYOUT.headlineCover.x),
+          top: pct(PORTO_LAYOUT.headlineCover.y),
+          width: pct(PORTO_LAYOUT.headlineCover.w),
+          height: pct(PORTO_LAYOUT.headlineCover.h),
+          background: template.background,
+        }}
+      />
+
+      <div
+        className="absolute uppercase"
+        style={{
+          left: pct(PORTO_LAYOUT.eyebrow.x),
+          top: pct(PORTO_LAYOUT.eyebrow.y),
+          fontFamily: "'Montserrat', sans-serif",
+          fontSize: cqi(PORTO_LAYOUT.eyebrow.size),
+          lineHeight: 1,
+          letterSpacing: "0.025em",
+          color: "#29292b",
+        }}
+      >
+        PORTUGAL
+      </div>
+
+      {overview?.visible && overviewStyle && (
+        <div
+          className="absolute"
+          style={{
+            left: pct(PORTO_LAYOUT.overview.x),
+            top: pct(PORTO_LAYOUT.overview.y),
+            width: pct(PORTO_LAYOUT.overview.w),
+            fontFamily: fontById(overview.fontId).family,
+            fontWeight: overviewStyle.weight,
+            fontSize: cqi(PORTO_LAYOUT.overview.size * overviewStyle.sizeScale),
+            lineHeight: PORTO_LAYOUT.overview.lineHeight,
+            letterSpacing: `${overviewStyle.letterSpacing}em`,
+            color: overview.color,
+            textAlign: "left",
+          }}
+        >
+          {overview.text}
+        </div>
+      )}
+
+      {caption?.visible && captionStyle && image && (
+        <svg
+          className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+          viewBox="0 0 1080 1920"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <defs>
+            <pattern
+              id="porto-headline-photo"
+              patternUnits="userSpaceOnUse"
+              x="155.54"
+              y="518.17"
+              width="793.86"
+              height="1007.34"
+            >
+              <image
+                href={image.src}
+                x="0"
+                y="0"
+                width="793.86"
+                height="1007.34"
+                preserveAspectRatio="xMidYMid slice"
+              />
+            </pattern>
+          </defs>
+          <text
+            x="143.8"
+            y="515.41"
+            dominantBaseline="hanging"
+            fill="url(#porto-headline-photo)"
+            style={{
+              fontFamily: fontById(caption.fontId).family,
+              fontWeight: captionStyle.weight,
+              fontSize: 208 * captionStyle.sizeScale,
+              letterSpacing: "-0.035em",
+            }}
+          >
+            {caption.uppercase ? caption.text.toUpperCase() : caption.text}
+          </text>
+        </svg>
+      )}
+    </div>
+  );
+}
+
 // A compact "Saving… / Saved / Offline" pill reflecting the autosave state.
 function SaveStatus({ status }: { status: ReturnType<typeof useEditorDraft>["status"] }) {
   if (status === "loading" || status === "saving") {
@@ -986,6 +1153,9 @@ function defaultOpenSections(template: RemixEditorTemplate): Record<string, bool
       open[layer.id] = layer.kind === "header" || index === 0;
     });
     return open;
+  }
+  if (template.layout === "porto") {
+    return { image: true, header: true, description: true };
   }
   return { image: true, header: true, description: false, cta: false, logo: false };
 }
@@ -1278,11 +1448,21 @@ function EditorScreen({
           <div
             className={cn(
               "w-full",
-              template.layout === "moodboard" ? "max-w-[300px]" : "max-w-[360px]",
+              template.layout === "moodboard" || template.layout === "porto"
+                ? "max-w-[300px]"
+                : "max-w-[360px]",
             )}
           >
             {template.layout === "moodboard" ? (
               <MoodboardPreview
+                template={template}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
+            ) : template.layout === "porto" ? (
+              <PortoPreview
                 template={template}
                 layers={layers}
                 selectedId={selectedImageId}
@@ -1427,7 +1607,7 @@ function EditorScreen({
           )}
 
           {/* Image */}
-          {template.layout === "poster" && image && (
+          {template.layout !== "moodboard" && image && (
             <EditorSection
               title="Image"
               open={openSections.image}
@@ -1458,9 +1638,9 @@ function EditorScreen({
           )}
 
           {/* Header */}
-          {template.layout === "poster" && header && (
+          {template.layout !== "moodboard" && header && (
             <EditorSection
-              title="Header"
+              title={template.layout === "porto" ? "Caption" : "Header"}
               open={openSections.header}
               onToggleOpen={() => toggleOpen("header")}
               hideable={header.hideable}
@@ -1468,7 +1648,7 @@ function EditorScreen({
               onToggleVisible={() => toggleVisible("header")}
             >
               <TextField
-                label="Header text"
+                label={template.layout === "porto" ? "Caption text" : "Header text"}
                 value={header.text}
                 onChange={(value) => updateLayer("header", { text: value }, "header-text")}
                 onSuggest={() => cycleSuggestion(header)}
@@ -1497,7 +1677,7 @@ function EditorScreen({
           {/* Description */}
           {description && (
             <EditorSection
-              title="Description"
+              title={template.layout === "porto" ? "City overview" : "Description"}
               open={openSections.description}
               onToggleOpen={() => toggleOpen("description")}
               hideable={description.hideable}
@@ -1505,7 +1685,7 @@ function EditorScreen({
               onToggleVisible={() => toggleVisible("description")}
             >
               <TextField
-                label="Description text"
+                label={template.layout === "porto" ? "City overview text" : "Description text"}
                 value={description.text}
                 multiline
                 onChange={(value) =>

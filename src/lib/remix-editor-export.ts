@@ -6,6 +6,7 @@ import {
   EXPORT_FORMATS,
   LAYOUT,
   MOODBOARD_LAYOUT,
+  PORTO_LAYOUT,
   TEXT_SHADOW,
   fontById,
   imageTransform,
@@ -230,6 +231,154 @@ async function exportMoodboard(
   return canvasToBlob(canvas, format);
 }
 
+function drawTextImageFill(
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  text: string,
+  textBox: { x: number; y: number; w: number; h: number },
+  imageBox: { x: number; y: number; w: number; h: number },
+  font: string,
+  colorFallback: string,
+  transform: ImageTransform,
+) {
+  const mask = document.createElement("canvas");
+  mask.width = ctx.canvas.width;
+  mask.height = ctx.canvas.height;
+  const maskCtx = mask.getContext("2d");
+  if (!maskCtx) return;
+
+  maskCtx.save();
+  maskCtx.font = font;
+  maskCtx.letterSpacing = "-0.035em";
+  maskCtx.fillStyle = colorFallback;
+  maskCtx.textAlign = "left";
+  maskCtx.textBaseline = "top";
+  maskCtx.fillText(text, textBox.x, textBox.y, textBox.w);
+  maskCtx.globalCompositeOperation = "source-in";
+  drawImageCover(maskCtx, image, imageBox, transform);
+  maskCtx.restore();
+
+  ctx.drawImage(mask, 0, 0);
+}
+
+async function exportPorto(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+
+  const imageLayer = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const caption = byId<TextLayer>("header");
+  const overview = byId<TextLayer>("description");
+  const image = imageLayer ? await loadImage(imageLayer.src) : null;
+  const transform = imageLayer ? imageTransform(imageLayer) : DEFAULT_IMAGE_TRANSFORM;
+
+  ctx.fillStyle = "#111111";
+  ctx.fillRect(0, 0, width, height);
+
+  if (image) {
+    drawImageCover(ctx, image, { x: 0, y: 0, w: width, h: height });
+  }
+
+  const card = {
+    x: PORTO_LAYOUT.card.x * width,
+    y: PORTO_LAYOUT.card.y * height,
+    w: PORTO_LAYOUT.card.w * width,
+    h: PORTO_LAYOUT.card.h * height,
+  };
+  const photo = {
+    x: PORTO_LAYOUT.photo.x * width,
+    y: PORTO_LAYOUT.photo.y * height,
+    w: PORTO_LAYOUT.photo.w * width,
+    h: PORTO_LAYOUT.photo.h * height,
+  };
+
+  ctx.fillStyle = template.background;
+  ctx.fillRect(card.x, card.y, card.w, card.h);
+
+  if (image && imageLayer?.visible !== false) {
+    drawImageCover(ctx, image, photo, transform);
+  }
+
+  ctx.fillStyle = template.background;
+  ctx.fillRect(
+    PORTO_LAYOUT.headlineCover.x * width,
+    PORTO_LAYOUT.headlineCover.y * height,
+    PORTO_LAYOUT.headlineCover.w * width,
+    PORTO_LAYOUT.headlineCover.h * height,
+  );
+
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all([
+      document.fonts.load(`400 ${PORTO_LAYOUT.headline.size * width}px 'Anton'`),
+      document.fonts.load(`400 ${PORTO_LAYOUT.overview.size * width}px 'Montserrat'`),
+    ]).catch(() => undefined);
+  }
+
+  ctx.save();
+  ctx.fillStyle = "#29292b";
+  ctx.font = `400 ${PORTO_LAYOUT.eyebrow.size * width}px 'Montserrat', sans-serif`;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.fillText("PORTUGAL", PORTO_LAYOUT.eyebrow.x * width, PORTO_LAYOUT.eyebrow.y * height);
+  ctx.restore();
+
+  if (overview?.visible !== false && overview?.text.trim()) {
+    ctx.save();
+    const font = fontById(overview.fontId);
+    const style = resolveTextStyle(overview);
+    const size = PORTO_LAYOUT.overview.size * style.sizeScale * width;
+    ctx.font = `${style.weight} ${size}px ${font.family}`;
+    ctx.fillStyle = overview.color;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    const lines = wrapLines(ctx, overview.text, PORTO_LAYOUT.overview.w * width);
+    const lineHeight = size * PORTO_LAYOUT.overview.lineHeight;
+    const x = PORTO_LAYOUT.overview.x * width;
+    const y = PORTO_LAYOUT.overview.y * height;
+    lines.slice(0, 5).forEach((line, index) => {
+      ctx.fillText(line, x, y + index * lineHeight);
+    });
+    ctx.restore();
+  }
+
+  if (image && caption?.visible !== false && caption?.text.trim()) {
+    const label = caption.uppercase ? caption.text.toUpperCase() : caption.text;
+    const font = fontById(caption.fontId);
+    const style = resolveTextStyle(caption);
+    const size = PORTO_LAYOUT.headline.size * style.sizeScale * width;
+    drawTextImageFill(
+      ctx,
+      image,
+      label,
+      {
+        x: PORTO_LAYOUT.headline.x * width,
+        y: PORTO_LAYOUT.headline.y * height,
+        w: PORTO_LAYOUT.headline.w * width,
+        h: size,
+      },
+      photo,
+      `${style.weight} ${size}px ${font.family}`,
+      caption.color,
+      transform,
+    );
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
 export async function exportCreative(
   template: RemixEditorTemplate,
   layers: EditorLayer[],
@@ -238,6 +387,9 @@ export async function exportCreative(
 ): Promise<Blob> {
   if (template.layout === "moodboard") {
     return exportMoodboard(template, layers, format, width);
+  }
+  if (template.layout === "porto") {
+    return exportPorto(template, layers, format, width);
   }
 
   const ratio = parseRatio(template.aspectRatio);

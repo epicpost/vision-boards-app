@@ -173,6 +173,7 @@ export interface RemixParams {
   templateId: string;
   assetIds: string[];
   caption?: string;
+  cityOverview?: string;
   aspectRatio?: string;
   fontId?: string;
   captionColor?: string;
@@ -191,6 +192,7 @@ export async function remixTemplate(params: RemixParams): Promise<GenerationResu
       template_id: params.templateId,
       asset_ids: params.assetIds,
       caption: params.caption || null,
+      city_overview: params.cityOverview || null,
       aspect_ratio: params.aspectRatio || null,
       font_id: params.fontId || null,
       caption_color: params.captionColor || null,
@@ -208,6 +210,7 @@ export interface RemixUploadParams {
   templateId: string;
   files: File[];
   caption?: string;
+  cityOverview?: string;
   aspectRatio?: string;
   fontId?: string;
   captionColor?: string;
@@ -219,6 +222,7 @@ export async function remixTemplateUpload(params: RemixUploadParams): Promise<Ge
   const form = new FormData();
   form.append("template_id", params.templateId);
   if (params.caption) form.append("caption", params.caption);
+  if (params.cityOverview) form.append("city_overview", params.cityOverview);
   if (params.aspectRatio) form.append("aspect_ratio", params.aspectRatio);
   if (params.fontId) form.append("font_id", params.fontId);
   if (params.captionColor) form.append("caption_color", params.captionColor);

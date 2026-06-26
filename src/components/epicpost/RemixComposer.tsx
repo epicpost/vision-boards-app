@@ -96,6 +96,9 @@ export function RemixComposer({
   const captionRequirement =
     template.input_requirements?.text_requirements.find((text) => text.visible_on_asset) ??
     template.input_requirements?.text_requirements[0];
+  const cityOverviewRequirement = template.input_requirements?.text_requirements.find(
+    (text) => text.key === "city_overview",
+  );
 
   // Templates can ask for the brand logo and/or render brand text on the asset.
   // When they do, we auto-attach the matching brand-kit cards below.
@@ -123,9 +126,11 @@ export function RemixComposer({
     ? imageRequirement.accepted_mime_types
     : FALLBACK_ACCEPTED_TYPES;
   const maxChars = captionRequirement?.max_chars ?? null;
+  const cityOverviewMaxChars = cityOverviewRequirement?.max_chars ?? null;
 
   const [images, setImages] = useState<AttachedImage[]>([]);
   const [caption, setCaption] = useState("");
+  const [cityOverview, setCityOverview] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [isResultOpen, setIsResultOpen] = useState(false);
@@ -226,7 +231,10 @@ export function RemixComposer({
 
   const isBusy = phase !== "idle";
   const captionMissing = Boolean(captionRequirement?.required) && !caption.trim();
-  const canSend = images.length >= minImages && !captionMissing && !isBusy;
+  const cityOverviewMissing =
+    Boolean(cityOverviewRequirement?.required) && !cityOverview.trim();
+  const canSend =
+    images.length >= minImages && !captionMissing && !cityOverviewMissing && !isBusy;
   const output = result?.assets[0] ?? null;
   // Only templates with a static editor config can open the visual editor.
   const canEdit = hasRemixEditorTemplate(template.id);
@@ -241,6 +249,8 @@ export function RemixComposer({
       ? `Attach ${minImages - images.length} more image${minImages - images.length > 1 ? "s" : ""} to remix`
       : captionMissing
         ? "Add a caption to remix"
+        : cityOverviewMissing
+          ? "Add a city overview to remix"
         : "Ready — send to generate your remix";
 
   function addFiles(fileList: FileList | File[]) {
@@ -314,6 +324,7 @@ export function RemixComposer({
       const aspectRatio =
         template.output_spec?.default_aspect_ratio ?? template.aspect_ratio ?? undefined;
       const trimmedCaption = caption.trim() || undefined;
+      const trimmedCityOverview = cityOverview.trim() || undefined;
       const hasBrandPicks = images.some((image) => image.assetId);
 
       // Pure uploads keep the transient (non-persisting) remix-upload path.
@@ -335,6 +346,7 @@ export function RemixComposer({
           templateId: template.id,
           assetIds: assetIds as string[],
           caption: trimmedCaption,
+          cityOverview: trimmedCityOverview,
           aspectRatio,
           fontId: selectedFontId,
           captionColor: selectedCaptionColor,
@@ -344,6 +356,7 @@ export function RemixComposer({
           templateId: template.id,
           files: images.map((image) => image.file).filter((file): file is File => Boolean(file)),
           caption: trimmedCaption,
+          cityOverview: trimmedCityOverview,
           aspectRatio,
           fontId: selectedFontId,
           captionColor: selectedCaptionColor,
@@ -377,6 +390,7 @@ export function RemixComposer({
       return [];
     });
     setCaption("");
+    setCityOverview("");
     setResult(null);
     setLogoRemoved(false);
     setFontsRemoved(false);
@@ -570,6 +584,27 @@ export function RemixComposer({
             >
               <ImageIcon className="h-5 w-5" />
             </button>
+          )}
+        </div>
+      )}
+
+      {cityOverviewRequirement && (
+        <div className="mb-2 rounded-[16px] bg-secondary p-3">
+          <textarea
+            value={cityOverview}
+            disabled={isBusy}
+            maxLength={cityOverviewMaxChars ?? undefined}
+            onChange={(event) => setCityOverview(event.target.value)}
+            placeholder={
+              cityOverviewRequirement.description ??
+              `Add a ${(cityOverviewRequirement.label ?? "city overview").toLowerCase()}`
+            }
+            className="min-h-20 w-full resize-none bg-transparent text-[15px] leading-5 text-foreground outline-none placeholder:text-muted-foreground"
+          />
+          {cityOverviewMaxChars != null && cityOverview.length > 0 && (
+            <div className="mt-1 text-right text-xs font-medium text-muted-foreground">
+              {cityOverview.length}/{cityOverviewMaxChars}
+            </div>
           )}
         </div>
       )}

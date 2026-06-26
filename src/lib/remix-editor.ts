@@ -111,8 +111,9 @@ export const EXPORT_FORMATS: Record<ExportFormat, ExportFormatMeta> = {
 
 // How a template's canvas is composed. "poster" is the single product-shot
 // layout (header / description / CTA over one image); "moodboard" is a
-// full-bleed vertical stack of photo bands with a city title overlaid.
-export type TemplateLayout = "poster" | "moodboard";
+// full-bleed vertical stack of photo bands with a city title overlaid; "porto"
+// reproduces the measured Porto travel poster reference.
+export type TemplateLayout = "poster" | "moodboard" | "porto";
 
 export interface RemixEditorTemplate {
   id: string;
@@ -462,15 +463,15 @@ const TEMPLATE_205: RemixEditorTemplate = {
 const PORTO_POSTER: RemixEditorTemplate = {
   id: "11000000-0000-0000-0000-000000000031",
   title: "Porto Travel Poster",
-  layout: "poster",
+  layout: "porto",
   aspectRatio: "9 / 16",
-  background: "#f7f2ea",
+  background: "#f4efea",
   palette: [
-    { label: "Paper", value: "#f7f2ea" },
-    { label: "Sunset", value: "#d86d5b" },
+    { label: "Paper", value: "#f4efea" },
+    { label: "Ink", value: "#29292b" },
+    { label: "Mist", value: "#8f8586" },
     { label: "Port Wine", value: "#7b3048" },
-    { label: "River", value: "#4f6d8a" },
-    { label: "Ink", value: "#1f2326" },
+    { label: "Sunset", value: "#d86d5b" },
   ],
   formats: ["png", "jpeg", "webp"],
   layers: [
@@ -485,11 +486,11 @@ const PORTO_POSTER: RemixEditorTemplate = {
     {
       id: "header",
       kind: "header",
-      label: "Destination",
+      label: "Caption",
       visible: true,
-      hideable: true,
+      hideable: false,
       text: "Porto",
-      color: "#7b3048",
+      color: "#29292b",
       fontId: "anton",
       uppercase: false,
       suggestions: ["Porto", "Lisbon", "Madeira", "Barcelona", "Valencia"],
@@ -497,38 +498,18 @@ const PORTO_POSTER: RemixEditorTemplate = {
     {
       id: "description",
       kind: "description",
-      label: "Description",
+      label: "City overview",
       visible: true,
-      hideable: true,
-      text: "A sunset city escape by the Douro.",
-      color: "#1f2326",
+      hideable: false,
+      text: "Porto is the second largest city in Portugal and is famous for the fortified wine (port) produced in the region.",
+      color: "#8f8586",
       fontId: "montserrat",
       uppercase: false,
       suggestions: [
-        "A sunset city escape by the Douro.",
-        "Tiles, bridges, wine, and golden light.",
-        "A weekend framed by river views.",
+        "Porto is the second largest city in Portugal and is famous for the fortified wine (port) produced in the region.",
+        "A riverside city of tiled facades, bridges, golden rooftops, and port wine cellars.",
+        "A northern Portuguese city shaped by the Douro, historic streets, and sunset viewpoints.",
       ],
-    },
-    {
-      id: "cta",
-      kind: "cta",
-      label: "Call to action",
-      visible: true,
-      hideable: true,
-      text: "Plan the trip",
-      color: "#d86d5b",
-      fontId: "montserrat",
-      uppercase: false,
-      suggestions: ["Plan the trip", "Save this route", "Explore Porto", "Book now"],
-    },
-    {
-      id: "logo",
-      kind: "logo",
-      label: "Logo",
-      visible: false,
-      hideable: true,
-      src: "/transparent-logo.png",
     },
   ],
 };
@@ -598,4 +579,16 @@ export const LAYOUT = {
 export const MOODBOARD_LAYOUT = {
   bands: 3,
   title: { centerY: 0.5, size: 0.135, lineHeight: 1, weight: 800, padX: 0.04 },
+} as const;
+
+// Measured from public/templates/shared/porto-poster.jpg (736 x 1308) and
+// expressed as canvas fractions so the DOM preview and export share the same
+// geometry.
+export const PORTO_LAYOUT = {
+  card: { x: 50 / 736, y: 231 / 1308, w: 654 / 736, h: 844 / 1308 },
+  photo: { x: 106 / 736, y: 353 / 1308, w: 541 / 736, h: 686 / 1308 },
+  headlineCover: { x: 106 / 736, y: 353 / 1308, w: 541 / 736, h: 116 / 1308 },
+  eyebrow: { x: 98 / 736, y: 271 / 1308, size: 32 / 1080 },
+  overview: { x: 415 / 736, y: 256 / 1308, w: 229 / 736, size: 18 / 1080, lineHeight: 1.18 },
+  headline: { x: 98 / 736, y: 351 / 1308, w: 560 / 736, size: 208 / 1080, lineHeight: 0.82 },
 } as const;
