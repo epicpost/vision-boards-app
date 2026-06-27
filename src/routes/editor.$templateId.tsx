@@ -21,6 +21,8 @@ import {
   Instagram,
   Link2,
   Loader2,
+  MessageSquareText,
+  Mic2,
   Lock,
   MoreHorizontal,
   Plus,
@@ -33,6 +35,7 @@ import {
   SlidersHorizontal,
   Smartphone,
   Sparkles,
+  Send,
   ThumbsDown,
   ThumbsUp,
   Type,
@@ -509,6 +512,110 @@ function EditorSection({
       </div>
       {open && <div className="px-6 pb-6">{children}</div>}
     </div>
+  );
+}
+
+function EditorChatPanel({
+  messages,
+  draft,
+  onDraftChange,
+  onSubmit,
+}: {
+  messages: ChatMessage[];
+  draft: string;
+  onDraftChange: (value: string) => void;
+  onSubmit: () => void;
+}) {
+  const canSend = draft.trim().length > 0;
+
+  return (
+    <aside className="w-full shrink-0 bg-[#0e1413] p-4 lg:h-full lg:min-h-0 lg:w-[360px] lg:overflow-hidden lg:p-6">
+      <div className="flex min-h-[600px] overflow-hidden rounded-[32px] border border-white/5 bg-[#222625] text-foreground shadow-[0_24px_70px_rgba(0,0,0,0.28)] [--background:#222625] [--border:rgba(11,15,15,0.72)] [--foreground:#f0f1ed] [--input:#151819] [--muted-foreground:#a7aba7] [--primary:#c7d36f] [--ring:#c7d36f] [--secondary:#17191b] lg:h-[calc(100dvh-7rem)] lg:max-h-[calc(100dvh-7rem)] lg:min-h-[min(600px,calc(100dvh-7rem))]">
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex items-center gap-2 px-6 py-5">
+            <MessageSquareText className="h-5 w-5 text-foreground" />
+            <h2 className="text-lg font-bold text-foreground">Chat</h2>
+          </div>
+
+          <div className="flex min-h-0 flex-1 flex-col border-t border-border">
+            <div className="flex items-center justify-between px-6 py-4">
+              <p className="text-[15px] font-semibold text-foreground">Chat history</p>
+              <span className="rounded-full bg-secondary px-3 py-1 text-[12px] font-semibold text-[#c7d36f]">
+                {messages.length}
+              </span>
+            </div>
+
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 pb-5">
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={cn(
+                    "max-w-[92%] rounded-[18px] px-4 py-3 text-[14px] leading-5",
+                    message.role === "user"
+                      ? "ml-auto bg-[#c7d36f] text-[#151819]"
+                      : "border border-white/8 bg-secondary text-foreground",
+                  )}
+                >
+                  {message.text}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t border-border p-4">
+            <div className="rounded-[28px] border border-white/8 bg-secondary p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus-within:ring-2 focus-within:ring-ring/70">
+              <textarea
+                value={draft}
+                rows={3}
+                placeholder="Ask EpicPost..."
+                onChange={(event) => onDraftChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    onSubmit();
+                  }
+                }}
+                className="min-h-[76px] w-full resize-none bg-transparent px-1 text-[15px] text-foreground outline-none placeholder:text-muted-foreground"
+              />
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  aria-label="Add attachment"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 text-foreground transition hover:bg-background"
+                >
+                  <Plus className="h-5 w-5" />
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="inline-flex h-10 items-center gap-1.5 rounded-full border border-white/10 px-4 text-[14px] font-semibold text-foreground transition hover:bg-background"
+                  >
+                    Refine
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Voice input"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 text-foreground transition hover:bg-background"
+                  >
+                    <Mic2 className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Send message"
+                    disabled={!canSend}
+                    onClick={onSubmit}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#c7d36f] text-[#151819] transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-white/20 disabled:text-muted-foreground"
+                  >
+                    <Send className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
   );
 }
 
@@ -1146,6 +1253,12 @@ type LayerPatch = Partial<{
   shadow: boolean;
 }>;
 
+type ChatMessage = {
+  id: string;
+  role: "assistant" | "user";
+  text: string;
+};
+
 // Which edit sections start expanded. Keyed by layer id so moodboard photos
 // (which share the "image" kind) each get their own state.
 function defaultOpenSections(template: RemixEditorTemplate): Record<string, boolean> {
@@ -1193,6 +1306,19 @@ function EditorScreen({
     setFuture([]);
   });
 
+  const [chatDraft, setChatDraft] = useState("");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => [
+    {
+      id: "assistant-intro",
+      role: "assistant",
+      text: `I have ${template.title} open. Tell me what you want to refine and I will keep it aligned with the current design.`,
+    },
+    {
+      id: "assistant-context",
+      role: "assistant",
+      text: "Current edit areas: photos, title, copy, colors, and layout polish.",
+    },
+  ]);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() =>
     defaultOpenSections(template),
   );
@@ -1309,6 +1435,22 @@ function EditorScreen({
     updateLayer(id, { src: url, visible: true });
   }
 
+  function submitChatMessage() {
+    const text = chatDraft.trim();
+    if (!text) return;
+    const now = Date.now();
+    setChatMessages((current) => [
+      ...current,
+      { id: `user-${now}`, role: "user", text },
+      {
+        id: `assistant-${now}`,
+        role: "assistant",
+        text: "Got it. I added this to the creative direction for the current edit.",
+      },
+    ]);
+    setChatDraft("");
+  }
+
   async function handleDownload(format: ExportFormat) {
     try {
       setExporting(true);
@@ -1385,6 +1527,13 @@ function EditorScreen({
       </header>
 
       <div className="flex flex-1 flex-col lg:min-h-0 lg:flex-row">
+        <EditorChatPanel
+          messages={chatMessages}
+          draft={chatDraft}
+          onDraftChange={setChatDraft}
+          onSubmit={submitChatMessage}
+        />
+
         {/* Canvas stage — fixed to the viewport on desktop; scrolls only if the
             preview itself is taller than the stage, never resized by the panel. */}
         <div className="flex flex-1 flex-col items-center justify-center gap-5 bg-[#0e1413] px-4 py-8 lg:min-h-0 lg:overflow-y-auto lg:py-10">
