@@ -1,4 +1,4 @@
-import { Home, LayoutGrid, Palette, Plus, Bell, Settings } from "lucide-react";
+import { Bell, FileText, Home, LayoutGrid, Megaphone, Palette, Plus, Settings } from "lucide-react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -45,6 +45,80 @@ function NavButton({
   );
 }
 
+function CreatePanel({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="w-[240px] rounded-[16px] bg-popover p-2">
+      <Link
+        to="/"
+        onClick={onClose}
+        className="flex w-full items-center gap-3 rounded-[14px] px-3 py-3 text-left transition hover:bg-secondary"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-secondary text-foreground">
+          <FileText className="h-5 w-5" strokeWidth={2.3} />
+        </span>
+        <span className="min-w-0">
+          <span className="block text-[15px] font-bold leading-tight text-foreground">Post</span>
+          <span className="block truncate text-xs font-medium text-muted-foreground">
+            Create from templates
+          </span>
+        </span>
+      </Link>
+      <Link
+        to="/campaigns"
+        onClick={onClose}
+        className="flex w-full items-center gap-3 rounded-[14px] px-3 py-3 text-left transition hover:bg-secondary"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-secondary text-foreground">
+          <Megaphone className="h-5 w-5" strokeWidth={2.3} />
+        </span>
+        <span className="min-w-0">
+          <span className="block text-[15px] font-bold leading-tight text-foreground">
+            Campaign
+          </span>
+          <span className="block truncate text-xs font-medium text-muted-foreground">
+            Build a creative set
+          </span>
+        </span>
+      </Link>
+    </div>
+  );
+}
+
+function CreateTrigger({ active }: { active?: boolean }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="group relative">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            aria-label="Create"
+            className={`click-bounce flex h-12 w-12 items-center justify-center rounded-[16px] ${
+              active ? "bg-foreground text-background" : "text-foreground hover:bg-secondary"
+            }`}
+          >
+            <Plus className="h-6 w-6" strokeWidth={2.2} />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          side="right"
+          align="start"
+          sideOffset={12}
+          className="w-auto rounded-[16px] border-none bg-transparent p-0 shadow-[0_8px_30px_rgba(0,0,0,0.18)]"
+        >
+          <CreatePanel onClose={() => setOpen(false)} />
+        </PopoverContent>
+      </Popover>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 origin-left scale-95 whitespace-nowrap rounded-[12px] bg-foreground px-3 py-2 text-sm font-semibold text-background opacity-0 shadow-md transition group-hover:scale-100 group-hover:opacity-100"
+      >
+        Create
+      </span>
+    </div>
+  );
+}
+
 export function Sidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [isSignedIn, setIsSignedIn] = useState(false);
@@ -80,7 +154,9 @@ export function Sidebar() {
           <img src="/transpared-logo3.png" alt="" className="h-9 w-9 object-contain" />
         </a>
         {items.map((it) =>
-          it.label === "Updates" ? (
+          it.label === "Create" ? (
+            <CreateTrigger key={it.label} active={pathname.startsWith("/campaigns")} />
+          ) : it.label === "Updates" ? (
             <div key={it.label} className="group relative">
               <Popover>
                 <PopoverTrigger asChild>

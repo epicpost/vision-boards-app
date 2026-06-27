@@ -12,11 +12,13 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as RemixesRouteImport } from './routes/remixes'
 import { Route as LikesRouteImport } from './routes/likes'
+import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as BrandKitRouteImport } from './routes/brand-kit'
 import { Route as BoardsRouteImport } from './routes/boards'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TemplatePinIdRouteImport } from './routes/template.$pinId'
 import { Route as EditorTemplateIdRouteImport } from './routes/editor.$templateId'
+import { Route as CampaignsResultsRouteImport } from './routes/campaigns.results'
 import { Route as AuthMagicLinkConfirmRouteImport } from './routes/auth/magic-link/confirm'
 
 const SettingsRoute = SettingsRouteImport.update({
@@ -32,6 +34,11 @@ const RemixesRoute = RemixesRouteImport.update({
 const LikesRoute = LikesRouteImport.update({
   id: '/likes',
   path: '/likes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CampaignsRoute = CampaignsRouteImport.update({
+  id: '/campaigns',
+  path: '/campaigns',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BrandKitRoute = BrandKitRouteImport.update({
@@ -59,6 +66,11 @@ const EditorTemplateIdRoute = EditorTemplateIdRouteImport.update({
   path: '/editor/$templateId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CampaignsResultsRoute = CampaignsResultsRouteImport.update({
+  id: '/results',
+  path: '/results',
+  getParentRoute: () => CampaignsRoute,
+} as any)
 const AuthMagicLinkConfirmRoute = AuthMagicLinkConfirmRouteImport.update({
   id: '/auth/magic-link/confirm',
   path: '/auth/magic-link/confirm',
@@ -69,9 +81,11 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/boards': typeof BoardsRoute
   '/brand-kit': typeof BrandKitRoute
+  '/campaigns': typeof CampaignsRouteWithChildren
   '/likes': typeof LikesRoute
   '/remixes': typeof RemixesRoute
   '/settings': typeof SettingsRoute
+  '/campaigns/results': typeof CampaignsResultsRoute
   '/editor/$templateId': typeof EditorTemplateIdRoute
   '/template/$pinId': typeof TemplatePinIdRoute
   '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
@@ -80,9 +94,11 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/boards': typeof BoardsRoute
   '/brand-kit': typeof BrandKitRoute
+  '/campaigns': typeof CampaignsRouteWithChildren
   '/likes': typeof LikesRoute
   '/remixes': typeof RemixesRoute
   '/settings': typeof SettingsRoute
+  '/campaigns/results': typeof CampaignsResultsRoute
   '/editor/$templateId': typeof EditorTemplateIdRoute
   '/template/$pinId': typeof TemplatePinIdRoute
   '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
@@ -92,9 +108,11 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/boards': typeof BoardsRoute
   '/brand-kit': typeof BrandKitRoute
+  '/campaigns': typeof CampaignsRouteWithChildren
   '/likes': typeof LikesRoute
   '/remixes': typeof RemixesRoute
   '/settings': typeof SettingsRoute
+  '/campaigns/results': typeof CampaignsResultsRoute
   '/editor/$templateId': typeof EditorTemplateIdRoute
   '/template/$pinId': typeof TemplatePinIdRoute
   '/auth/magic-link/confirm': typeof AuthMagicLinkConfirmRoute
@@ -105,9 +123,11 @@ export interface FileRouteTypes {
     | '/'
     | '/boards'
     | '/brand-kit'
+    | '/campaigns'
     | '/likes'
     | '/remixes'
     | '/settings'
+    | '/campaigns/results'
     | '/editor/$templateId'
     | '/template/$pinId'
     | '/auth/magic-link/confirm'
@@ -116,9 +136,11 @@ export interface FileRouteTypes {
     | '/'
     | '/boards'
     | '/brand-kit'
+    | '/campaigns'
     | '/likes'
     | '/remixes'
     | '/settings'
+    | '/campaigns/results'
     | '/editor/$templateId'
     | '/template/$pinId'
     | '/auth/magic-link/confirm'
@@ -127,9 +149,11 @@ export interface FileRouteTypes {
     | '/'
     | '/boards'
     | '/brand-kit'
+    | '/campaigns'
     | '/likes'
     | '/remixes'
     | '/settings'
+    | '/campaigns/results'
     | '/editor/$templateId'
     | '/template/$pinId'
     | '/auth/magic-link/confirm'
@@ -139,6 +163,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BoardsRoute: typeof BoardsRoute
   BrandKitRoute: typeof BrandKitRoute
+  CampaignsRoute: typeof CampaignsRouteWithChildren
   LikesRoute: typeof LikesRoute
   RemixesRoute: typeof RemixesRoute
   SettingsRoute: typeof SettingsRoute
@@ -168,6 +193,13 @@ declare module '@tanstack/react-router' {
       path: '/likes'
       fullPath: '/likes'
       preLoaderRoute: typeof LikesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/campaigns': {
+      id: '/campaigns'
+      path: '/campaigns'
+      fullPath: '/campaigns'
+      preLoaderRoute: typeof CampaignsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/brand-kit': {
@@ -205,6 +237,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EditorTemplateIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/campaigns/results': {
+      id: '/campaigns/results'
+      path: '/results'
+      fullPath: '/campaigns/results'
+      preLoaderRoute: typeof CampaignsResultsRouteImport
+      parentRoute: typeof CampaignsRoute
+    }
     '/auth/magic-link/confirm': {
       id: '/auth/magic-link/confirm'
       path: '/auth/magic-link/confirm'
@@ -215,10 +254,23 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface CampaignsRouteChildren {
+  CampaignsResultsRoute: typeof CampaignsResultsRoute
+}
+
+const CampaignsRouteChildren: CampaignsRouteChildren = {
+  CampaignsResultsRoute: CampaignsResultsRoute,
+}
+
+const CampaignsRouteWithChildren = CampaignsRoute._addFileChildren(
+  CampaignsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BoardsRoute: BoardsRoute,
   BrandKitRoute: BrandKitRoute,
+  CampaignsRoute: CampaignsRouteWithChildren,
   LikesRoute: LikesRoute,
   RemixesRoute: RemixesRoute,
   SettingsRoute: SettingsRoute,
