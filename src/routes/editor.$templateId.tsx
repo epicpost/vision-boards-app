@@ -181,7 +181,7 @@ function FontDropdown({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="inline-flex h-10 items-center gap-2 rounded-full bg-secondary px-4 text-[15px] font-semibold text-foreground transition hover:brightness-95"
+          className="inline-flex h-10 items-center gap-2 rounded-[14px] bg-secondary px-4 text-[15px] font-semibold text-foreground transition hover:brightness-110"
         >
           <span style={{ fontFamily: current.family, color: labelColor }}>{current.label}</span>
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -261,8 +261,7 @@ function ShareMenu({
     }
   }
 
-  const accessLabel =
-    access === "private" ? "Only you can access" : "Anyone with the link";
+  const accessLabel = access === "private" ? "Only you can access" : "Anyone with the link";
 
   const actions: { key: string; label: string; icon: React.ReactNode; onClick?: () => void }[] = [
     {
@@ -359,11 +358,7 @@ function ShareMenu({
             className="flex w-full items-center gap-3 rounded-xl bg-secondary px-3 py-3 text-left transition hover:brightness-95"
           >
             <span className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background">
-              {access === "private" ? (
-                <Lock className="h-4 w-4" />
-              ) : (
-                <Globe className="h-4 w-4" />
-              )}
+              {access === "private" ? <Lock className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
             </span>
             <span className="flex-1 text-sm font-medium text-foreground">{accessLabel}</span>
             <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -481,8 +476,8 @@ function EditorSection({
   children: React.ReactNode;
 }) {
   return (
-    <div className="border-b border-border">
-      <div className="flex items-center justify-between gap-2 py-3.5">
+    <div className="border-b border-border last:border-b-0">
+      <div className="flex items-center justify-between gap-2 px-6 py-5">
         <button
           type="button"
           onClick={onToggleOpen}
@@ -502,7 +497,7 @@ function EditorSection({
             onClick={onToggleVisible}
             aria-pressed={visible}
             aria-label={visible ? `Hide ${title}` : `Show ${title}`}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-foreground transition hover:bg-secondary"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-[#c7d36f] transition hover:bg-secondary"
           >
             {visible ? (
               <Eye className="h-5 w-5" />
@@ -512,7 +507,7 @@ function EditorSection({
           </button>
         )}
       </div>
-      {open && <div className="pb-5">{children}</div>}
+      {open && <div className="px-6 pb-6">{children}</div>}
     </div>
   );
 }
@@ -552,7 +547,9 @@ function DraggableImage({
   const [box, setBox] = useState<{ w: number; h: number } | null>(null);
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const [dragging, setDragging] = useState(false);
-  const drag = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(null);
+  const drag = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(
+    null,
+  );
 
   // Cached images can finish before React's onLoad attaches, so read the natural
   // size on mount too.
@@ -622,7 +619,12 @@ function DraggableImage({
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
     onSelect();
-    drag.current = { startX: event.clientX, startY: event.clientY, baseX: t.offsetX, baseY: t.offsetY };
+    drag.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      baseX: t.offsetX,
+      baseY: t.offsetY,
+    };
     setDragging(true);
     event.currentTarget.setPointerCapture(event.pointerId);
   }
@@ -1240,7 +1242,10 @@ function EditorScreen({
   // size fit is async (it may need to load the target font weight first).
   function changeFont(id: string, fontId: string) {
     const layer = layers.find((current) => current.id === id);
-    if (layer && (layer.kind === "header" || layer.kind === "description" || layer.kind === "cta")) {
+    if (
+      layer &&
+      (layer.kind === "header" || layer.kind === "description" || layer.kind === "cta")
+    ) {
       void sizeScaleForFontChange(layer, fontId).then((sizeScale) =>
         updateLayer(id, { fontId, sizeScale }),
       );
@@ -1376,11 +1381,7 @@ function EditorScreen({
           </div>
           <SaveStatus status={draftStatus} />
         </div>
-        <ShareMenu
-          formats={template.formats}
-          exporting={exporting}
-          onDownload={handleDownload}
-        />
+        <ShareMenu formats={template.formats} exporting={exporting} onDownload={handleDownload} />
       </header>
 
       <div className="flex flex-1 flex-col lg:min-h-0 lg:flex-row">
@@ -1526,253 +1527,257 @@ function EditorScreen({
         </div>
 
         {/* Edit panel */}
-        <aside className="w-full shrink-0 overflow-y-auto border-t border-border bg-background px-5 pb-12 lg:h-full lg:min-h-0 lg:w-[400px] lg:border-l lg:border-t-0">
-          <div className="flex items-center gap-2 py-5">
-            <SlidersHorizontal className="h-5 w-5 text-foreground" />
-            <h2 className="text-lg font-bold text-foreground">Edit creative</h2>
-          </div>
+        <aside className="w-full shrink-0 overflow-y-auto border-t border-border bg-[#0e1413] p-4 lg:h-full lg:min-h-0 lg:w-[440px] lg:border-l-0 lg:border-t-0 lg:p-6">
+          <div className="overflow-hidden rounded-[32px] border border-white/5 bg-[#222625] text-foreground shadow-[0_24px_70px_rgba(0,0,0,0.28)] [--background:#222625] [--border:rgba(11,15,15,0.72)] [--foreground:#f0f1ed] [--input:#151819] [--muted-foreground:#a7aba7] [--primary:#c7d36f] [--ring:#c7d36f] [--secondary:#17191b]">
+            <div className="flex items-center gap-2 px-6 py-5">
+              <SlidersHorizontal className="h-5 w-5 text-foreground" />
+              <h2 className="text-lg font-bold text-foreground">Edit creative</h2>
+            </div>
 
-          {/* Moodboard: one replaceable photo per band + the city title. */}
-          {template.layout === "moodboard" && (
-            <>
-              {photos.map((photo) => (
-                <EditorSection
-                  key={photo.id}
-                  title={photo.label}
-                  open={openSections[photo.id] ?? false}
-                  onToggleOpen={() => toggleOpen(photo.id)}
-                  hideable={photo.hideable}
-                  visible={photo.visible}
-                  onToggleVisible={() => toggleVisible(photo.id)}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
-                      <img src={photo.src} alt="" className="h-full w-full object-cover" />
+            {/* Moodboard: one replaceable photo per band + the city title. */}
+            {template.layout === "moodboard" && (
+              <>
+                {photos.map((photo) => (
+                  <EditorSection
+                    key={photo.id}
+                    title={photo.label}
+                    open={openSections[photo.id] ?? false}
+                    onToggleOpen={() => toggleOpen(photo.id)}
+                    hideable={photo.hideable}
+                    visible={photo.visible}
+                    onToggleVisible={() => toggleVisible(photo.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+                        <img src={photo.src} alt="" className="h-full w-full object-cover" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openReplace(photo.id)}
+                        className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                      >
+                        <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                        Replace photo
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => openReplace(photo.id)}
-                      className="inline-flex h-11 items-center gap-2 rounded-full border border-border px-5 text-[15px] font-semibold text-foreground transition hover:bg-secondary"
-                    >
-                      <Wand2 className="h-4 w-4" />
-                      Replace photo
-                    </button>
-                  </div>
-                  <ImageControls
-                    layer={photo}
-                    onChange={(transform, key) => updateLayer(photo.id, { transform }, key)}
-                    onReset={() =>
-                      updateLayer(photo.id, { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
-                    }
-                  />
-                </EditorSection>
-              ))}
-
-              {header && (
-                <EditorSection
-                  title={header.label}
-                  open={openSections[header.id] ?? true}
-                  onToggleOpen={() => toggleOpen(header.id)}
-                  hideable={header.hideable}
-                  visible={header.visible}
-                  onToggleVisible={() => toggleVisible(header.id)}
-                >
-                  <TextField
-                    label="Title text"
-                    value={header.text}
-                    onChange={(value) => updateLayer(header.id, { text: value }, "header-text")}
-                    onSuggest={() => cycleSuggestion(header)}
-                  />
-                  <div className="mt-4">
-                    <FontDropdown
-                      value={header.fontId}
-                      color={header.color}
-                      onChange={(fontId) => changeFont(header.id, fontId)}
+                    <ImageControls
+                      layer={photo}
+                      onChange={(transform, key) => updateLayer(photo.id, { transform }, key)}
+                      onReset={() =>
+                        updateLayer(photo.id, { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                      }
                     />
-                  </div>
-                  <div className="mt-4">
-                    <ColorSwatches
-                      palette={template.palette}
-                      value={header.color}
-                      onChange={(hex) => updateLayer(header.id, { color: hex })}
-                    />
-                  </div>
-                  <TextStyleControls
-                    layer={header}
-                    onChange={(patch, key) => updateLayer(header.id, patch, key)}
-                  />
-                </EditorSection>
-              )}
-            </>
-          )}
+                  </EditorSection>
+                ))}
 
-          {/* Image */}
-          {template.layout !== "moodboard" && image && (
-            <EditorSection
-              title="Image"
-              open={openSections.image}
-              onToggleOpen={() => toggleOpen("image")}
-              hideable={image.hideable}
-              visible={image.visible}
-              onToggleVisible={() => toggleVisible("image")}
-            >
-              <div className="flex items-center gap-3">
-                <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
-                  <img src={image.src} alt="" className="h-full w-full object-cover" />
+                {header && (
+                  <EditorSection
+                    title={header.label}
+                    open={openSections[header.id] ?? true}
+                    onToggleOpen={() => toggleOpen(header.id)}
+                    hideable={header.hideable}
+                    visible={header.visible}
+                    onToggleVisible={() => toggleVisible(header.id)}
+                  >
+                    <TextField
+                      label="Title text"
+                      value={header.text}
+                      onChange={(value) => updateLayer(header.id, { text: value }, "header-text")}
+                      onSuggest={() => cycleSuggestion(header)}
+                    />
+                    <div className="mt-4">
+                      <FontDropdown
+                        value={header.fontId}
+                        color={header.color}
+                        onChange={(fontId) => changeFont(header.id, fontId)}
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <ColorSwatches
+                        palette={template.palette}
+                        value={header.color}
+                        onChange={(hex) => updateLayer(header.id, { color: hex })}
+                      />
+                    </div>
+                    <TextStyleControls
+                      layer={header}
+                      onChange={(patch, key) => updateLayer(header.id, patch, key)}
+                    />
+                  </EditorSection>
+                )}
+              </>
+            )}
+
+            {/* Image */}
+            {template.layout !== "moodboard" && image && (
+              <EditorSection
+                title="Image"
+                open={openSections.image}
+                onToggleOpen={() => toggleOpen("image")}
+                hideable={image.hideable}
+                visible={image.visible}
+                onToggleVisible={() => toggleVisible("image")}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+                    <img src={image.src} alt="" className="h-full w-full object-cover" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openReplace("image")}
+                    className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                  >
+                    <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                    Edit image
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => openReplace("image")}
-                  className="inline-flex h-11 items-center gap-2 rounded-full border border-border px-5 text-[15px] font-semibold text-foreground transition hover:bg-secondary"
-                >
-                  <Wand2 className="h-4 w-4" />
-                  Edit image
-                </button>
-              </div>
-              <ImageControls
-                layer={image}
-                onChange={(transform, key) => updateLayer("image", { transform }, key)}
-                onReset={() => updateLayer("image", { transform: { ...DEFAULT_IMAGE_TRANSFORM } })}
-              />
-            </EditorSection>
-          )}
-
-          {/* Header */}
-          {template.layout !== "moodboard" && header && (
-            <EditorSection
-              title={template.layout === "porto" ? "Caption" : "Header"}
-              open={openSections.header}
-              onToggleOpen={() => toggleOpen("header")}
-              hideable={header.hideable}
-              visible={header.visible}
-              onToggleVisible={() => toggleVisible("header")}
-            >
-              <TextField
-                label={template.layout === "porto" ? "Caption text" : "Header text"}
-                value={header.text}
-                onChange={(value) => updateLayer("header", { text: value }, "header-text")}
-                onSuggest={() => cycleSuggestion(header)}
-              />
-              <div className="mt-4">
-                <FontDropdown
-                  value={header.fontId}
-                  color={header.color}
-                  onChange={(fontId) => changeFont("header", fontId)}
+                <ImageControls
+                  layer={image}
+                  onChange={(transform, key) => updateLayer("image", { transform }, key)}
+                  onReset={() =>
+                    updateLayer("image", { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                  }
                 />
-              </div>
-              <div className="mt-4">
+              </EditorSection>
+            )}
+
+            {/* Header */}
+            {template.layout !== "moodboard" && header && (
+              <EditorSection
+                title={template.layout === "porto" ? "Caption" : "Header"}
+                open={openSections.header}
+                onToggleOpen={() => toggleOpen("header")}
+                hideable={header.hideable}
+                visible={header.visible}
+                onToggleVisible={() => toggleVisible("header")}
+              >
+                <TextField
+                  label={template.layout === "porto" ? "Caption text" : "Header text"}
+                  value={header.text}
+                  onChange={(value) => updateLayer("header", { text: value }, "header-text")}
+                  onSuggest={() => cycleSuggestion(header)}
+                />
+                <div className="mt-4">
+                  <FontDropdown
+                    value={header.fontId}
+                    color={header.color}
+                    onChange={(fontId) => changeFont("header", fontId)}
+                  />
+                </div>
+                <div className="mt-4">
+                  <ColorSwatches
+                    palette={template.palette}
+                    value={header.color}
+                    onChange={(hex) => updateLayer("header", { color: hex })}
+                  />
+                </div>
+                <TextStyleControls
+                  layer={header}
+                  onChange={(patch, key) => updateLayer("header", patch, key)}
+                />
+              </EditorSection>
+            )}
+
+            {/* Description */}
+            {description && (
+              <EditorSection
+                title={template.layout === "porto" ? "City overview" : "Description"}
+                open={openSections.description}
+                onToggleOpen={() => toggleOpen("description")}
+                hideable={description.hideable}
+                visible={description.visible}
+                onToggleVisible={() => toggleVisible("description")}
+              >
+                <TextField
+                  label={template.layout === "porto" ? "City overview text" : "Description text"}
+                  value={description.text}
+                  multiline
+                  onChange={(value) =>
+                    updateLayer("description", { text: value }, "description-text")
+                  }
+                  onSuggest={() => cycleSuggestion(description)}
+                />
+                <div className="mt-4">
+                  <FontDropdown
+                    value={description.fontId}
+                    color={description.color}
+                    onChange={(fontId) => changeFont("description", fontId)}
+                  />
+                </div>
+                <div className="mt-4">
+                  <ColorSwatches
+                    palette={template.palette}
+                    value={description.color}
+                    onChange={(hex) => updateLayer("description", { color: hex })}
+                  />
+                </div>
+                <TextStyleControls
+                  layer={description}
+                  onChange={(patch, key) => updateLayer("description", patch, key)}
+                />
+              </EditorSection>
+            )}
+
+            {/* Call to action */}
+            {cta && (
+              <EditorSection
+                title="Call to action"
+                open={openSections.cta}
+                onToggleOpen={() => toggleOpen("cta")}
+                hideable={cta.hideable}
+                visible={cta.visible}
+                onToggleVisible={() => toggleVisible("cta")}
+              >
+                <TextField
+                  label="Button label"
+                  value={cta.text}
+                  onChange={(value) => updateLayer("cta", { text: value }, "cta-text")}
+                  onSuggest={() => cycleSuggestion(cta)}
+                />
+                <p className="mb-1.5 mt-4 text-[13px] font-medium text-muted-foreground">
+                  Button color
+                </p>
                 <ColorSwatches
                   palette={template.palette}
-                  value={header.color}
-                  onChange={(hex) => updateLayer("header", { color: hex })}
+                  value={cta.color}
+                  onChange={(hex) => updateLayer("cta", { color: hex })}
                 />
-              </div>
-              <TextStyleControls
-                layer={header}
-                onChange={(patch, key) => updateLayer("header", patch, key)}
-              />
-            </EditorSection>
-          )}
-
-          {/* Description */}
-          {description && (
-            <EditorSection
-              title={template.layout === "porto" ? "City overview" : "Description"}
-              open={openSections.description}
-              onToggleOpen={() => toggleOpen("description")}
-              hideable={description.hideable}
-              visible={description.visible}
-              onToggleVisible={() => toggleVisible("description")}
-            >
-              <TextField
-                label={template.layout === "porto" ? "City overview text" : "Description text"}
-                value={description.text}
-                multiline
-                onChange={(value) =>
-                  updateLayer("description", { text: value }, "description-text")
-                }
-                onSuggest={() => cycleSuggestion(description)}
-              />
-              <div className="mt-4">
-                <FontDropdown
-                  value={description.fontId}
-                  color={description.color}
-                  onChange={(fontId) => changeFont("description", fontId)}
+                <TextStyleControls
+                  layer={cta}
+                  onChange={(patch, key) => updateLayer("cta", patch, key)}
                 />
-              </div>
-              <div className="mt-4">
-                <ColorSwatches
-                  palette={template.palette}
-                  value={description.color}
-                  onChange={(hex) => updateLayer("description", { color: hex })}
-                />
-              </div>
-              <TextStyleControls
-                layer={description}
-                onChange={(patch, key) => updateLayer("description", patch, key)}
-              />
-            </EditorSection>
-          )}
+              </EditorSection>
+            )}
 
-          {/* Call to action */}
-          {cta && (
-            <EditorSection
-              title="Call to action"
-              open={openSections.cta}
-              onToggleOpen={() => toggleOpen("cta")}
-              hideable={cta.hideable}
-              visible={cta.visible}
-              onToggleVisible={() => toggleVisible("cta")}
-            >
-              <TextField
-                label="Button label"
-                value={cta.text}
-                onChange={(value) => updateLayer("cta", { text: value }, "cta-text")}
-                onSuggest={() => cycleSuggestion(cta)}
-              />
-              <p className="mb-1.5 mt-4 text-[13px] font-medium text-muted-foreground">
-                Button color
-              </p>
-              <ColorSwatches
-                palette={template.palette}
-                value={cta.color}
-                onChange={(hex) => updateLayer("cta", { color: hex })}
-              />
-              <TextStyleControls
-                layer={cta}
-                onChange={(patch, key) => updateLayer("cta", patch, key)}
-              />
-            </EditorSection>
-          )}
-
-          {/* Logo */}
-          {logo && (
-            <EditorSection
-              title="Logo"
-              open={openSections.logo}
-              onToggleOpen={() => toggleOpen("logo")}
-              hideable={logo.hideable}
-              visible={logo.visible}
-              onToggleVisible={() => toggleVisible("logo")}
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-border bg-secondary">
-                  <img src={logo.src} alt="" className="h-full w-full object-contain p-1.5" />
+            {/* Logo */}
+            {logo && (
+              <EditorSection
+                title="Logo"
+                open={openSections.logo}
+                onToggleOpen={() => toggleOpen("logo")}
+                hideable={logo.hideable}
+                visible={logo.visible}
+                onToggleVisible={() => toggleVisible("logo")}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-border bg-secondary">
+                    <img src={logo.src} alt="" className="h-full w-full object-contain p-1.5" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openReplace("logo")}
+                    className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                  >
+                    <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                    Replace logo
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => openReplace("logo")}
-                  className="inline-flex h-11 items-center gap-2 rounded-full border border-border px-5 text-[15px] font-semibold text-foreground transition hover:bg-secondary"
-                >
-                  <Wand2 className="h-4 w-4" />
-                  Replace logo
-                </button>
-              </div>
-              <p className="mt-3 text-[13px] text-muted-foreground">
-                Toggle the eye to show your logo on the creative.
-              </p>
-            </EditorSection>
-          )}
+                <p className="mt-3 text-[13px] text-muted-foreground">
+                  Toggle the eye to show your logo on the creative.
+                </p>
+              </EditorSection>
+            )}
+          </div>
         </aside>
       </div>
     </div>
@@ -1792,8 +1797,7 @@ function ImageControls({
   onReset: () => void;
 }) {
   const t = imageTransform(layer);
-  const isDefault =
-    t.offsetX === 0 && t.offsetY === 0 && t.scale === 1 && t.rotation === 0;
+  const isDefault = t.offsetX === 0 && t.offsetY === 0 && t.scale === 1 && t.rotation === 0;
   return (
     <div className="mt-4 space-y-4">
       <p className="text-[13px] text-muted-foreground">
