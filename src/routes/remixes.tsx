@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, ExternalLink, Loader2, Minus, MoreHorizontal, Plus, X } from "lucide-react";
+import {
+  Download,
+  ExternalLink,
+  Loader2,
+  Minus,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Sidebar } from "@/components/epicpost/Sidebar";
 import { TopBar } from "@/components/epicpost/TopBar";
@@ -18,6 +27,7 @@ import {
   remixesQueryKey,
   type RemixGenerationItem,
 } from "@/lib/generations";
+import { fetchSavedRemixes, savedRemixesQueryKey, type RemixSummary } from "@/lib/remixes";
 import { getAccessToken } from "@/lib/auth";
 
 export const Route = createFileRoute("/remixes")({
@@ -343,8 +353,56 @@ function RemixViewer({
   );
 }
 
+// A saved (DB-backed) remix: opens straight into the editor with the user's
+// images + text. Download lives in the editor (the image is rendered there
+// client-side), so the card's primary action is Edit.
+function SavedRemixCard({ remix }: { remix: RemixSummary }) {
+  return (
+    <div className="mb-3 break-inside-avoid group">
+      <Link
+        to="/editor/$templateId"
+        params={{ templateId: remix.post_template_id }}
+        search={{ remixId: remix.remix_id }}
+        aria-label={`Edit ${remix.caption ?? remix.template_title}`}
+        className="relative block w-full overflow-hidden rounded-[16px] bg-secondary"
+        style={{ aspectRatio: "9 / 16" }}
+      >
+        {remix.thumbnail_url ? (
+          <img
+            src={remix.thumbnail_url}
+            alt={remix.caption ?? remix.template_title}
+            loading="lazy"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
+            Open editor
+          </div>
+        )}
+        <span className="pointer-events-none absolute inset-0 bg-black/25 opacity-0 transition group-hover:opacity-100" />
+        <span className="pointer-events-none absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-foreground opacity-0 shadow-sm transition group-hover:opacity-100">
+          <Pencil className="h-4 w-4" />
+          Edit
+        </span>
+      </Link>
+      <p className="px-2 pt-2 text-[13px] font-semibold text-foreground line-clamp-2">
+        {remix.caption || remix.template_title}
+      </p>
+      <p className="px-2 pt-0.5 text-xs text-muted-foreground">
+        {formatUpdatedAt(remix.created_at)}
+      </p>
+    </div>
+  );
+}
+
 function RemixesGrid() {
   const queryClient = useQueryClient();
+  const savedRemixesQuery = useQuery({
+    queryKey: savedRemixesQueryKey(),
+    queryFn: fetchSavedRemixes,
+    enabled: Boolean(getAccessToken()),
+  });
+  const savedRemixes = savedRemixesQuery.data ?? [];
   const [selectedRemix, setSelectedRemix] = useState<RemixGenerationItem | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const remixesQuery = useQuery({
@@ -425,7 +483,7 @@ function RemixesGrid() {
     );
   }
 
-  if (!remixes.length) {
+  if (!remixes.length && !savedRemixes.length) {
     return (
       <div className="flex min-h-[260px] flex-col items-center justify-center text-center">
         <h2 className="text-xl font-semibold text-foreground">No remixes yet</h2>
@@ -437,6 +495,9 @@ function RemixesGrid() {
   return (
     <>
       <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-3 [column-fill:_balance]">
+        {savedRemixes.map((remix) => (
+          <SavedRemixCard key={remix.remix_id} remix={remix} />
+        ))}
         {remixes.map((remix) => (
           <RemixPreviewCard
             key={remix.generation_id}

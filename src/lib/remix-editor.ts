@@ -145,7 +145,13 @@ export const EDITOR_FONTS: EditorFont[] = [
     weight: 400,
     weights: [400],
   },
-  { id: "bebas", label: "Bebas Neue", family: "'Bebas Neue', sans-serif", weight: 400, weights: [400] },
+  {
+    id: "bebas",
+    label: "Bebas Neue",
+    family: "'Bebas Neue', sans-serif",
+    weight: 400,
+    weights: [400],
+  },
   {
     id: "oswald",
     label: "Oswald",
@@ -267,10 +273,7 @@ function getMeasureCtx(): CanvasRenderingContext2D | null {
 // yet — Google fonts load per-weight on demand. Resolves to the layer's current
 // scale unchanged whenever it can't measure reliably (no DOM, empty text, or a
 // face that fails to load), so it is never a wrong guess — only a no-op fallback.
-export async function sizeScaleForFontChange(
-  layer: TextLayer,
-  newFontId: string,
-): Promise<number> {
+export async function sizeScaleForFontChange(layer: TextLayer, newFontId: string): Promise<number> {
   const current = resolveTextStyle(layer);
   const ctx = getMeasureCtx();
   const display = (layer.uppercase ? layer.text.toUpperCase() : layer.text).trim();
@@ -541,6 +544,120 @@ export function cloneLayers(template: RemixEditorTemplate): EditorLayer[] {
       ? { ...layer, transform: layer.transform ? { ...layer.transform } : undefined }
       : { ...layer },
   );
+}
+
+// Deep-clone a working layer set (not a template), preserving image transforms.
+// Used to snapshot the editor's baseline for "reset" without aliasing state.
+export function dupLayers(layers: EditorLayer[]): EditorLayer[] {
+  return layers.map((layer) =>
+    layer.kind === "image"
+      ? { ...layer, transform: layer.transform ? { ...layer.transform } : undefined }
+      : { ...layer },
+  );
+}
+
+// ── remix persistence (DB-backed editor state) ───────────────────────────────
+// A remix stores the editor's layer state in `custom_inputs` and its uploaded
+// images as attached assets. These helpers convert between the saved remix and
+// the editor's working layers. Defined here (not in lib/remixes.ts) so the
+// dependency points one way — lib/remixes.ts imports these types.
+
+export interface RemixEditorAsset {
+  asset_id: string;
+  url: string;
+  order: number;
+}
+
+export interface RemixEditorState {
+  version?: number;
+  caption?: string;
+  city_overview?: string;
+  layers?: EditorLayer[];
+}
+
+// Persistable image src: keep only a local template-default path. Uploaded /
+// remote / blob / data srcs are reconstructed from `assetId` on load, so image
+// bytes never land in the remix JSON.
+function persistableImageSrc(layer: ImageLayer): string {
+  return layer.src.startsWith("/") ? layer.src : "";
+}
+
+// Strip heavy/ephemeral image srcs before persisting (keeps assetId, transform,
+// text, colours, fonts). Deep-clones so the saved snapshot can't alias state.
+export function serializeRemixLayers(layers: EditorLayer[]): EditorLayer[] {
+  return layers.map((layer) =>
+    layer.kind === "image"
+      ? {
+          ...layer,
+          src: persistableImageSrc(layer),
+          transform: layer.transform ? { ...layer.transform } : undefined,
+        }
+      : { ...layer },
+  );
+}
+
+// The ordered UserAsset ids backing the image layers — the remix's `asset_ids`.
+export function assetIdsFromLayers(layers: EditorLayer[]): string[] {
+  return layers
+    .filter((layer): layer is ImageLayer => layer.kind === "image" && Boolean(layer.assetId))
+    .map((layer) => layer.assetId as string);
+}
+
+// Build the editor state to persist for a remix. Caption/overview default to the
+// current header/description text so the remix card + agents have a flat caption.
+export function remixStateFromLayers(
+  layers: EditorLayer[],
+  extras?: { caption?: string; cityOverview?: string },
+): RemixEditorState {
+  const header = layers.find((layer) => layer.kind === "header") as TextLayer | undefined;
+  const description = layers.find((layer) => layer.kind === "description") as TextLayer | undefined;
+  return {
+    version: 1,
+    caption: extras?.caption ?? header?.text,
+    city_overview: extras?.cityOverview ?? description?.text,
+    layers: serializeRemixLayers(layers),
+  };
+}
+
+// Reconstruct the editor's working layers for a saved remix: prefer the saved
+// layer set (re-resolving each image src from its attached asset), else seed the
+// template defaults with the remix's caption/overview + attached images in order.
+// Image srcs returned here may be cross-origin; callers should pass them through
+// `resolveCleanImageSrc` before export.
+export function layersFromRemix(
+  template: RemixEditorTemplate,
+  remix: { state?: RemixEditorState | null; assets: RemixEditorAsset[] },
+): EditorLayer[] {
+  const assetUrlById = new Map(remix.assets.map((asset) => [asset.asset_id, asset.url]));
+  const saved = remix.state?.layers;
+
+  if (saved && saved.length > 0) {
+    return saved.map((layer) => {
+      if (layer.kind !== "image") return { ...layer };
+      const resolved = layer.assetId ? assetUrlById.get(layer.assetId) : undefined;
+      return {
+        ...layer,
+        transform: layer.transform ? { ...layer.transform } : undefined,
+        src: resolved ?? layer.src,
+      };
+    });
+  }
+
+  const orderedAssets = [...remix.assets].sort((a, b) => a.order - b.order);
+  let imageCursor = 0;
+  return cloneLayers(template).map((layer) => {
+    if (layer.kind === "image") {
+      const asset = orderedAssets[imageCursor++];
+      return asset ? { ...layer, assetId: asset.asset_id, src: asset.url } : layer;
+    }
+    if (layer.kind === "header" && remix.state?.caption?.trim()) {
+      return { ...layer, text: remix.state.caption.trim() };
+    }
+    if (layer.kind === "description" && remix.state?.city_overview?.trim()) {
+      return { ...layer, text: remix.state.city_overview.trim() };
+    }
+    return layer;
+  });
 }
 
 // Identity transform — the template's default crop with no pan/zoom/rotation.

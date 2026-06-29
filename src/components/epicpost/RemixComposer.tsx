@@ -36,7 +36,17 @@ import {
   type GenerationResult,
 } from "@/lib/generations";
 import type { PostTemplate } from "@/lib/post-templates";
-import { hasRemixEditorTemplate } from "@/lib/remix-editor";
+import {
+  cloneLayers,
+  EXPORT_FORMATS,
+  getRemixEditorTemplate,
+  hasRemixEditorTemplate,
+  remixStateFromLayers,
+  type EditorLayer,
+} from "@/lib/remix-editor";
+import { exportCreative } from "@/lib/remix-editor-export";
+import { resolveCleanImageSrc } from "@/lib/image-proxy";
+import { createRemix, savedRemixesQueryKey } from "@/lib/remixes";
 
 interface AttachedImage {
   id: string;
@@ -133,6 +143,13 @@ export function RemixComposer({
   const [cityOverview, setCityOverview] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [result, setResult] = useState<GenerationResult | null>(null);
+  // Result of the client-side render path (editor-capable templates): a saved
+  // remix + a locally-rendered preview/download. No backend render involved.
+  const [clientRemix, setClientRemix] = useState<{
+    remixId: string;
+    previewUrl: string;
+    downloadName: string;
+  } | null>(null);
   const [isResultOpen, setIsResultOpen] = useState(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -196,12 +213,18 @@ export function RemixComposer({
   // Track live preview URLs so unmount revokes exactly the current set.
   const previewUrlsRef = useRef<string[]>([]);
   previewUrlsRef.current = images.map((image) => image.previewUrl);
+  // The client-render preview is a separate object URL; revoke it too.
+  const clientRemixUrlRef = useRef<string | null>(null);
+  clientRemixUrlRef.current = clientRemix?.previewUrl ?? null;
 
   useEffect(() => {
     return () => {
       previewUrlsRef.current.forEach((url) => {
         if (url.startsWith("blob:")) URL.revokeObjectURL(url);
       });
+      if (clientRemixUrlRef.current?.startsWith("blob:")) {
+        URL.revokeObjectURL(clientRemixUrlRef.current);
+      }
     };
   }, []);
 
@@ -231,10 +254,8 @@ export function RemixComposer({
 
   const isBusy = phase !== "idle";
   const captionMissing = Boolean(captionRequirement?.required) && !caption.trim();
-  const cityOverviewMissing =
-    Boolean(cityOverviewRequirement?.required) && !cityOverview.trim();
-  const canSend =
-    images.length >= minImages && !captionMissing && !cityOverviewMissing && !isBusy;
+  const cityOverviewMissing = Boolean(cityOverviewRequirement?.required) && !cityOverview.trim();
+  const canSend = images.length >= minImages && !captionMissing && !cityOverviewMissing && !isBusy;
   const output = result?.assets[0] ?? null;
   // Only templates with a static editor config can open the visual editor.
   const canEdit = hasRemixEditorTemplate(template.id);
@@ -251,7 +272,7 @@ export function RemixComposer({
         ? "Add a caption to remix"
         : cityOverviewMissing
           ? "Add a city overview to remix"
-        : "Ready — send to generate your remix";
+          : "Ready — send to generate your remix";
 
   function addFiles(fileList: FileList | File[]) {
     const files = Array.from(fileList);
@@ -312,10 +333,114 @@ export function RemixComposer({
     });
   }
 
+  // Resolve every attached image to a persisted asset id, in composer order:
+  // upload new files; brand-kit picks already carry an id.
+  async function resolveOrderedAssetIds(): Promise<string[]> {
+    const filesToUpload = images
+      .map((image) => image.file)
+      .filter((file): file is File => Boolean(file));
+    const uploaded = filesToUpload.length ? await uploadAssetFiles(filesToUpload) : [];
+    let cursor = 0;
+    const assetIds = images.map((image) => image.assetId ?? uploaded[cursor++]?.asset_id);
+    if (assetIds.some((id) => !id)) {
+      throw new Error("Some images could not be prepared. Please try again.");
+    }
+    return assetIds as string[];
+  }
+
+  // Editor-capable templates (e.g. Porto) render entirely in the browser: save a
+  // remix with the uploaded images attached + the composed text, render the
+  // preview/download client-side, then let the user edit or download it. No
+  // backend render service is involved.
+  async function handleClientRemix() {
+    const editorTemplate = getRemixEditorTemplate(template.id);
+    if (!editorTemplate) return;
+    try {
+      setPhase("sending");
+      const assetIds = await resolveOrderedAssetIds();
+      const trimmedCaption = caption.trim();
+      const trimmedCityOverview = cityOverview.trim();
+
+      // Seed the editor layers from the composed inputs: fill image layers in
+      // order (assetId for persistence + previewUrl for an instant render), and
+      // drop the caption / city overview into their text layers.
+      let imageCursor = 0;
+      const layers: EditorLayer[] = cloneLayers(editorTemplate).map((layer) => {
+        if (layer.kind === "image") {
+          const index = imageCursor++;
+          const assetId = assetIds[index];
+          const preview = images[index]?.previewUrl;
+          return {
+            ...layer,
+            ...(assetId ? { assetId } : {}),
+            ...(preview ? { src: preview } : {}),
+            visible: true,
+          };
+        }
+        if (layer.kind === "header" && trimmedCaption) return { ...layer, text: trimmedCaption };
+        if (layer.kind === "description" && trimmedCityOverview) {
+          return { ...layer, text: trimmedCityOverview };
+        }
+        return layer;
+      });
+
+      const { remixId } = await createRemix(template.id, {
+        assetIds,
+        state: remixStateFromLayers(layers, {
+          caption: trimmedCaption || undefined,
+          cityOverview: trimmedCityOverview || undefined,
+        }),
+      });
+
+      // Render the downloadable image in the browser (canvas), matching what the
+      // editor shows. Resolve image srcs to canvas-clean URLs first.
+      setPhase("generating");
+      const cleanLayers = await Promise.all(
+        layers.map(async (layer) =>
+          layer.kind === "image" && layer.src
+            ? { ...layer, src: await resolveCleanImageSrc(layer.src) }
+            : layer,
+        ),
+      );
+      const format = editorTemplate.formats[0] ?? "png";
+      const blob = await exportCreative(editorTemplate, cleanLayers, format);
+      if (clientRemixUrlRef.current?.startsWith("blob:")) {
+        URL.revokeObjectURL(clientRemixUrlRef.current);
+      }
+      setClientRemix({
+        remixId,
+        previewUrl: URL.createObjectURL(blob),
+        downloadName: `epicpost-remix-${remixId}.${EXPORT_FORMATS[format].extension}`,
+      });
+      void queryClient.invalidateQueries({ queryKey: savedRemixesQueryKey() });
+      setIsResultOpen(true);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not remix this template.");
+    } finally {
+      setPhase("idle");
+    }
+  }
+
+  function handleClientDownload() {
+    if (!clientRemix) return;
+    const anchor = document.createElement("a");
+    anchor.href = clientRemix.previewUrl;
+    anchor.download = clientRemix.downloadName;
+    anchor.rel = "noopener";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  }
+
   async function handleSend() {
     if (!canSend) return;
     if (!getAccessToken()) {
       onRequireAuth();
+      return;
+    }
+
+    if (hasRemixEditorTemplate(template.id)) {
+      await handleClientRemix();
       return;
     }
 
@@ -392,6 +517,8 @@ export function RemixComposer({
     setCaption("");
     setCityOverview("");
     setResult(null);
+    if (clientRemix?.previewUrl.startsWith("blob:")) URL.revokeObjectURL(clientRemix.previewUrl);
+    setClientRemix(null);
     setLogoRemoved(false);
     setFontsRemoved(false);
     setColorRemoved(false);
@@ -751,15 +878,17 @@ export function RemixComposer({
           <DialogHeader>
             <DialogTitle>{template.title}</DialogTitle>
             <DialogDescription>
-              {result?.caption
-                ? `${result.caption} · ${formatCreatedAt(result.created_at)}`
-                : formatCreatedAt(result?.created_at)}
+              {clientRemix
+                ? "Saved to your remixes — download it or keep editing."
+                : result?.caption
+                  ? `${result.caption} · ${formatCreatedAt(result.created_at)}`
+                  : formatCreatedAt(result?.created_at)}
             </DialogDescription>
           </DialogHeader>
-          {output && (
+          {(clientRemix?.previewUrl ?? output?.url) && (
             <div className="overflow-hidden rounded-[16px] border border-border bg-secondary">
               <img
-                src={output.url}
+                src={clientRemix?.previewUrl ?? output?.url}
                 alt={result?.caption ?? template.title}
                 className="max-h-[65vh] w-full object-contain"
               />
@@ -781,7 +910,11 @@ export function RemixComposer({
                   navigate({
                     to: "/editor/$templateId",
                     params: { templateId: template.id },
-                    search: result?.caption ? { caption: result.caption } : {},
+                    search: clientRemix
+                      ? { remixId: clientRemix.remixId }
+                      : result?.caption
+                        ? { caption: result.caption }
+                        : {},
                   })
                 }
                 className="flex h-11 items-center gap-2 rounded-full bg-secondary px-5 text-base font-semibold text-foreground transition hover:brightness-95"
@@ -792,8 +925,8 @@ export function RemixComposer({
             )}
             <button
               type="button"
-              disabled={!output}
-              onClick={handleDownload}
+              disabled={!output && !clientRemix}
+              onClick={clientRemix ? handleClientDownload : handleDownload}
               className="flex h-11 items-center gap-2 rounded-full bg-primary px-5 text-base font-bold text-primary-foreground transition hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Download className="h-4 w-4" />

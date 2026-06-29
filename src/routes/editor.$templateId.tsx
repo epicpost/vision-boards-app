@@ -56,12 +56,14 @@ import { cn } from "@/lib/utils";
 import {
   cloneLayers,
   DEFAULT_IMAGE_TRANSFORM,
+  dupLayers,
   editorFontsHref,
   EDITOR_FONTS,
   EXPORT_FORMATS,
   fontById,
   getRemixEditorTemplate,
   imageTransform,
+  layersFromRemix,
   isLightColor,
   LAYOUT,
   MOODBOARD_LAYOUT,
@@ -84,13 +86,19 @@ import {
   type TextLayer,
 } from "@/lib/remix-editor";
 import { exportCreative } from "@/lib/remix-editor-export";
-import { useEditorDraft } from "@/lib/use-editor-draft";
+import { useEditorDraft, useRemixDraft } from "@/lib/use-editor-draft";
+import { fetchRemix } from "@/lib/remixes";
+import { uploadAssetFiles } from "@/lib/generations";
+import { resolveCleanImageSrc } from "@/lib/image-proxy";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 
 export const Route = createFileRoute("/editor/$templateId")({
-  validateSearch: (search: Record<string, unknown>): { caption?: string } => ({
+  validateSearch: (search: Record<string, unknown>): { caption?: string; remixId?: string } => ({
     caption: typeof search.caption === "string" ? search.caption : undefined,
+    // When present, the editor opens this saved remix (your images + text)
+    // instead of the bare template defaults.
+    remixId: typeof search.remixId === "string" ? search.remixId : undefined,
   }),
   head: () => ({
     meta: [
@@ -101,32 +109,138 @@ export const Route = createFileRoute("/editor/$templateId")({
   component: EditorRoute,
 });
 
+function EditorUnavailable({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-6 text-center">
+      {children}
+      <button
+        type="button"
+        onClick={() => router.history.back()}
+        className="rounded-full bg-foreground px-5 py-2 text-sm font-semibold text-background transition hover:brightness-110"
+      >
+        Go back
+      </button>
+    </div>
+  );
+}
+
 function EditorRoute() {
   const { templateId } = Route.useParams();
-  const { caption } = Route.useSearch();
-  const router = useRouter();
+  const { caption, remixId } = Route.useSearch();
   const template = getRemixEditorTemplate(templateId);
 
   if (!template) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-6 text-center">
+      <EditorUnavailable>
         <h1 className="text-2xl font-bold text-foreground">Editor not available</h1>
         <p className="max-w-md text-sm text-muted-foreground">
           This template can't be edited yet. The visual editor is currently available for a limited
           set of templates.
         </p>
-        <button
-          type="button"
-          onClick={() => router.history.back()}
-          className="rounded-full bg-foreground px-5 py-2 text-sm font-semibold text-background transition hover:brightness-110"
-        >
-          Go back
-        </button>
-      </div>
+      </EditorUnavailable>
     );
   }
 
+  // Editing a saved remix: load its state (your images + text) before mounting
+  // the editor, so you see the remixed creative — not the template defaults.
+  if (remixId) {
+    return <RemixEditorLoader template={template} remixId={remixId} />;
+  }
+
   return <EditorScreen template={template} initialCaption={caption} />;
+}
+
+// Fetches a remix, rebuilds the editor layers (resolving each image to a
+// canvas-clean src), and mounts the editor seeded with them. Shows a
+// layout-matching skeleton while loading.
+function RemixEditorLoader({
+  template,
+  remixId,
+}: {
+  template: RemixEditorTemplate;
+  remixId: string;
+}) {
+  const [state, setState] = useState<
+    { status: "loading" } | { status: "error" } | { status: "ready"; layers: EditorLayer[] }
+  >({ status: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
+    (async () => {
+      try {
+        const remix = await fetchRemix(remixId);
+        const built = layersFromRemix(template, {
+          state: remix.state,
+          assets: remix.assets,
+        });
+        // Resolve cross-origin image srcs to data URLs so the canvas export
+        // never taints; preview also uses these.
+        const layers = await Promise.all(
+          built.map(async (layer) =>
+            layer.kind === "image" && layer.src
+              ? { ...layer, src: await resolveCleanImageSrc(layer.src) }
+              : layer,
+          ),
+        );
+        if (!cancelled) setState({ status: "ready", layers });
+      } catch {
+        if (!cancelled) setState({ status: "error" });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [remixId, template]);
+
+  if (state.status === "loading") return <EditorSkeleton template={template} />;
+  if (state.status === "error") {
+    return (
+      <EditorUnavailable>
+        <h1 className="text-2xl font-bold text-foreground">Couldn't open this remix</h1>
+        <p className="max-w-md text-sm text-muted-foreground">
+          We couldn't load this remix. It may have been deleted, or you may need to sign in again.
+        </p>
+      </EditorUnavailable>
+    );
+  }
+  return <EditorScreen template={template} remixId={remixId} initialLayers={state.layers} />;
+}
+
+// Page-specific skeleton mirroring the editor chrome (top bar + chat rail +
+// dark canvas stage + edit panel) so the remix load doesn't flash a blank page.
+function EditorSkeleton({ template }: { template: RemixEditorTemplate }) {
+  return (
+    <div className="flex min-h-screen flex-col bg-background lg:h-screen lg:min-h-0 lg:overflow-hidden">
+      <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border px-4 md:px-6">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-[16px] bg-secondary" />
+          <div className="space-y-1.5">
+            <div className="h-4 w-32 rounded bg-secondary" />
+            <div className="h-3 w-20 rounded bg-secondary" />
+          </div>
+        </div>
+        <div className="h-10 w-28 rounded-[16px] bg-secondary" />
+      </header>
+      <div className="flex flex-1 animate-pulse flex-col lg:min-h-0 lg:flex-row">
+        <div className="hidden w-72 shrink-0 border-r border-border p-4 lg:block">
+          <div className="h-full w-full rounded-[16px] bg-secondary" />
+        </div>
+        <div className="flex flex-1 items-center justify-center bg-[#0e1413] px-4 py-10">
+          <div
+            className="w-full max-w-[300px] overflow-hidden rounded-[18px] bg-white/10"
+            style={{ aspectRatio: template.aspectRatio }}
+          />
+        </div>
+        <div className="w-full shrink-0 space-y-3 border-t border-border p-4 lg:w-80 lg:border-l lg:border-t-0">
+          {[0, 1, 2, 3].map((row) => (
+            <div key={row} className="h-12 w-full rounded-[16px] bg-secondary" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── reusable bits ────────────────────────────────────────────────────────────
@@ -1251,6 +1365,7 @@ type LayerPatch = Partial<{
   letterSpacing: number;
   align: TextAlign;
   shadow: boolean;
+  assetId: string;
 }>;
 
 type ChatMessage = {
@@ -1278,13 +1393,20 @@ function defaultOpenSections(template: RemixEditorTemplate): Record<string, bool
 function EditorScreen({
   template,
   initialCaption,
+  remixId,
+  initialLayers,
 }: {
   template: RemixEditorTemplate;
   initialCaption?: string;
+  // When set, the editor is bound to a saved remix: autosave targets the remix
+  // and `initialLayers` (the remix's loaded state) seed the canvas.
+  remixId?: string;
+  initialLayers?: EditorLayer[];
 }) {
   const router = useRouter();
 
   const [layers, setLayers] = useState<EditorLayer[]>(() => {
+    if (initialLayers) return initialLayers;
     const cloned = cloneLayers(template);
     if (initialCaption?.trim()) {
       return cloned.map((layer) =>
@@ -1293,18 +1415,29 @@ function EditorScreen({
     }
     return cloned;
   });
+  // Snapshot the load-time layers so "reset" reverts to them — the saved remix
+  // in remix mode, or the template defaults otherwise — instead of wiping the
+  // user's uploaded photo.
+  const baselineRef = useRef<EditorLayer[]>(layers);
   const [past, setPast] = useState<EditorLayer[][]>([]);
   const [future, setFuture] = useState<EditorLayer[][]>([]);
   const coalesceRef = useRef<{ key: string; time: number } | null>(null);
 
-  // Autosave every canvas change to the backend, and restore the last saved
-  // draft on load. Hydrating replaces the working layers and clears the
-  // session's undo/redo history (the restored state is the new baseline).
-  const { status: draftStatus } = useEditorDraft(template.id, layers, (saved) => {
-    setLayers(saved);
-    setPast([]);
-    setFuture([]);
-  });
+  // Autosave: a saved remix is the source of truth when `remixId` is set
+  // (persisted via PATCH /remixes/{id}); otherwise fall back to the
+  // per-(user,template) file draft, which also hydrates the last session.
+  const fileDraft = useEditorDraft(
+    template.id,
+    layers,
+    (saved) => {
+      setLayers(saved);
+      setPast([]);
+      setFuture([]);
+    },
+    { enabled: !remixId },
+  );
+  const remixDraft = useRemixDraft(remixId, layers);
+  const draftStatus = remixId ? remixDraft.status : fileDraft.status;
 
   const [chatDraft, setChatDraft] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => [
@@ -1399,15 +1532,11 @@ function EditorScreen({
   }
 
   function resetDesign() {
-    apply(
-      cloneLayers(template).map((layer) =>
-        layer.kind === "header" && initialCaption?.trim()
-          ? { ...layer, text: initialCaption.trim() }
-          : layer,
-      ),
-    );
+    apply(dupLayers(baselineRef.current));
     setOpenSections(defaultOpenSections(template));
-    toast.success("Design reset to the template defaults.");
+    toast.success(
+      remixId ? "Reverted to your saved remix." : "Design reset to the template defaults.",
+    );
   }
 
   function cycleSuggestion(layer: TextLayer) {
@@ -1424,15 +1553,27 @@ function EditorScreen({
     fileInputRef.current?.click();
   }
 
-  function handleReplaceFile(file: File) {
+  async function handleReplaceFile(file: File) {
     const id = replaceTargetRef.current;
     if (!id) return;
     if (!file.type.startsWith("image/")) {
       toast.error("Please choose an image file.");
       return;
     }
+    // Instant local preview — blob URLs are same-origin, so canvas export stays
+    // clean even before the upload finishes.
     const url = URL.createObjectURL(file);
-    updateLayer(id, { src: url, visible: true });
+    updateLayer(id, { src: url, visible: true }, `replace-${id}`);
+    // Persist + attach the new photo to the remix so the swap survives reload.
+    // Coalesced into the same undo step as the src change above.
+    if (remixId) {
+      try {
+        const [asset] = await uploadAssetFiles([file]);
+        if (asset?.asset_id) updateLayer(id, { assetId: asset.asset_id }, `replace-${id}`);
+      } catch {
+        toast.error("Couldn't save the new image — it may not persist on reload.");
+      }
+    }
   }
 
   function submitChatMessage() {
