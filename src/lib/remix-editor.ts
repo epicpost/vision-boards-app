@@ -59,6 +59,10 @@ export interface ImageLayer extends BaseLayer {
   kind: "image";
   src: string;
   transform?: ImageTransform;
+  // The persisted UserAsset id when this layer is filled by an uploaded image
+  // (vs. the template's default photo). The remix stores this — not the bytes —
+  // and the editor resolves it back to a URL on load. Absent === template default.
+  assetId?: string;
 }
 
 export type TextAlign = "left" | "center" | "right";
