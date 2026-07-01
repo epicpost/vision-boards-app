@@ -21,6 +21,17 @@ import {
 } from "@/lib/remix-editor";
 import { resolveCleanImageSrc } from "@/lib/image-proxy";
 
+// Thrown when one or more photos couldn't be loaded into the canvas. The caller
+// catches this to warn the user instead of downloading a partial/black export.
+export class ExportImageError extends Error {
+  constructor(public readonly failedCount: number) {
+    super(
+      `Couldn't load ${failedCount} photo${failedCount === 1 ? "" : "s"} for export.`,
+    );
+    this.name = "ExportImageError";
+  }
+}
+
 function parseRatio(aspectRatio: string): number {
   const [w, h] = aspectRatio.split("/").map((part) => Number(part.trim()));
   if (!w || !h) return 0.8;
@@ -185,6 +196,7 @@ async function exportMoodboard(
   // Order matters: `layers` keeps the template order, so band index = position.
   const photoLayers = layers.filter((layer) => layer.kind === "image");
   const bandHeight = height / Math.max(photoLayers.length, 1);
+  let failedBands = 0;
   for (let index = 0; index < photoLayers.length; index++) {
     const layer = photoLayers[index];
     if (!layer.visible || layer.kind !== "image") continue;
@@ -202,8 +214,13 @@ async function exportMoodboard(
         imageTransform(layer),
       );
     } catch {
-      // Skip a band rather than failing the whole export.
+      // Track the drop instead of silently shipping a partial (or all-black)
+      // export — the caller surfaces this rather than downloading a broken file.
+      failedBands += 1;
     }
+  }
+  if (failedBands > 0) {
+    throw new ExportImageError(failedBands);
   }
 
   const header = layers.find(

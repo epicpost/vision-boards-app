@@ -33,8 +33,46 @@ function isAllowedHost(host: string): boolean {
       .filter(Boolean)
       .forEach((entry) => allowed.add(entry));
   }
-  if (allowed.has(host)) return true;
+  for (const entry of allowed) {
+    if (host === entry) return true;
+    // A bare S3 bucket name (no dots) matches every virtual-hosted S3 form:
+    // `<bucket>.s3.amazonaws.com` (us-east-1 drops the region) *and*
+    // `<bucket>.s3.<region>.amazonaws.com`. This is why an exact host entry with
+    // the region baked in silently fails for us-east-1 assets.
+    if (
+      !entry.includes(".") &&
+      host.startsWith(`${entry}.s3`) &&
+      host.endsWith(".amazonaws.com")
+    ) {
+      return true;
+    }
+  }
   return host === "epicpost.app" || host.endsWith(".epicpost.app");
+}
+
+// S3 answers bursts of concurrent GETs with 503 SlowDown; a couple of backed-off
+// retries turn those transient failures into successes instead of letting the
+// caller fall back to the raw (canvas-tainting) URL. 429/500/502/504 get the
+// same treatment; other statuses return immediately.
+const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+
+async function fetchWithRetry(url: string, attempts = 3): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (attempt > 0) {
+      // 200ms, 400ms, 800ms … with a little jitter to avoid a thundering herd.
+      const delay = 200 * 2 ** (attempt - 1) + Math.floor(Math.random() * 100);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+    try {
+      const response = await fetch(url);
+      if (!RETRYABLE_STATUS.has(response.status)) return response;
+      lastError = new Error(`Upstream image responded ${response.status}`);
+    } catch (error) {
+      lastError = error; // network hiccup — retry
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Upstream image fetch failed");
 }
 
 export const fetchImageAsDataUrl = createServerFn({ method: "GET" })
@@ -58,7 +96,7 @@ export const fetchImageAsDataUrl = createServerFn({ method: "GET" })
       throw new Error("Image host is not allowed");
     }
 
-    const response = await fetch(parsed.toString());
+    const response = await fetchWithRetry(parsed.toString());
     if (!response.ok) {
       throw new Error(`Upstream image responded ${response.status}`);
     }
