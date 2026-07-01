@@ -1172,6 +1172,28 @@ function PortoPreview({
   const pct = (value: number) => `${value * 100}%`;
   const cqi = (value: number) => `${value * 100}cqi`;
 
+  // The caption is scaled to span the poster's inner image width, which requires
+  // measuring the glyphs — only possible in the browser. Seed with the layout
+  // default so SSR and the first client render agree (no hydration mismatch),
+  // then measure after mount and again once the webfont loads.
+  const [captionSize, setCaptionSize] = useState(PORTO_LAYOUT.headline.size * 1080);
+  const captionKey = caption
+    ? `${caption.text}|${caption.uppercase}|${caption.fontId}|${captionStyle?.weight}|${captionStyle?.sizeScale}`
+    : "";
+  useEffect(() => {
+    if (!caption) return;
+    let cancelled = false;
+    const measure = () => {
+      if (!cancelled) setCaptionSize(portoCaptionFontSize(caption, 1080));
+    };
+    measure();
+    document.fonts?.ready.then(measure).catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [captionKey]);
+
   return (
     <div
       className="relative w-full overflow-hidden shadow-2xl"
@@ -1303,9 +1325,8 @@ function PortoPreview({
             style={{
               fontFamily: fontById(caption.fontId).family,
               fontWeight: captionStyle.weight,
-              // Scale the caption to span the poster's inner image width (viewBox
-              // is 1080 wide), so short words fill the frame like the reference.
-              fontSize: portoCaptionFontSize(caption, 1080),
+              // Scaled to span the poster's inner image width (see captionSize).
+              fontSize: captionSize,
               letterSpacing: `${PORTO_CAPTION_TRACKING}em`,
             }}
           >
