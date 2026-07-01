@@ -1319,8 +1319,8 @@ function PortoPreview({
           </defs>
           <text
             x={PORTO_LAYOUT.headline.x * 1080}
-            y={PORTO_LAYOUT.headline.baseline * 1920}
-            dominantBaseline="alphabetic"
+            y={PORTO_LAYOUT.headline.y * 1920}
+            dominantBaseline="hanging"
             fill="url(#porto-headline-photo)"
             style={{
               fontFamily: fontById(caption.fontId).family,
