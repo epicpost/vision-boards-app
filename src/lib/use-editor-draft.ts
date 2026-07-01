@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getAuthUser } from "@/lib/auth";
-import { assetIdsFromLayers, remixStateFromLayers, type EditorLayer } from "@/lib/remix-editor";
+import {
+  assetIdsFromLayers,
+  remixStateFromLayers,
+  type EditorLayer,
+  type RemixEditorTemplate,
+} from "@/lib/remix-editor";
 import { loadEditorDraft, saveEditorDraft } from "@/lib/editor-drafts";
+import { uploadRemixThumbnail } from "@/lib/generations";
 import { updateRemix } from "@/lib/remixes";
 
 export type DraftStatus = "idle" | "loading" | "saving" | "saved" | "error";
@@ -102,7 +108,11 @@ export function useEditorDraft(
  * seeds the layers before mounting this. `asset_ids` are only re-synced when the
  * attached images actually changed (e.g. the user replaced a photo).
  */
-export function useRemixDraft(remixId: string | undefined, layers: EditorLayer[]) {
+export function useRemixDraft(
+  remixId: string | undefined,
+  layers: EditorLayer[],
+  template: RemixEditorTemplate,
+) {
   const [status, setStatus] = useState<DraftStatus>("idle");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef = useRef<EditorLayer[] | null>(null);
@@ -125,9 +135,14 @@ export function useRemixDraft(remixId: string | undefined, layers: EditorLayer[]
         const assetIds = assetIdsFromLayers(next);
         const assetKey = assetIds.join(",");
         const assetsChanged = assetKey !== lastAssetKeyRef.current;
+        // Re-render the creative and upload it so the remixes-list thumbnail
+        // reflects this edit. Best-effort (resolves to undefined on failure), so
+        // a thumbnail hiccup never blocks persisting the layer state.
+        const thumbnailAssetId = await uploadRemixThumbnail(template, next);
         await updateRemix(remixId, {
           state: remixStateFromLayers(next),
           assetIds: assetsChanged ? assetIds : undefined,
+          thumbnailAssetId,
         });
         lastAssetKeyRef.current = assetKey;
         setStatus("saved");
@@ -140,7 +155,7 @@ export function useRemixDraft(remixId: string | undefined, layers: EditorLayer[]
         if (queued) void flush(queued);
       }
     },
-    [remixId],
+    [remixId, template],
   );
 
   useEffect(() => {

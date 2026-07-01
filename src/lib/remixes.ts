@@ -64,7 +64,11 @@ async function throwApiError(response: Response, fallback: string): Promise<neve
 // Returns the new remix id so the caller can open `/editor/$templateId?remixId=`.
 export async function createRemix(
   templateId: string,
-  { assetIds, state }: { assetIds: string[]; state: RemixEditorState },
+  {
+    assetIds,
+    state,
+    thumbnailAssetId,
+  }: { assetIds: string[]; state: RemixEditorState; thumbnailAssetId?: string },
 ): Promise<{ remixId: string }> {
   const token = requireToken("save your remix");
   const response = await fetch(
@@ -72,7 +76,14 @@ export async function createRemix(
     {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ asset_ids: assetIds, custom_inputs: state }),
+      body: JSON.stringify({
+        asset_ids: assetIds,
+        custom_inputs: state,
+        // The client renders the creative locally, so it also supplies the
+        // composed thumbnail (an uploaded asset) for the remixes list. Omitted
+        // when the render/upload failed — the save must still succeed.
+        thumbnail_asset_id: thumbnailAssetId ?? null,
+      }),
     },
   );
   if (!response.ok) await throwApiError(response, "Create remix");
@@ -106,7 +117,11 @@ export async function fetchRemix(remixId: string): Promise<RemixDetail> {
 // re-syncs the attachments; omit it to leave them untouched.
 export async function updateRemix(
   remixId: string,
-  { state, assetIds }: { state: RemixEditorState; assetIds?: string[] },
+  {
+    state,
+    assetIds,
+    thumbnailAssetId,
+  }: { state: RemixEditorState; assetIds?: string[]; thumbnailAssetId?: string },
 ): Promise<RemixDetail> {
   const token = requireToken("save your remix");
   const response = await fetch(
@@ -114,7 +129,13 @@ export async function updateRemix(
     {
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ state, asset_ids: assetIds ?? null }),
+      body: JSON.stringify({
+        state,
+        asset_ids: assetIds ?? null,
+        // Refreshes the remixes-list thumbnail to match the just-saved edit.
+        // Omitted (null) when the local render/upload failed this cycle.
+        thumbnail_asset_id: thumbnailAssetId ?? null,
+      }),
     },
   );
   if (!response.ok) await throwApiError(response, "Save remix");

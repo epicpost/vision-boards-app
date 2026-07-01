@@ -1436,7 +1436,7 @@ function EditorScreen({
     },
     { enabled: !remixId },
   );
-  const remixDraft = useRemixDraft(remixId, layers);
+  const remixDraft = useRemixDraft(remixId, layers, template);
   const draftStatus = remixId ? remixDraft.status : fileDraft.status;
 
   const [chatDraft, setChatDraft] = useState("");

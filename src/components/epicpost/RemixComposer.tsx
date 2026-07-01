@@ -384,16 +384,10 @@ export function RemixComposer({
         return layer;
       });
 
-      const { remixId } = await createRemix(template.id, {
-        assetIds,
-        state: remixStateFromLayers(layers, {
-          caption: trimmedCaption || undefined,
-          cityOverview: trimmedCityOverview || undefined,
-        }),
-      });
-
       // Render the downloadable image in the browser (canvas), matching what the
-      // editor shows. Resolve image srcs to canvas-clean URLs first.
+      // editor shows. Resolve image srcs to canvas-clean URLs first. This same
+      // blob is uploaded as the remix's thumbnail (so the remixes list shows the
+      // composed creative, not a raw source photo) and drives the local preview.
       setPhase("generating");
       const cleanLayers = await Promise.all(
         layers.map(async (layer) =>
@@ -404,6 +398,30 @@ export function RemixComposer({
       );
       const format = editorTemplate.formats[0] ?? "png";
       const blob = await exportCreative(editorTemplate, cleanLayers, format);
+
+      // Upload the rendered creative as the remix thumbnail. Best-effort: a
+      // failure here must not block saving the remix.
+      let thumbnailAssetId: string | undefined;
+      try {
+        const meta = EXPORT_FORMATS[format];
+        const thumbFile = new File([blob], `remix-thumbnail.${meta.extension}`, {
+          type: meta.mime,
+        });
+        const [thumbAsset] = await uploadAssetFiles([thumbFile]);
+        thumbnailAssetId = thumbAsset?.asset_id;
+      } catch {
+        // Leave the thumbnail unset — the remix still saves.
+      }
+
+      const { remixId } = await createRemix(template.id, {
+        assetIds,
+        state: remixStateFromLayers(layers, {
+          caption: trimmedCaption || undefined,
+          cityOverview: trimmedCityOverview || undefined,
+        }),
+        thumbnailAssetId,
+      });
+
       if (clientRemixUrlRef.current?.startsWith("blob:")) {
         URL.revokeObjectURL(clientRemixUrlRef.current);
       }

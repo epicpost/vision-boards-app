@@ -1,5 +1,8 @@
 import { expireAuthSession, getAccessToken, requestAuthDialog } from "@/lib/auth";
 import { API_BASE_URL } from "@/lib/post-templates";
+import { EXPORT_FORMATS, type EditorLayer, type RemixEditorTemplate } from "@/lib/remix-editor";
+import { exportCreative } from "@/lib/remix-editor-export";
+import { resolveCleanImageSrc } from "@/lib/image-proxy";
 
 // ── asset ingestion (multipart browser uploads) ──────────────────────────────
 
@@ -167,6 +170,37 @@ export async function uploadAssetFiles(files: File[]): Promise<IngestedAsset[]> 
 
   const payload = (await response.json()) as { assets: IngestedAsset[] };
   return payload.assets;
+}
+
+// Render the remix creative locally (same canvas path as the editor's download)
+// and upload it as a UserAsset, returning its id so the caller can persist it as
+// the remix's thumbnail. Best-effort: resolves to `undefined` if the render or
+// upload fails, so a save is never blocked by a thumbnail hiccup.
+//
+// Note: `layers` should carry the working (display) image srcs — this resolves
+// each to a canvas-safe URL before drawing, mirroring the editor export.
+export async function uploadRemixThumbnail(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+): Promise<string | undefined> {
+  if (typeof document === "undefined") return undefined;
+  try {
+    const cleanLayers = await Promise.all(
+      layers.map(async (layer) =>
+        layer.kind === "image" && layer.src
+          ? { ...layer, src: await resolveCleanImageSrc(layer.src) }
+          : layer,
+      ),
+    );
+    const format = template.formats[0] ?? "png";
+    const meta = EXPORT_FORMATS[format];
+    const blob = await exportCreative(template, cleanLayers, format);
+    const file = new File([blob], `remix-thumbnail.${meta.extension}`, { type: meta.mime });
+    const [asset] = await uploadAssetFiles([file]);
+    return asset?.asset_id;
+  } catch {
+    return undefined;
+  }
 }
 
 export interface RemixParams {
