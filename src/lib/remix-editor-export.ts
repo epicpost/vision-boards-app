@@ -6,10 +6,12 @@ import {
   EXPORT_FORMATS,
   LAYOUT,
   MOODBOARD_LAYOUT,
+  PORTO_CAPTION_TRACKING,
   PORTO_LAYOUT,
   TEXT_SHADOW,
   fontById,
   imageTransform,
+  portoCaptionFontSize,
   readableTextColor,
   resolveTextStyle,
   type EditorLayer,
@@ -276,7 +278,7 @@ function drawTextImageFill(
 
   maskCtx.save();
   maskCtx.font = font;
-  maskCtx.letterSpacing = "-0.035em";
+  maskCtx.letterSpacing = `${PORTO_CAPTION_TRACKING}em`;
   maskCtx.fillStyle = colorFallback;
   maskCtx.textAlign = "left";
   maskCtx.textBaseline = "top";
@@ -385,7 +387,9 @@ async function exportPorto(
     const label = caption.uppercase ? caption.text.toUpperCase() : caption.text;
     const font = fontById(caption.fontId);
     const style = resolveTextStyle(caption);
-    const size = PORTO_LAYOUT.headline.size * style.sizeScale * width;
+    // Scale the caption to fill the poster's inner image width (matches the
+    // live preview), instead of a fixed size that left short words small.
+    const size = portoCaptionFontSize(caption, width);
     drawTextImageFill(
       ctx,
       image,

@@ -67,7 +67,9 @@ import {
   isLightColor,
   LAYOUT,
   MOODBOARD_LAYOUT,
+  PORTO_CAPTION_TRACKING,
   PORTO_LAYOUT,
+  portoCaptionFontSize,
   nearestWeight,
   readableTextColor,
   resolveTextStyle,
@@ -1301,8 +1303,10 @@ function PortoPreview({
             style={{
               fontFamily: fontById(caption.fontId).family,
               fontWeight: captionStyle.weight,
-              fontSize: 208 * captionStyle.sizeScale,
-              letterSpacing: "-0.035em",
+              // Scale the caption to span the poster's inner image width (viewBox
+              // is 1080 wide), so short words fill the frame like the reference.
+              fontSize: portoCaptionFontSize(caption, 1080),
+              letterSpacing: `${PORTO_CAPTION_TRACKING}em`,
             }}
           >
             {caption.uppercase ? caption.text.toUpperCase() : caption.text}

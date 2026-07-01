@@ -713,3 +713,41 @@ export const PORTO_LAYOUT = {
   overview: { x: 415 / 736, y: 256 / 1308, w: 229 / 736, size: 18 / 1080, lineHeight: 1.18 },
   headline: { x: 98 / 736, y: 351 / 1308, w: 560 / 736, size: 208 / 1080, lineHeight: 0.82 },
 } as const;
+
+// The Porto caption's letter tracking (em). Shared by the SVG preview and the
+// canvas export so the measured width used to size the caption matches what's
+// actually drawn.
+export const PORTO_CAPTION_TRACKING = -0.035;
+
+// The caption spans the poster's inner image width, so short words like "Porto"
+// fill the frame at a large size while long ones shrink to fit — instead of a
+// single hardcoded size that only looked right for one word. We measure the
+// label (with the caption's real font + tracking) and return the px font-size
+// whose rendered width equals the headline box, then apply the user's size
+// slider and clamp to a sane range. `canvasWidth` is the render width (1080 for
+// the SVG preview's viewBox; the export's pixel width otherwise). Falls back to
+// the layout default when it can't measure (no DOM, empty text, or unloaded
+// font), so it is never a wrong guess — only a no-op fallback.
+export function portoCaptionFontSize(caption: TextLayer, canvasWidth: number): number {
+  const font = fontById(caption.fontId);
+  const style = resolveTextStyle(caption);
+  const label = (caption.uppercase ? caption.text.toUpperCase() : caption.text).trim();
+  const target = PORTO_LAYOUT.headline.w * canvasWidth;
+  const fallback = PORTO_LAYOUT.headline.size * canvasWidth;
+
+  const ctx = getMeasureCtx();
+  let fitted = fallback;
+  if (ctx && label && target > 0) {
+    const ref = 100;
+    ctx.font = `${style.weight} ${ref}px ${font.family}`;
+    ctx.letterSpacing = `${PORTO_CAPTION_TRACKING}em`;
+    const width = ctx.measureText(label).width;
+    ctx.letterSpacing = "0px"; // reset the shared measuring context
+    if (width > 0) fitted = (target / width) * ref;
+  }
+
+  const size = fitted * style.sizeScale;
+  // Keep within a reasonable band relative to the canvas (a 1–2 char word
+  // shouldn't explode; a very long one shouldn't vanish).
+  return Math.min(0.5 * canvasWidth, Math.max(0.07 * canvasWidth, size));
+}
