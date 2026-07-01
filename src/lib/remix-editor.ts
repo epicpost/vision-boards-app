@@ -711,7 +711,18 @@ export const PORTO_LAYOUT = {
   headlineCover: { x: 106 / 736, y: 353 / 1308, w: 541 / 736, h: 116 / 1308 },
   eyebrow: { x: 98 / 736, y: 271 / 1308, size: 32 / 1080 },
   overview: { x: 415 / 736, y: 256 / 1308, w: 229 / 736, size: 18 / 1080, lineHeight: 1.18 },
-  headline: { x: 98 / 736, y: 351 / 1308, w: 560 / 736, size: 208 / 1080, lineHeight: 0.82 },
+  // `baseline` is where the caption's alphabetic baseline sits — the visible top
+  // edge of the framed photo (photo top + headlineCover height). The caption is
+  // anchored here and grows *upward*, so its bottom always rests on the square's
+  // top regardless of how large the width-fit makes it.
+  headline: {
+    x: 98 / 736,
+    y: 351 / 1308,
+    w: 560 / 736,
+    baseline: (353 + 116) / 1308,
+    size: 208 / 1080,
+    lineHeight: 0.82,
+  },
 } as const;
 
 // The Porto caption's letter tracking (em). Shared by the SVG preview and the

@@ -281,7 +281,9 @@ function drawTextImageFill(
   maskCtx.letterSpacing = `${PORTO_CAPTION_TRACKING}em`;
   maskCtx.fillStyle = colorFallback;
   maskCtx.textAlign = "left";
-  maskCtx.textBaseline = "top";
+  // `textBox.y` is the alphabetic baseline (the framed photo's top edge), so the
+  // caption grows upward and its bottom rests on the square — matching the preview.
+  maskCtx.textBaseline = "alphabetic";
   maskCtx.fillText(text, textBox.x, textBox.y, textBox.w);
   maskCtx.globalCompositeOperation = "source-in";
   drawImageCover(maskCtx, image, imageBox, transform);
@@ -396,7 +398,7 @@ async function exportPorto(
       label,
       {
         x: PORTO_LAYOUT.headline.x * width,
-        y: PORTO_LAYOUT.headline.y * height,
+        y: PORTO_LAYOUT.headline.baseline * height,
         w: PORTO_LAYOUT.headline.w * width,
         h: size,
       },
