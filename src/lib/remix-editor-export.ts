@@ -19,6 +19,7 @@ import {
   type ResolvedTextStyle,
   type TextLayer,
 } from "@/lib/remix-editor";
+import { resolveCleanImageSrc } from "@/lib/image-proxy";
 
 function parseRatio(aspectRatio: string): number {
   const [w, h] = aspectRatio.split("/").map((part) => Number(part.trim()));
@@ -45,13 +46,22 @@ function applyTextShadow(ctx: CanvasRenderingContext2D, on: boolean, sizePx: num
   ctx.shadowOffsetY = sizePx * TEXT_SHADOW.offsetYRatio;
 }
 
-function loadImage(src: string): Promise<HTMLImageElement> {
+async function loadImage(src: string): Promise<HTMLImageElement> {
+  // Resolve to a canvas-safe src regardless of how the layer's src got here
+  // (initial load, draft restore, AI refine, replace). `data:`/`blob:`/
+  // same-origin pass through untouched; cross-origin http(s) is proxied to a
+  // `data:` URL. Without this, a raw S3 URL (no CORS header) fails to load with
+  // `crossOrigin="anonymous"` and the band silently drops from the export.
+  const clean = await resolveCleanImageSrc(src);
   return new Promise((resolve, reject) => {
     const image = new Image();
-    image.crossOrigin = "anonymous";
+    // Only remote URLs need the CORS opt-in; data:/blob: must not set it.
+    if (!clean.startsWith("data:") && !clean.startsWith("blob:")) {
+      image.crossOrigin = "anonymous";
+    }
     image.onload = () => resolve(image);
     image.onerror = () => reject(new Error(`Could not load image: ${src}`));
-    image.src = src;
+    image.src = clean;
   });
 }
 
