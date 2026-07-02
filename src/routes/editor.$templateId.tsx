@@ -843,6 +843,10 @@ function DraggableImage({
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    // Keep the tap from reaching the preview's background deselect handler, so
+    // clicking the photo selects it (rather than selecting then immediately
+    // clearing).
+    event.stopPropagation();
     onSelect();
     drag.current = {
       startX: event.clientX,
@@ -1924,6 +1928,13 @@ function EditorScreen({
                 ? "max-w-[300px]"
                 : "max-w-[360px]",
             )}
+            // Tapping anywhere in the preview that isn't an image clears the
+            // selection, so the crop outline only shows while an image is
+            // actively selected (a `DraggableImage` stops this from firing when
+            // the tap lands on it). Prevents the outline sticking around after
+            // an incidental tap — common on touch, where a scroll gesture can
+            // land on the photo.
+            onPointerDown={() => setSelectedImageId(null)}
           >
             {template.layout === "moodboard" ? (
               <MoodboardPreview
