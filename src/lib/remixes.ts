@@ -112,6 +112,18 @@ export async function fetchRemix(remixId: string): Promise<RemixDetail> {
   return response.json() as Promise<RemixDetail>;
 }
 
+export async function deleteSavedRemix(remixId: string): Promise<void> {
+  const token = requireToken("delete this remix");
+  const response = await fetch(
+    new URL(`/api/v1/remixes/${encodeURIComponent(remixId)}`, API_BASE_URL),
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+  if (!response.ok) await throwApiError(response, "Delete remix");
+}
+
 // Autosave: replaces the remix's editor state. Pass `assetIds` only when the
 // attached images changed (e.g. the user replaced a photo), so the server
 // re-syncs the attachments; omit it to leave them untouched.

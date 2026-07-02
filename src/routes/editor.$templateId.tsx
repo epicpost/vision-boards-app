@@ -66,6 +66,7 @@ import {
   imageTransform,
   layersFromRemix,
   isLightColor,
+  COVER_LAYOUT,
   LAYOUT,
   MOODBOARD_LAYOUT,
   RELAX_LAYOUT,
@@ -1276,6 +1277,91 @@ function RelaxPreview({
   );
 }
 
+// FRANKOF cover (slide 9): one full-bleed photo, a bottom scrim, and a large
+// uppercase headline anchored bottom-left. Mirrors `template_frankof.v2.html`'s
+// `.s9` layout and `exportCover`.
+function CoverPreview({
+  template,
+  layers,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const image = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image",
+  );
+  const header = layers.find((layer): layer is TextLayer => layer.kind === "header");
+  const headerStyle = header ? resolveTextStyle(header) : null;
+  const cqi = (value: number) => `${value * 100}cqi`;
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+      }}
+    >
+      {image?.visible && (
+        <DraggableImage
+          layer={image}
+          fit="cover"
+          selected={selectedId === image.id}
+          onSelect={() => onSelect(image.id)}
+          onPan={(offsetX, offsetY) =>
+            updateLayer(
+              image.id,
+              { transform: { ...imageTransform(image), offsetX, offsetY } },
+              `pan-${image.id}`,
+            )
+          }
+          className="inset-0 h-full w-full"
+        />
+      )}
+
+      {/* Bottom scrim so the headline stays legible over any photo. */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background: `linear-gradient(180deg, rgba(${COVER_LAYOUT.scrim.color},0) ${
+            COVER_LAYOUT.scrim.start * 100
+          }%, rgba(${COVER_LAYOUT.scrim.color},${COVER_LAYOUT.scrim.opacity}) 100%)`,
+        }}
+      />
+
+      {header?.visible && headerStyle && header.text.trim() && (
+        <div
+          className="pointer-events-none absolute"
+          style={{
+            left: cqi(COVER_LAYOUT.padX),
+            right: cqi(COVER_LAYOUT.padRight),
+            bottom: `${COVER_LAYOUT.headline.bottom * 100}%`,
+            fontFamily: fontById(header.fontId).family,
+            fontWeight: headerStyle.weight,
+            fontSize: cqi(COVER_LAYOUT.headline.size * headerStyle.sizeScale),
+            lineHeight: COVER_LAYOUT.headline.lineHeight,
+            letterSpacing: `${headerStyle.letterSpacing}em`,
+            textAlign: headerStyle.align,
+            color: header.color,
+            textTransform: header.uppercase ? "uppercase" : "none",
+            whiteSpace: "pre-line",
+            textShadow: headerStyle.shadow ? TEXT_SHADOW_CSS : "none",
+          }}
+        >
+          {header.text}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PortoPreview({
   template,
   layers,
@@ -1566,7 +1652,11 @@ type ChatMessage = {
 // Which edit sections start expanded. Keyed by layer id so moodboard photos
 // (which share the "image" kind) each get their own state.
 function defaultOpenSections(template: RemixEditorTemplate): Record<string, boolean> {
-  if (template.layout === "moodboard" || template.layout === "relax") {
+  if (
+    template.layout === "moodboard" ||
+    template.layout === "relax" ||
+    template.layout === "cover"
+  ) {
     const open: Record<string, boolean> = {};
     template.layers.forEach((layer, index) => {
       open[layer.id] = layer.kind === "header" || index === 0;
@@ -1936,7 +2026,8 @@ function EditorScreen({
               "w-full",
               template.layout === "moodboard" ||
                 template.layout === "porto" ||
-                template.layout === "relax"
+                template.layout === "relax" ||
+                template.layout === "cover"
                 ? "max-w-[300px]"
                 : "max-w-[360px]",
             )}
@@ -1966,6 +2057,14 @@ function EditorScreen({
               />
             ) : template.layout === "porto" ? (
               <PortoPreview
+                template={template}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
+            ) : template.layout === "cover" ? (
+              <CoverPreview
                 template={template}
                 layers={layers}
                 selectedId={selectedImageId}
@@ -2036,8 +2135,10 @@ function EditorScreen({
               <h2 className="text-lg font-bold text-foreground">Edit creative</h2>
             </div>
 
-            {/* Moodboard / relax: one replaceable photo per panel + the title. */}
-            {(template.layout === "moodboard" || template.layout === "relax") && (
+            {/* Moodboard / relax / cover: one replaceable photo per panel + the title. */}
+            {(template.layout === "moodboard" ||
+              template.layout === "relax" ||
+              template.layout === "cover") && (
               <>
                 {photos.map((photo) => (
                   <EditorSection
@@ -2111,7 +2212,10 @@ function EditorScreen({
             )}
 
             {/* Image */}
-            {template.layout !== "moodboard" && template.layout !== "relax" && image && (
+            {template.layout !== "moodboard" &&
+              template.layout !== "relax" &&
+              template.layout !== "cover" &&
+              image && (
               <EditorSection
                 title="Image"
                 open={openSections.image}
@@ -2177,7 +2281,10 @@ function EditorScreen({
             )}
 
             {/* Header */}
-            {template.layout !== "moodboard" && template.layout !== "relax" && header && (
+            {template.layout !== "moodboard" &&
+              template.layout !== "relax" &&
+              template.layout !== "cover" &&
+              header && (
               <EditorSection
                 title={template.layout === "porto" ? "Caption" : "Header"}
                 open={openSections.header}

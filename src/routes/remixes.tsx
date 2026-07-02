@@ -9,6 +9,7 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
+  Trash2,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -27,7 +28,12 @@ import {
   remixesQueryKey,
   type RemixGenerationItem,
 } from "@/lib/generations";
-import { fetchSavedRemixes, savedRemixesQueryKey, type RemixSummary } from "@/lib/remixes";
+import {
+  deleteSavedRemix,
+  fetchSavedRemixes,
+  savedRemixesQueryKey,
+  type RemixSummary,
+} from "@/lib/remixes";
 import { getAccessToken } from "@/lib/auth";
 
 export const Route = createFileRoute("/remixes")({
@@ -353,38 +359,94 @@ function RemixViewer({
   );
 }
 
-// A saved (DB-backed) remix: opens straight into the editor with the user's
-// images + text. Download lives in the editor (the image is rendered there
-// client-side), so the card's primary action is Edit.
-function SavedRemixCard({ remix }: { remix: RemixSummary }) {
+// A saved (DB-backed) remix: opens into the editor with the user's images +
+// text. The hover menu carries actions so the image stays clean.
+function SavedRemixCard({
+  remix,
+  onDelete,
+  isDeleting,
+}: {
+  remix: RemixSummary;
+  onDelete: (remix: RemixSummary) => void;
+  isDeleting: boolean;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const editorLink = {
+    to: "/editor/$templateId" as const,
+    params: { templateId: remix.post_template_id },
+    search: { remixId: remix.remix_id },
+  };
+
   return (
     <div className="mb-3 break-inside-avoid group">
-      <Link
-        to="/editor/$templateId"
-        params={{ templateId: remix.post_template_id }}
-        search={{ remixId: remix.remix_id }}
-        aria-label={`Edit ${remix.caption ?? remix.template_title}`}
-        className="relative block w-full overflow-hidden rounded-[16px] bg-secondary"
-        style={{ aspectRatio: "9 / 16" }}
-      >
-        {remix.thumbnail_url ? (
-          <img
-            src={remix.thumbnail_url}
-            alt={remix.caption ?? remix.template_title}
-            loading="lazy"
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
-            Open editor
-          </div>
-        )}
-        <span className="pointer-events-none absolute inset-0 bg-black/25 opacity-0 transition group-hover:opacity-100" />
-        <span className="pointer-events-none absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-foreground opacity-0 shadow-sm transition group-hover:opacity-100">
-          <Pencil className="h-4 w-4" />
-          Edit
-        </span>
-      </Link>
+      <div className="relative w-full overflow-hidden rounded-[16px] bg-secondary">
+        <Link
+          {...editorLink}
+          aria-label={`Edit ${remix.caption ?? remix.template_title}`}
+          className="relative block w-full"
+          style={{ aspectRatio: "9 / 16" }}
+        >
+          {remix.thumbnail_url ? (
+            <img
+              src={remix.thumbnail_url}
+              alt={remix.caption ?? remix.template_title}
+              loading="lazy"
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
+              Open editor
+            </div>
+          )}
+          <span className="pointer-events-none absolute inset-0 bg-black/25 opacity-0 transition group-hover:opacity-100" />
+        </Link>
+
+        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label="Remix options"
+              className={`absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition ${
+                menuOpen
+                  ? "bg-foreground text-background opacity-100"
+                  : "bg-white text-foreground opacity-0 hover:bg-secondary group-hover:opacity-100"
+              }`}
+            >
+              <MoreHorizontal className="h-5 w-5" strokeWidth={2.5} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[180px] rounded-[16px] p-2 shadow-lg">
+            <DropdownMenuItem asChild disabled={!remix.thumbnail_url}>
+              <a
+                href={remix.thumbnail_url ?? undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex cursor-pointer items-center gap-2 rounded-[10px] px-3 py-2 text-[15px] font-medium"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Open
+              </a>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link
+                {...editorLink}
+                className="flex cursor-pointer items-center gap-2 rounded-[10px] px-3 py-2 text-[15px] font-medium"
+              >
+                <Pencil className="h-4 w-4" />
+                Edit
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => onDelete(remix)}
+              disabled={isDeleting}
+              className="cursor-pointer gap-2 rounded-[10px] px-3 py-2 text-[15px] font-medium text-destructive focus:text-destructive disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Trash2 className="h-4 w-4" />
+              {isDeleting ? "Deleting..." : "Delete"}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       <p className="px-2 pt-2 text-[13px] font-semibold text-foreground line-clamp-2">
         {remix.caption || remix.template_title}
       </p>
@@ -405,6 +467,7 @@ function RemixesGrid() {
   const savedRemixes = savedRemixesQuery.data ?? [];
   const [selectedRemix, setSelectedRemix] = useState<RemixGenerationItem | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingSavedId, setDeletingSavedId] = useState<string | null>(null);
   const remixesQuery = useQuery({
     queryKey: remixesQueryKey(),
     queryFn: () => fetchRemixes(),
@@ -427,6 +490,22 @@ function RemixesGrid() {
     },
     onSettled: () => {
       setDeletingId(null);
+    },
+  });
+  const deleteSavedMutation = useMutation({
+    mutationFn: (remix: RemixSummary) => deleteSavedRemix(remix.remix_id),
+    onMutate: (remix) => {
+      setDeletingSavedId(remix.remix_id);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: savedRemixesQueryKey() });
+      toast.success("Remix deleted.");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Could not delete remix.");
+    },
+    onSettled: () => {
+      setDeletingSavedId(null);
     },
   });
   const remixes = remixesQuery.data?.data ?? [];
@@ -496,7 +575,12 @@ function RemixesGrid() {
     <>
       <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-3 [column-fill:_balance]">
         {savedRemixes.map((remix) => (
-          <SavedRemixCard key={remix.remix_id} remix={remix} />
+          <SavedRemixCard
+            key={remix.remix_id}
+            remix={remix}
+            onDelete={(target) => deleteSavedMutation.mutate(target)}
+            isDeleting={deletingSavedId === remix.remix_id}
+          />
         ))}
         {remixes.map((remix) => (
           <RemixPreviewCard

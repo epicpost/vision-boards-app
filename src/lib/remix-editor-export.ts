@@ -2,6 +2,7 @@
 // (`LAYOUT`) the live DOM preview uses, so the download matches what's on screen.
 
 import {
+  COVER_LAYOUT,
   DEFAULT_IMAGE_TRANSFORM,
   EXPORT_FORMATS,
   LAYOUT,
@@ -617,6 +618,87 @@ async function exportPorto(
   return canvasToBlob(canvas, format);
 }
 
+// Rasterize a FRANKOF cover (slide 9): one full-bleed photo, a bottom scrim, and
+// a large uppercase headline anchored bottom-left — mirrors `CoverPreview` and
+// `template_frankof.v2.html`'s `.s9`.
+async function exportCover(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  const imageLayer = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image",
+  );
+  if (imageLayer?.visible) {
+    try {
+      const img = await loadImage(imageLayer.src);
+      drawImageCover(ctx, img, { x: 0, y: 0, w: width, h: height }, imageTransform(imageLayer));
+    } catch {
+      throw new ExportImageError(1);
+    }
+  }
+
+  // Bottom scrim — transparent to dark, so the headline stays legible.
+  const scrim = ctx.createLinearGradient(0, 0, 0, height);
+  scrim.addColorStop(COVER_LAYOUT.scrim.start, `rgba(${COVER_LAYOUT.scrim.color},0)`);
+  scrim.addColorStop(1, `rgba(${COVER_LAYOUT.scrim.color},${COVER_LAYOUT.scrim.opacity})`);
+  ctx.fillStyle = scrim;
+  ctx.fillRect(0, 0, width, height);
+
+  const header = layers.find(
+    (layer): layer is TextLayer => layer.kind === "header" && layer.visible,
+  );
+  if (header && header.text.trim()) {
+    const font = fontById(header.fontId);
+    const style = resolveTextStyle(header);
+    const size = COVER_LAYOUT.headline.size * style.sizeScale * width;
+    if (typeof document !== "undefined" && document.fonts) {
+      await document.fonts
+        .load(`${style.weight} ${size}px ${primaryFamily(font.family)}`)
+        .catch(() => undefined);
+    }
+    const text = header.uppercase ? header.text.toUpperCase() : header.text;
+    const leftX = COVER_LAYOUT.padX * width;
+    const maxW = (1 - COVER_LAYOUT.padX - COVER_LAYOUT.padRight) * width;
+    ctx.save();
+    ctx.font = `${style.weight} ${size}px ${font.family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    // Honour explicit line breaks (the headline uses them), wrapping each line.
+    const lines = text
+      .split("\n")
+      .flatMap((para) => (para.trim() === "" ? [""] : wrapLines(ctx, para, maxW)));
+    const lineHeight = size * COVER_LAYOUT.headline.lineHeight;
+    const totalH = lines.length * lineHeight;
+    // The block's bottom edge sits `bottom` (fraction of height) above the base.
+    const bottomY = height - COVER_LAYOUT.headline.bottom * height;
+    const startY = bottomY - totalH;
+    applyTextShadow(ctx, style.shadow, size);
+    ctx.fillStyle = header.color;
+    ctx.textAlign = style.align;
+    ctx.textBaseline = "top";
+    const x = alignX(style.align, leftX, leftX + maxW);
+    lines.forEach((line, index) => {
+      ctx.fillText(line, x, startY + index * lineHeight);
+    });
+    ctx.restore();
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
 export async function exportCreative(
   template: RemixEditorTemplate,
   layers: EditorLayer[],
@@ -625,6 +707,9 @@ export async function exportCreative(
 ): Promise<Blob> {
   if (template.layout === "moodboard") {
     return exportMoodboard(template, layers, format, width);
+  }
+  if (template.layout === "cover") {
+    return exportCover(template, layers, format, width);
   }
   if (template.layout === "porto") {
     return exportPorto(template, layers, format, width);

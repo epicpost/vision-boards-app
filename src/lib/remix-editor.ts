@@ -119,7 +119,7 @@ export const EXPORT_FORMATS: Record<ExportFormat, ExportFormatMeta> = {
 // reproduces the measured Porto travel poster reference; "relax" is a stack of
 // rounded photo panels (with gaps) and a caption + subcaption over the middle
 // panel, mirroring the `template_relax.v2.html` render engine template.
-export type TemplateLayout = "poster" | "moodboard" | "porto" | "relax";
+export type TemplateLayout = "poster" | "moodboard" | "porto" | "relax" | "cover";
 
 export interface RemixEditorTemplate {
   id: string;
@@ -620,11 +620,62 @@ const RELAX_TRIO: RemixEditorTemplate = {
   ],
 };
 
+// FRANKOF "How to build a timeless interior" — slide 9 of the FRANKOF editorial
+// carousel (id ...0109). A single full-bleed photo with a large uppercase
+// headline bottom-left, mirroring `template_frankof.v2.html`'s `.s9` layout. The
+// first editable slide of the server-rendered FRANKOF series.
+const FRANKOF_TIMELESS: RemixEditorTemplate = {
+  id: "13000000-0000-0000-0000-000000000109",
+  title: "How to Build a Timeless Interior",
+  layout: "cover",
+  aspectRatio: "4 / 5",
+  background: "#1d1b19",
+  palette: [
+    { label: "Paper", value: "#fdfcfa" },
+    { label: "Cream", value: "#f5e9d4" },
+    { label: "Ink", value: "#111111" },
+    { label: "Sunset", value: "#ff5a3c" },
+    { label: "Sky", value: "#3c7dff" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/frankof-collection/slide-09.png",
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Headline",
+      visible: true,
+      hideable: true,
+      text: "How to build\na timeless\ninterior",
+      color: "#fdfcfa",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 600,
+      align: "left",
+      shadow: true,
+      suggestions: [
+        "How to build\na timeless\ninterior",
+        "Signature\nstyle",
+        "Design\nfor living",
+        "Interior\ntrends",
+      ],
+    },
+  ],
+};
+
 const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [TEMPLATE_28.id]: TEMPLATE_28,
   [TEMPLATE_205.id]: TEMPLATE_205,
   [PORTO_POSTER.id]: PORTO_POSTER,
   [RELAX_TRIO.id]: RELAX_TRIO,
+  [FRANKOF_TIMELESS.id]: FRANKOF_TIMELESS,
 };
 
 export function getRemixEditorTemplate(id: string): RemixEditorTemplate | null {
@@ -838,6 +889,21 @@ export const RELAX_LAYOUT = {
     headline: { size: 60 / 1080, lineHeight: 1 },
     sub: { size: 21 / 1080, lineHeight: 1.5, gap: 16 / 1080 },
   },
+} as const;
+
+// ── FRANKOF cover geometry ───────────────────────────────────────────────────
+// Full-bleed photo with a large uppercase headline bottom-left, over a bottom
+// scrim. Fractions of the canvas *width* (padX/right/size) match the render
+// engine's CSS pixels at the 1080px reference (template_frankof.v2.html slide 9:
+// left 88px, right 110px, font-size 80px); `bottom` is a fraction of height
+// (104/1350). The preview and export share these so both position identically.
+export const COVER_LAYOUT = {
+  padX: 88 / 1080,
+  padRight: 110 / 1080,
+  headline: { size: 80 / 1080, lineHeight: 0.96, bottom: 104 / 1350 },
+  // Bottom scrim: a transparent-to-dark gradient so the headline stays legible on
+  // any photo. `start` is where the darkening begins (fraction of height).
+  scrim: { start: 0.4, color: "15, 14, 12", opacity: 0.7 },
 } as const;
 
 // Measured from public/templates/shared/porto-poster.jpg (736 x 1308) and
