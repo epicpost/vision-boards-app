@@ -116,8 +116,10 @@ export const EXPORT_FORMATS: Record<ExportFormat, ExportFormatMeta> = {
 // How a template's canvas is composed. "poster" is the single product-shot
 // layout (header / description / CTA over one image); "moodboard" is a
 // full-bleed vertical stack of photo bands with a city title overlaid; "porto"
-// reproduces the measured Porto travel poster reference.
-export type TemplateLayout = "poster" | "moodboard" | "porto";
+// reproduces the measured Porto travel poster reference; "relax" is a stack of
+// rounded photo panels (with gaps) and a caption + subcaption over the middle
+// panel, mirroring the `template_relax.v2.html` render engine template.
+export type TemplateLayout = "poster" | "moodboard" | "porto" | "relax";
 
 export interface RemixEditorTemplate {
   id: string;
@@ -521,10 +523,89 @@ const PORTO_POSTER: RemixEditorTemplate = {
   ],
 };
 
+// Relax Sea Photo Trio — a stack of rounded photo panels (with soft gaps on a
+// paper background) and a caption + subcaption set over the middle panel. Mirrors
+// the `template_relax.v2.html` render engine template (id ...015).
+const RELAX_TRIO: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000015",
+  title: "Relax Sea Photo Trio",
+  layout: "relax",
+  aspectRatio: "9 / 16",
+  background: "#ece9e2",
+  palette: [
+    { label: "Ink", value: "#1c1c1c" },
+    { label: "Paper", value: "#ffffff" },
+    { label: "Cream", value: "#f5e9d4" },
+    { label: "Sea", value: "#1f6f6b" },
+    { label: "Sand", value: "#c9b79c" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "photo-1",
+      kind: "image",
+      label: "Top photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/barcelona-skyline.jpg",
+    },
+    {
+      id: "photo-2",
+      kind: "image",
+      label: "Middle photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/Beach Quotes.jpg",
+    },
+    {
+      id: "photo-3",
+      kind: "image",
+      label: "Bottom photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/barcelona-park.jpg",
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Caption",
+      visible: true,
+      hideable: true,
+      text: "Seaside",
+      color: "#1c1c1c",
+      fontId: "poppins",
+      uppercase: true,
+      weight: 700,
+      align: "left",
+      suggestions: ["Seaside", "Slow days", "Salt air", "Low tide", "Escape"],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Subcaption",
+      visible: true,
+      hideable: true,
+      text: "let the tide carry\nthe noise away",
+      color: "#1c1c1c",
+      fontId: "poppins",
+      uppercase: false,
+      weight: 500,
+      letterSpacing: 0.22,
+      align: "left",
+      suggestions: [
+        "let the tide carry\nthe noise away",
+        "somewhere the days\nrun a little slower",
+        "breathe in, breathe out,\nrepeat",
+      ],
+    },
+  ],
+};
+
 const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [TEMPLATE_28.id]: TEMPLATE_28,
   [TEMPLATE_205.id]: TEMPLATE_205,
   [PORTO_POSTER.id]: PORTO_POSTER,
+  [RELAX_TRIO.id]: RELAX_TRIO,
 };
 
 export function getRemixEditorTemplate(id: string): RemixEditorTemplate | null {
@@ -702,13 +783,32 @@ export const MOODBOARD_LAYOUT = {
   title: { centerY: 0.5, size: 0.135, lineHeight: 1, weight: 800, padX: 0.04 },
 } as const;
 
+// ── Relax trio geometry ──────────────────────────────────────────────────────
+// Rounded photo panels stacked with a soft gap; caption + subcaption ride the
+// middle panel, left-aligned. All fractions are of the canvas *width* so they
+// match the render engine's CSS pixels at the 1080px reference (gap: 26px,
+// radius: 38px). The preview/export convert the gap to a height fraction.
+export const RELAX_LAYOUT = {
+  gap: 26 / 1080,
+  radius: 38 / 1080,
+  caption: {
+    left: 68 / 1080,
+    maxWidth: 0.46,
+    headline: { size: 60 / 1080, lineHeight: 1 },
+    sub: { size: 21 / 1080, lineHeight: 1.5, gap: 16 / 1080 },
+  },
+} as const;
+
 // Measured from public/templates/shared/porto-poster.jpg (736 x 1308) and
 // expressed as canvas fractions so the DOM preview and export share the same
 // geometry.
 export const PORTO_LAYOUT = {
   card: { x: 50 / 736, y: 231 / 1308, w: 654 / 736, h: 844 / 1308 },
   photo: { x: 106 / 736, y: 353 / 1308, w: 541 / 736, h: 686 / 1308 },
-  headlineCover: { x: 106 / 736, y: 353 / 1308, w: 541 / 736, h: 116 / 1308 },
+  // The white band painted over the top of the photo. Taller than the raw
+  // reference so the visible square starts lower and the width-filled caption
+  // overlaps it less (its lower part lands on this white band, not the photo).
+  headlineCover: { x: 106 / 736, y: 353 / 1308, w: 541 / 736, h: 180 / 1308 },
   eyebrow: { x: 98 / 736, y: 271 / 1308, size: 32 / 1080 },
   overview: { x: 415 / 736, y: 256 / 1308, w: 229 / 736, size: 18 / 1080, lineHeight: 1.18 },
   // The caption hangs from `y` (its top sits just below the eyebrow/overview
@@ -721,6 +821,23 @@ export const PORTO_LAYOUT = {
 // canvas export so the measured width used to size the caption matches what's
 // actually drawn.
 export const PORTO_CAPTION_TRACKING = -0.035;
+
+// Porto card interior layout — mirrored by `PortoPreview` (flexbox) and
+// `exportPorto` (canvas) so the download matches the editor. The card holds three
+// full-width rows: (1) eyebrow left + overview right, (2) the city name knocked
+// out of a white band that reveals the photo behind it, (3) the square photo.
+// Paddings/gaps are fractions of the poster *width* (the preview uses cqi = % of
+// width); `nameBand`/`nameOverlap` are multiples of the fitted name font size.
+export const PORTO_CARD = {
+  padX: 56 / 736, // side padding → inner width equals the photo width
+  padTop: 40 / 1308 / (9 / 16), // card top → eyebrow, expressed width-relative
+  padBottom: 36 / 1308 / (9 / 16), // photo bottom → card bottom, width-relative
+  rowGap: 0.025, // gap between the header row and the name band
+  overviewMaxWidth: 0.46, // overview column width, fraction of the inner width
+  nameFill: 1, // the city name spans the full inner width
+  nameBand: 0.8, // white name-band height, as a multiple of the name font size
+  nameOverlap: 0.02, // name baseline drop into the square, multiple of font size
+} as const;
 
 // The caption spans the poster's inner image width, so short words like "Porto"
 // fill the frame at a large size while long ones shrink to fit — instead of a

@@ -67,9 +67,10 @@ import {
   isLightColor,
   LAYOUT,
   MOODBOARD_LAYOUT,
+  RELAX_LAYOUT,
   PORTO_CAPTION_TRACKING,
+  PORTO_CARD,
   PORTO_LAYOUT,
-  portoCaptionFontSize,
   nearestWeight,
   readableTextColor,
   resolveTextStyle,
@@ -1149,6 +1150,127 @@ function MoodboardPreview({
   );
 }
 
+// Relax trio: rounded photo panels stacked with a soft gap on a paper
+// background, and a caption + subcaption over the middle panel (left-aligned) —
+// mirroring `template_relax.v2.html` and `exportRelax`.
+function RelaxPreview({
+  template,
+  layers,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const photos = layers.filter(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image",
+  );
+  const header = layers.find((layer): layer is TextLayer => layer.kind === "header");
+  const description = layers.find((layer): layer is TextLayer => layer.kind === "description");
+  const headerStyle = header ? resolveTextStyle(header) : null;
+  const descStyle = description ? resolveTextStyle(description) : null;
+
+  const n = Math.max(photos.length, 1);
+  // aspectRatio is "9 / 16"; ratio = width / height. The CSS gap is a fixed px
+  // (fraction of width), so convert it to a fraction of height for vertical layout.
+  const [rw, rh] = template.aspectRatio.split("/").map((v) => parseFloat(v.trim()));
+  const ratio = rw && rh ? rw / rh : 9 / 16;
+  const gapH = RELAX_LAYOUT.gap * ratio; // fraction of height
+  const panelH = (1 - (n - 1) * gapH) / n; // fraction of height
+  const mid = Math.floor((n - 1) / 2);
+  const centerY = mid * (panelH + gapH) + panelH / 2; // fraction of height
+  const cqi = (value: number) => `${value * 100}cqi`;
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+      }}
+    >
+      {photos.map((photo, index) =>
+        photo.visible ? (
+          <DraggableImage
+            key={photo.id}
+            layer={photo}
+            fit="cover"
+            selected={selectedId === photo.id}
+            onSelect={() => onSelect(photo.id)}
+            onPan={(offsetX, offsetY) =>
+              updateLayer(
+                photo.id,
+                { transform: { ...imageTransform(photo), offsetX, offsetY } },
+                `pan-${photo.id}`,
+              )
+            }
+            className="left-0 w-full"
+            style={{
+              top: `${index * (panelH + gapH) * 100}%`,
+              height: `${panelH * 100}%`,
+              borderRadius: cqi(RELAX_LAYOUT.radius),
+              overflow: "hidden",
+            }}
+          />
+        ) : null,
+      )}
+
+      {(header?.visible || description?.visible) && (
+        <div
+          className="absolute -translate-y-1/2"
+          style={{
+            left: cqi(RELAX_LAYOUT.caption.left),
+            top: `${centerY * 100}%`,
+            maxWidth: cqi(RELAX_LAYOUT.caption.maxWidth),
+          }}
+        >
+          {header?.visible && headerStyle && header.text.trim() && (
+            <div
+              style={{
+                fontFamily: fontById(header.fontId).family,
+                fontWeight: headerStyle.weight,
+                fontSize: cqi(RELAX_LAYOUT.caption.headline.size * headerStyle.sizeScale),
+                lineHeight: RELAX_LAYOUT.caption.headline.lineHeight,
+                letterSpacing: `${headerStyle.letterSpacing}em`,
+                textAlign: headerStyle.align,
+                color: header.color,
+                textTransform: header.uppercase ? "uppercase" : "none",
+                textShadow: headerStyle.shadow ? TEXT_SHADOW_CSS : "none",
+              }}
+            >
+              {header.text}
+            </div>
+          )}
+          {description?.visible && descStyle && description.text.trim() && (
+            <div
+              style={{
+                marginTop: cqi(RELAX_LAYOUT.caption.sub.gap),
+                fontFamily: fontById(description.fontId).family,
+                fontWeight: descStyle.weight,
+                fontSize: cqi(RELAX_LAYOUT.caption.sub.size * descStyle.sizeScale),
+                lineHeight: RELAX_LAYOUT.caption.sub.lineHeight,
+                letterSpacing: `${descStyle.letterSpacing}em`,
+                textAlign: descStyle.align,
+                color: description.color,
+                textTransform: description.uppercase ? "uppercase" : "none",
+                whiteSpace: "pre-line",
+                textShadow: descStyle.shadow ? TEXT_SHADOW_CSS : "none",
+              }}
+            >
+              {description.text}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PortoPreview({
   template,
   layers,
@@ -1172,27 +1294,58 @@ function PortoPreview({
   const pct = (value: number) => `${value * 100}%`;
   const cqi = (value: number) => `${value * 100}cqi`;
 
-  // The caption is scaled to span the poster's inner image width, which requires
-  // measuring the glyphs — only possible in the browser. Seed with the layout
-  // default so SSR and the first client render agree (no hydration mismatch),
-  // then measure after mount and again once the webfont loads.
-  const [captionSize, setCaptionSize] = useState(PORTO_LAYOUT.headline.size * 1080);
-  const captionKey = caption
-    ? `${caption.text}|${caption.uppercase}|${caption.fontId}|${captionStyle?.weight}|${captionStyle?.sizeScale}`
-    : "";
+  const captionFont = caption ? fontById(caption.fontId) : null;
+  const captionText = caption ? (caption.uppercase ? caption.text.toUpperCase() : caption.text) : "";
+
+  // The name is knocked out of a white band and reveals the photo behind it, so
+  // it must be measured against the *real* rendered width of its container —
+  // only possible in the browser. Track the wrapper (rows 2+3) box, then fit the
+  // name to it (font-agnostic). Seeded 0 so SSR and the first client render agree
+  // (no hydration mismatch); both the box and the name size are set after mount.
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState({ w: 0, h: 0 });
   useEffect(() => {
-    if (!caption) return;
-    let cancelled = false;
-    const measure = () => {
-      if (!cancelled) setCaptionSize(portoCaptionFontSize(caption, 1080));
-    };
+    const el = wrapperRef.current;
+    if (!el) return;
+    const measure = () => setBox({ w: el.clientWidth, h: el.clientHeight });
     measure();
-    document.fonts?.ready.then(measure).catch(() => undefined);
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const measureCtx = useRef<CanvasRenderingContext2D | null>(null);
+  const [nameSize, setNameSize] = useState(0);
+  useEffect(() => {
+    if (!caption || !captionFont || !box.w) return;
+    let cancelled = false;
+    const fit = () => {
+      if (cancelled || !captionText.trim()) return;
+      if (!measureCtx.current) {
+        measureCtx.current = document.createElement("canvas").getContext("2d");
+      }
+      const ctx = measureCtx.current;
+      if (!ctx) return;
+      ctx.font = `${captionStyle?.weight ?? 400} 100px ${captionFont.family}`;
+      ctx.letterSpacing = `${PORTO_CAPTION_TRACKING}em`;
+      const w = ctx.measureText(captionText).width;
+      ctx.letterSpacing = "0px";
+      if (w > 0) {
+        setNameSize(((box.w * PORTO_CARD.nameFill) / w) * 100 * (captionStyle?.sizeScale ?? 1));
+      }
+    };
+    fit();
+    document.fonts?.ready.then(fit).catch(() => undefined);
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [captionKey]);
+  }, [captionText, caption?.fontId, captionStyle?.weight, captionStyle?.sizeScale, box.w]);
+
+  // The white name band's height, and the name's baseline — pinned to the band's
+  // bottom and pushed a hair (nameOverlap × font size) into the square below it.
+  const bandH = nameSize * PORTO_CARD.nameBand;
+  const baselineY = bandH + nameSize * PORTO_CARD.nameOverlap;
 
   return (
     <div
@@ -1203,6 +1356,7 @@ function PortoPreview({
         containerType: "inline-size",
       }}
     >
+      {/* Full-bleed backdrop — a blurred copy of the photo behind the card. */}
       {image && (
         <img
           src={image.src}
@@ -1212,128 +1366,114 @@ function PortoPreview({
         />
       )}
 
+      {/* White poster card: three stacked full-width rows. */}
       <div
-        className="absolute"
+        className="absolute flex flex-col"
         style={{
           left: pct(PORTO_LAYOUT.card.x),
           top: pct(PORTO_LAYOUT.card.y),
           width: pct(PORTO_LAYOUT.card.w),
           height: pct(PORTO_LAYOUT.card.h),
           background: template.background,
-        }}
-      />
-
-      {image?.visible && (
-        <DraggableImage
-          layer={image}
-          fit="cover"
-          selected={selectedId === image.id}
-          onSelect={() => onSelect(image.id)}
-          onPan={(offsetX, offsetY) =>
-            updateLayer(
-              image.id,
-              { transform: { ...imageTransform(image), offsetX, offsetY } },
-              `pan-${image.id}`,
-            )
-          }
-          style={{
-            left: pct(PORTO_LAYOUT.photo.x),
-            top: pct(PORTO_LAYOUT.photo.y),
-            width: pct(PORTO_LAYOUT.photo.w),
-            height: pct(PORTO_LAYOUT.photo.h),
-          }}
-        />
-      )}
-
-      <div
-        className="absolute"
-        style={{
-          left: pct(PORTO_LAYOUT.headlineCover.x),
-          top: pct(PORTO_LAYOUT.headlineCover.y),
-          width: pct(PORTO_LAYOUT.headlineCover.w),
-          height: pct(PORTO_LAYOUT.headlineCover.h),
-          background: template.background,
-        }}
-      />
-
-      <div
-        className="absolute uppercase"
-        style={{
-          left: pct(PORTO_LAYOUT.eyebrow.x),
-          top: pct(PORTO_LAYOUT.eyebrow.y),
-          fontFamily: "'Montserrat', sans-serif",
-          fontSize: cqi(PORTO_LAYOUT.eyebrow.size),
-          lineHeight: 1,
-          letterSpacing: "0.025em",
-          color: "#29292b",
+          boxSizing: "border-box",
+          paddingLeft: cqi(PORTO_CARD.padX),
+          paddingRight: cqi(PORTO_CARD.padX),
+          paddingTop: cqi(PORTO_CARD.padTop),
+          paddingBottom: cqi(PORTO_CARD.padBottom),
         }}
       >
-        PORTUGAL
-      </div>
-
-      {overview?.visible && overviewStyle && (
-        <div
-          className="absolute"
-          style={{
-            left: pct(PORTO_LAYOUT.overview.x),
-            top: pct(PORTO_LAYOUT.overview.y),
-            width: pct(PORTO_LAYOUT.overview.w),
-            fontFamily: fontById(overview.fontId).family,
-            fontWeight: overviewStyle.weight,
-            fontSize: cqi(PORTO_LAYOUT.overview.size * overviewStyle.sizeScale),
-            lineHeight: PORTO_LAYOUT.overview.lineHeight,
-            letterSpacing: `${overviewStyle.letterSpacing}em`,
-            color: overview.color,
-            textAlign: "left",
-          }}
-        >
-          {overview.text}
-        </div>
-      )}
-
-      {caption?.visible && captionStyle && image && (
-        <svg
-          className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
-          viewBox="0 0 1080 1920"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <defs>
-            <pattern
-              id="porto-headline-photo"
-              patternUnits="userSpaceOnUse"
-              x="155.54"
-              y="518.17"
-              width="793.86"
-              height="1007.34"
-            >
-              <image
-                href={image.src}
-                x="0"
-                y="0"
-                width="793.86"
-                height="1007.34"
-                preserveAspectRatio="xMidYMid slice"
-              />
-            </pattern>
-          </defs>
-          <text
-            x={PORTO_LAYOUT.headline.x * 1080}
-            y={PORTO_LAYOUT.headline.y * 1920}
-            dominantBaseline="hanging"
-            fill="url(#porto-headline-photo)"
+        {/* Row 1 — eyebrow (left) + overview (right). */}
+        <div className="flex w-full items-start justify-between" style={{ gap: cqi(0.04) }}>
+          <div
+            className="shrink-0 uppercase"
             style={{
-              fontFamily: fontById(caption.fontId).family,
-              fontWeight: captionStyle.weight,
-              // Scaled to span the poster's inner image width (see captionSize).
-              fontSize: captionSize,
-              letterSpacing: `${PORTO_CAPTION_TRACKING}em`,
+              fontFamily: "'Montserrat', sans-serif",
+              fontSize: cqi(PORTO_LAYOUT.eyebrow.size),
+              lineHeight: 1,
+              letterSpacing: "0.025em",
+              color: "#29292b",
             }}
           >
-            {caption.uppercase ? caption.text.toUpperCase() : caption.text}
-          </text>
-        </svg>
-      )}
+            PORTUGAL
+          </div>
+          {overview?.visible && overviewStyle && (
+            <div
+              style={{
+                maxWidth: `${PORTO_CARD.overviewMaxWidth * 100}%`,
+                fontFamily: fontById(overview.fontId).family,
+                fontWeight: overviewStyle.weight,
+                fontSize: cqi(PORTO_LAYOUT.overview.size * overviewStyle.sizeScale),
+                lineHeight: PORTO_LAYOUT.overview.lineHeight,
+                letterSpacing: `${overviewStyle.letterSpacing}em`,
+                color: overview.color,
+                textAlign: "right",
+              }}
+            >
+              {overview.text}
+            </div>
+          )}
+        </div>
+
+        {/* Rows 2 + 3 — the image copy sits behind both. Row 2 is the city name,
+            a white band knocked out to reveal the image (so the name is filled by
+            it and continuous with the square below). Row 3 is the square. */}
+        <div ref={wrapperRef} className="relative flex-1" style={{ marginTop: cqi(PORTO_CARD.rowGap) }}>
+          {image?.visible && (
+            <DraggableImage
+              layer={image}
+              fit="cover"
+              selected={selectedId === image.id}
+              onSelect={() => onSelect(image.id)}
+              onPan={(offsetX, offsetY) =>
+                updateLayer(
+                  image.id,
+                  { transform: { ...imageTransform(image), offsetX, offsetY } },
+                  `pan-${image.id}`,
+                )
+              }
+              style={{ left: 0, top: 0, width: "100%", height: "100%" }}
+            />
+          )}
+
+          {caption?.visible && captionFont && box.w > 0 && nameSize > 0 && (
+            <svg
+              className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+              viewBox={`0 0 ${box.w} ${box.h}`}
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <defs>
+                <mask id="porto-name-cut">
+                  {/* white = keep the paper band; black text = punch a hole. */}
+                  <rect x="0" y="0" width={box.w} height={bandH} fill="#fff" />
+                  <text
+                    x="0"
+                    y={baselineY}
+                    dominantBaseline="alphabetic"
+                    fill="#000"
+                    style={{
+                      fontFamily: captionFont.family,
+                      fontWeight: captionStyle?.weight,
+                      fontSize: nameSize,
+                      letterSpacing: `${PORTO_CAPTION_TRACKING}em`,
+                    }}
+                  >
+                    {captionText}
+                  </text>
+                </mask>
+              </defs>
+              <rect
+                x="0"
+                y="0"
+                width={box.w}
+                height={bandH}
+                fill={template.background}
+                mask="url(#porto-name-cut)"
+              />
+            </svg>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1402,7 +1542,7 @@ type ChatMessage = {
 // Which edit sections start expanded. Keyed by layer id so moodboard photos
 // (which share the "image" kind) each get their own state.
 function defaultOpenSections(template: RemixEditorTemplate): Record<string, boolean> {
-  if (template.layout === "moodboard") {
+  if (template.layout === "moodboard" || template.layout === "relax") {
     const open: Record<string, boolean> = {};
     template.layers.forEach((layer, index) => {
       open[layer.id] = layer.kind === "header" || index === 0;
@@ -1764,13 +1904,23 @@ function EditorScreen({
           <div
             className={cn(
               "w-full",
-              template.layout === "moodboard" || template.layout === "porto"
+              template.layout === "moodboard" ||
+                template.layout === "porto" ||
+                template.layout === "relax"
                 ? "max-w-[300px]"
                 : "max-w-[360px]",
             )}
           >
             {template.layout === "moodboard" ? (
               <MoodboardPreview
+                template={template}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
+            ) : template.layout === "relax" ? (
+              <RelaxPreview
                 template={template}
                 layers={layers}
                 selectedId={selectedImageId}
@@ -1849,8 +1999,8 @@ function EditorScreen({
               <h2 className="text-lg font-bold text-foreground">Edit creative</h2>
             </div>
 
-            {/* Moodboard: one replaceable photo per band + the city title. */}
-            {template.layout === "moodboard" && (
+            {/* Moodboard / relax: one replaceable photo per panel + the title. */}
+            {(template.layout === "moodboard" || template.layout === "relax") && (
               <>
                 {photos.map((photo) => (
                   <EditorSection
@@ -1924,7 +2074,7 @@ function EditorScreen({
             )}
 
             {/* Image */}
-            {template.layout !== "moodboard" && image && (
+            {template.layout !== "moodboard" && template.layout !== "relax" && image && (
               <EditorSection
                 title="Image"
                 open={openSections.image}
@@ -1957,7 +2107,7 @@ function EditorScreen({
             )}
 
             {/* Header */}
-            {template.layout !== "moodboard" && header && (
+            {template.layout !== "moodboard" && template.layout !== "relax" && header && (
               <EditorSection
                 title={template.layout === "porto" ? "Caption" : "Header"}
                 open={openSections.header}
@@ -1996,7 +2146,13 @@ function EditorScreen({
             {/* Description */}
             {description && (
               <EditorSection
-                title={template.layout === "porto" ? "City overview" : "Description"}
+                title={
+                  template.layout === "porto"
+                    ? "City overview"
+                    : template.layout === "relax"
+                      ? "Subcaption"
+                      : "Description"
+                }
                 open={openSections.description}
                 onToggleOpen={() => toggleOpen("description")}
                 hideable={description.hideable}
@@ -2004,7 +2160,13 @@ function EditorScreen({
                 onToggleVisible={() => toggleVisible("description")}
               >
                 <TextField
-                  label={template.layout === "porto" ? "City overview text" : "Description text"}
+                  label={
+                    template.layout === "porto"
+                      ? "City overview text"
+                      : template.layout === "relax"
+                        ? "Subcaption text"
+                        : "Description text"
+                  }
                   value={description.text}
                   multiline
                   onChange={(value) =>

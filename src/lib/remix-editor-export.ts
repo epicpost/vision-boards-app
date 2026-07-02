@@ -6,12 +6,13 @@ import {
   EXPORT_FORMATS,
   LAYOUT,
   MOODBOARD_LAYOUT,
+  RELAX_LAYOUT,
   PORTO_CAPTION_TRACKING,
+  PORTO_CARD,
   PORTO_LAYOUT,
   TEXT_SHADOW,
   fontById,
   imageTransform,
-  portoCaptionFontSize,
   readableTextColor,
   resolveTextStyle,
   type EditorLayer,
@@ -260,6 +261,164 @@ async function exportMoodboard(
   return canvasToBlob(canvas, format);
 }
 
+// Trace a rounded rectangle path (used to clip each relax photo panel).
+function roundRectPath(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
+  const rr = Math.max(0, Math.min(r, w / 2, h / 2));
+  ctx.beginPath();
+  if (typeof ctx.roundRect === "function") {
+    ctx.roundRect(x, y, w, h, rr);
+    return;
+  }
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
+// Rasterize a relax trio: rounded photo panels stacked with a soft gap, and a
+// caption + subcaption over the middle panel (left-aligned) — mirrors
+// `RelaxPreview` and `template_relax.v2.html`.
+async function exportRelax(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  const photoLayers = layers.filter((layer) => layer.kind === "image");
+  const n = Math.max(photoLayers.length, 1);
+  const gap = RELAX_LAYOUT.gap * width;
+  const radius = RELAX_LAYOUT.radius * width;
+  const panelH = (height - (n - 1) * gap) / n;
+  let failedBands = 0;
+  for (let index = 0; index < photoLayers.length; index++) {
+    const layer = photoLayers[index];
+    if (!layer.visible || layer.kind !== "image") continue;
+    const box = { x: 0, y: index * (panelH + gap), w: width, h: panelH };
+    try {
+      const img = await loadImage(layer.src);
+      ctx.save();
+      roundRectPath(ctx, box.x, box.y, box.w, box.h, radius);
+      ctx.clip();
+      drawImageCover(ctx, img, box, imageTransform(layer));
+      ctx.restore();
+    } catch {
+      failedBands += 1;
+    }
+  }
+  if (failedBands > 0) {
+    throw new ExportImageError(failedBands);
+  }
+
+  // Caption + subcaption over the middle panel, left-aligned and vertically
+  // centred on the panel — matching the preview's block.
+  const header = layers.find(
+    (layer): layer is TextLayer => layer.kind === "header" && layer.visible,
+  );
+  const description = layers.find(
+    (layer): layer is TextLayer => layer.kind === "description" && layer.visible,
+  );
+
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      [header, description].map((layer) => {
+        if (!layer || !layer.text.trim()) return Promise.resolve();
+        const font = fontById(layer.fontId);
+        return document.fonts
+          .load(`${resolveTextStyle(layer).weight} 100px ${primaryFamily(font.family)}`)
+          .catch(() => undefined);
+      }),
+    );
+  }
+
+  const mid = Math.floor((n - 1) / 2);
+  const centerY = mid * (panelH + gap) + panelH / 2;
+  const leftX = RELAX_LAYOUT.caption.left * width;
+  const maxW = RELAX_LAYOUT.caption.maxWidth * width;
+
+  type Block = {
+    lines: string[];
+    size: number;
+    lineHeight: number;
+    style: ResolvedTextStyle;
+    layer: TextLayer;
+    topGap: number;
+  };
+  const blocks: Block[] = [];
+
+  const addBlock = (layer: TextLayer, sizeFrac: number, lineHeightMul: number) => {
+    if (!layer.text.trim()) return;
+    const font = fontById(layer.fontId);
+    const style = resolveTextStyle(layer);
+    const size = sizeFrac * style.sizeScale * width;
+    const text = layer.uppercase ? layer.text.toUpperCase() : layer.text;
+    ctx.save();
+    ctx.font = `${style.weight} ${size}px ${font.family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    // Honour explicit line breaks (the subcaption uses them), wrapping each.
+    const lines = text
+      .split("\n")
+      .flatMap((para) => (para.trim() === "" ? [""] : wrapLines(ctx, para, maxW)));
+    ctx.restore();
+    blocks.push({
+      lines,
+      size,
+      lineHeight: size * lineHeightMul,
+      style,
+      layer,
+      topGap: blocks.length ? RELAX_LAYOUT.caption.sub.gap * width : 0,
+    });
+  };
+
+  if (header) addBlock(header, RELAX_LAYOUT.caption.headline.size, RELAX_LAYOUT.caption.headline.lineHeight);
+  if (description) addBlock(description, RELAX_LAYOUT.caption.sub.size, RELAX_LAYOUT.caption.sub.lineHeight);
+
+  const totalH = blocks.reduce(
+    (sum, block) => sum + block.topGap + block.lines.length * block.lineHeight,
+    0,
+  );
+  let cursorY = centerY - totalH / 2;
+  for (const block of blocks) {
+    cursorY += block.topGap;
+    const font = fontById(block.layer.fontId);
+    ctx.save();
+    ctx.font = `${block.style.weight} ${block.size}px ${font.family}`;
+    ctx.letterSpacing = `${block.style.letterSpacing}em`;
+    applyTextShadow(ctx, block.style.shadow, block.size);
+    ctx.fillStyle = block.layer.color;
+    ctx.textAlign = block.style.align;
+    ctx.textBaseline = "top";
+    const x = alignX(block.style.align, leftX, leftX + maxW);
+    block.lines.forEach((line, index) => {
+      ctx.fillText(line, x, cursorY + index * block.lineHeight);
+    });
+    ctx.restore();
+    cursorY += block.lines.length * block.lineHeight;
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
 function drawTextImageFill(
   ctx: CanvasRenderingContext2D,
   image: HTMLImageElement,
@@ -281,10 +440,10 @@ function drawTextImageFill(
   maskCtx.letterSpacing = `${PORTO_CAPTION_TRACKING}em`;
   maskCtx.fillStyle = colorFallback;
   maskCtx.textAlign = "left";
-  // `textBox.y` is the caption's top (it hangs from just below the header row and
-  // grows downward), matching the preview's hanging baseline.
-  maskCtx.textBaseline = "top";
-  maskCtx.fillText(text, textBox.x, textBox.y, textBox.w);
+  // `textBox.y` is the name's alphabetic baseline (pinned to the white band's
+  // bottom), matching the preview's bottom-attached name.
+  maskCtx.textBaseline = "alphabetic";
+  maskCtx.fillText(text, textBox.x, textBox.y);
   maskCtx.globalCompositeOperation = "source-in";
   drawImageCover(maskCtx, image, imageBox, transform);
   maskCtx.restore();
@@ -319,53 +478,56 @@ async function exportPorto(
   ctx.fillStyle = "#111111";
   ctx.fillRect(0, 0, width, height);
 
+  // Full-bleed backdrop (a copy of the photo behind the card).
   if (image) {
     drawImageCover(ctx, image, { x: 0, y: 0, w: width, h: height });
   }
 
+  // White poster card.
   const card = {
     x: PORTO_LAYOUT.card.x * width,
     y: PORTO_LAYOUT.card.y * height,
     w: PORTO_LAYOUT.card.w * width,
     h: PORTO_LAYOUT.card.h * height,
   };
-  const photo = {
-    x: PORTO_LAYOUT.photo.x * width,
-    y: PORTO_LAYOUT.photo.y * height,
-    w: PORTO_LAYOUT.photo.w * width,
-    h: PORTO_LAYOUT.photo.h * height,
-  };
-
   ctx.fillStyle = template.background;
   ctx.fillRect(card.x, card.y, card.w, card.h);
 
-  if (image && imageLayer?.visible !== false) {
-    drawImageCover(ctx, image, photo, transform);
-  }
-
-  ctx.fillStyle = template.background;
-  ctx.fillRect(
-    PORTO_LAYOUT.headlineCover.x * width,
-    PORTO_LAYOUT.headlineCover.y * height,
-    PORTO_LAYOUT.headlineCover.w * width,
-    PORTO_LAYOUT.headlineCover.h * height,
-  );
+  // Interior content box (paddings are fractions of width — cqi in the preview).
+  const padX = PORTO_CARD.padX * width;
+  const innerX = card.x + padX;
+  const innerW = card.w - 2 * padX;
+  const rowTop = card.y + PORTO_CARD.padTop * width;
 
   if (typeof document !== "undefined" && document.fonts) {
+    const capFont = caption ? fontById(caption.fontId) : null;
     await Promise.all([
-      document.fonts.load(`400 ${PORTO_LAYOUT.headline.size * width}px 'Anton'`),
-      document.fonts.load(`400 ${PORTO_LAYOUT.overview.size * width}px 'Montserrat'`),
+      document.fonts.load(`400 ${PORTO_LAYOUT.eyebrow.size * width}px 'Montserrat'`),
+      overview
+        ? document.fonts.load(
+            `${resolveTextStyle(overview).weight} ${PORTO_LAYOUT.overview.size * width}px ${primaryFamily(fontById(overview.fontId).family)}`,
+          )
+        : Promise.resolve(),
+      capFont
+        ? document.fonts.load(`${resolveTextStyle(caption!).weight} 100px ${primaryFamily(capFont.family)}`)
+        : Promise.resolve(),
     ]).catch(() => undefined);
   }
 
+  // Row 1 — eyebrow (left) + overview (right). Track the row's height so the
+  // image wrapper starts below it (like the flex layout).
+  const eyebrowSize = PORTO_LAYOUT.eyebrow.size * width;
   ctx.save();
   ctx.fillStyle = "#29292b";
-  ctx.font = `400 ${PORTO_LAYOUT.eyebrow.size * width}px 'Montserrat', sans-serif`;
+  ctx.font = `400 ${eyebrowSize}px 'Montserrat', sans-serif`;
+  ctx.letterSpacing = "0.025em";
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
-  ctx.fillText("PORTUGAL", PORTO_LAYOUT.eyebrow.x * width, PORTO_LAYOUT.eyebrow.y * height);
+  ctx.fillText("PORTUGAL", innerX, rowTop);
+  ctx.letterSpacing = "0px";
   ctx.restore();
 
+  let rowH = eyebrowSize;
   if (overview?.visible !== false && overview?.text.trim()) {
     ctx.save();
     const font = fontById(overview.fontId);
@@ -373,37 +535,57 @@ async function exportPorto(
     const size = PORTO_LAYOUT.overview.size * style.sizeScale * width;
     ctx.font = `${style.weight} ${size}px ${font.family}`;
     ctx.fillStyle = overview.color;
-    ctx.textAlign = "left";
+    ctx.textAlign = "right";
     ctx.textBaseline = "top";
-    const lines = wrapLines(ctx, overview.text, PORTO_LAYOUT.overview.w * width);
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    const lines = wrapLines(ctx, overview.text, PORTO_CARD.overviewMaxWidth * innerW);
     const lineHeight = size * PORTO_LAYOUT.overview.lineHeight;
-    const x = PORTO_LAYOUT.overview.x * width;
-    const y = PORTO_LAYOUT.overview.y * height;
-    lines.slice(0, 5).forEach((line, index) => {
-      ctx.fillText(line, x, y + index * lineHeight);
+    const rightX = innerX + innerW;
+    lines.slice(0, 6).forEach((line, index) => {
+      ctx.fillText(line, rightX, rowTop + index * lineHeight);
     });
+    ctx.letterSpacing = "0px";
     ctx.restore();
+    rowH = Math.max(rowH, lines.length * lineHeight);
+  }
+
+  // Rows 2 + 3 — the image wrapper (below the header row + gap) holds the square;
+  // the name is a white band knocked out to reveal that same image.
+  const wrapperTop = rowTop + rowH + PORTO_CARD.rowGap * width;
+  const wrapperBottom = card.y + card.h - PORTO_CARD.padBottom * width;
+  const wrapper = { x: innerX, y: wrapperTop, w: innerW, h: wrapperBottom - wrapperTop };
+
+  if (image && imageLayer?.visible !== false) {
+    drawImageCover(ctx, image, wrapper, transform);
   }
 
   if (image && caption?.visible !== false && caption?.text.trim()) {
     const label = caption.uppercase ? caption.text.toUpperCase() : caption.text;
     const font = fontById(caption.fontId);
     const style = resolveTextStyle(caption);
-    // Scale the caption to fill the poster's inner image width (matches the
-    // live preview), instead of a fixed size that left short words small.
-    const size = portoCaptionFontSize(caption, width);
+    // Fit the name to the inner width (font-agnostic), then derive the band.
+    const measure = document.createElement("canvas").getContext("2d");
+    let nameSize = PORTO_LAYOUT.headline.size * width;
+    if (measure) {
+      measure.font = `${style.weight} 100px ${font.family}`;
+      measure.letterSpacing = `${PORTO_CAPTION_TRACKING}em`;
+      const w = measure.measureText(label).width;
+      if (w > 0) nameSize = ((innerW * PORTO_CARD.nameFill) / w) * 100 * style.sizeScale;
+    }
+    const bandH = nameSize * PORTO_CARD.nameBand;
+    const baseline = wrapperTop + bandH + nameSize * PORTO_CARD.nameOverlap;
+
+    // Paint the white band over the image top, then draw the name filled with the
+    // same image (cover-fit to the wrapper) so it reads continuous with the square.
+    ctx.fillStyle = template.background;
+    ctx.fillRect(wrapper.x, wrapper.y, wrapper.w, bandH);
     drawTextImageFill(
       ctx,
       image,
       label,
-      {
-        x: PORTO_LAYOUT.headline.x * width,
-        y: PORTO_LAYOUT.headline.y * height,
-        w: PORTO_LAYOUT.headline.w * width,
-        h: size,
-      },
-      photo,
-      `${style.weight} ${size}px ${font.family}`,
+      { x: innerX, y: baseline, w: innerW, h: nameSize },
+      wrapper,
+      `${style.weight} ${nameSize}px ${font.family}`,
       caption.color,
       transform,
     );
@@ -423,6 +605,9 @@ export async function exportCreative(
   }
   if (template.layout === "porto") {
     return exportPorto(template, layers, format, width);
+  }
+  if (template.layout === "relax") {
+    return exportRelax(template, layers, format, width);
   }
 
   const ratio = parseRatio(template.aspectRatio);
