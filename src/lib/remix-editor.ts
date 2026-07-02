@@ -184,8 +184,70 @@ export const EDITOR_FONTS: EditorFont[] = [
   },
 ];
 
+// Brand fonts injected at runtime (e.g. a brand-kit primary font applied when a
+// remix is composed with the Fonts card attached). They live outside the static
+// catalog because they vary per user/brand, but `fontById` resolves them so the
+// preview and canvas export render the real family — not the catalog fallback.
+const BRAND_FONTS = new Map<string, EditorFont>();
+
+// Standard weight set requested for a brand font (Google serves the subset it
+// actually ships; missing weights fall back at load time).
+const BRAND_FONT_WEIGHTS = [400, 500, 600, 700];
+
+// Editor-font id for a brand family, e.g. "brand:Martian Mono". Casing is
+// preserved so the family (and its Google Fonts URL) can be reconstructed from
+// the id alone when a saved remix is reopened in a fresh editor session.
+const BRAND_FONT_PREFIX = "brand:";
+export function brandFontId(family: string): string {
+  return `${BRAND_FONT_PREFIX}${family.trim()}`;
+}
+
+// The brand family encoded in a brand font id, or null for a catalog id. Lets a
+// freshly-loaded editor re-register the brand font from a layer's fontId.
+export function brandFamilyFromId(id: string): string | null {
+  return id.startsWith(BRAND_FONT_PREFIX) ? id.slice(BRAND_FONT_PREFIX.length) : null;
+}
+
+// Register a brand family as an editor font and lazy-load it, returning its id
+// so text layers can point at it. Idempotent per family.
+export function registerBrandFont(family: string): string {
+  const clean = family.trim();
+  const id = brandFontId(clean);
+  if (!BRAND_FONTS.has(id)) {
+    BRAND_FONTS.set(id, {
+      id,
+      label: clean,
+      family: `'${clean}', 'Helvetica Neue', Arial, sans-serif`,
+      weight: 600,
+      weights: BRAND_FONT_WEIGHTS,
+    });
+  }
+  // Inject the Google Fonts stylesheet once so previews render the real family.
+  // The canvas export gates on `document.fonts.load`, which this stylesheet feeds.
+  if (typeof document !== "undefined") {
+    const linkId = `remix-editor-font-${id}`;
+    if (!document.getElementById(linkId)) {
+      const name = clean.replace(/\s+/g, "+");
+      const link = document.createElement("link");
+      link.id = linkId;
+      link.rel = "stylesheet";
+      link.href = `https://fonts.googleapis.com/css2?family=${name}:wght@${BRAND_FONT_WEIGHTS.join(
+        ";",
+      )}&display=swap`;
+      document.head.appendChild(link);
+    }
+  }
+  return id;
+}
+
+// Registered brand fonts, newest first — prepended to the font picker so the
+// brand family is selectable (and shown as current) alongside the catalog.
+export function brandEditorFonts(): EditorFont[] {
+  return [...BRAND_FONTS.values()];
+}
+
 export function fontById(id: string): EditorFont {
-  return EDITOR_FONTS.find((font) => font.id === id) ?? EDITOR_FONTS[0];
+  return EDITOR_FONTS.find((font) => font.id === id) ?? BRAND_FONTS.get(id) ?? EDITOR_FONTS[0];
 }
 
 // The Google Fonts family name (the quoted primary of the CSS stack).

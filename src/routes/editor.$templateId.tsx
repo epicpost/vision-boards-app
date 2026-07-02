@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlignCenter,
   AlignLeft,
@@ -58,10 +58,13 @@ import {
   DEFAULT_IMAGE_TRANSFORM,
   dupLayers,
   backfillTemplateLayers,
+  brandEditorFonts,
+  brandFamilyFromId,
   editorFontsHref,
   EDITOR_FONTS,
   EXPORT_FORMATS,
   fontById,
+  registerBrandFont,
   getRemixEditorTemplate,
   imageTransform,
   layersFromRemix,
@@ -310,7 +313,9 @@ function FontDropdown({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="max-h-72 w-52 overflow-y-auto">
-        {EDITOR_FONTS.map((font) => (
+        {/* Brand fonts (applied via the composer's Fonts card) list first so the
+            brand family stays selectable alongside the shared catalog. */}
+        {[...brandEditorFonts(), ...EDITOR_FONTS].map((font) => (
           <DropdownMenuItem
             key={font.id}
             onSelect={() => onChange(font.id)}
@@ -1694,6 +1699,19 @@ function EditorScreen({
     }
     return cloned;
   });
+  // Re-register any brand fonts referenced by the loaded layers (a remix saved
+  // with the Fonts card attached carries `fontId: "brand:<Family>"`). Runs during
+  // render so `fontById` resolves the real family on first paint, and injects the
+  // font stylesheet. Idempotent; keyed on layers so restored drafts register too.
+  useMemo(() => {
+    layers.forEach((layer) => {
+      if ("fontId" in layer) {
+        const family = brandFamilyFromId(layer.fontId);
+        if (family) registerBrandFont(family);
+      }
+    });
+  }, [layers]);
+
   // Snapshot the load-time layers so "reset" reverts to them — the saved remix
   // in remix mode, or the template defaults otherwise — instead of wiping the
   // user's uploaded photo.

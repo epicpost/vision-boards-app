@@ -41,6 +41,7 @@ import {
   EXPORT_FORMATS,
   getRemixEditorTemplate,
   hasRemixEditorTemplate,
+  registerBrandFont,
   remixStateFromLayers,
   type EditorLayer,
 } from "@/lib/remix-editor";
@@ -361,6 +362,14 @@ export function RemixComposer({
       const trimmedCaption = caption.trim();
       const trimmedCityOverview = cityOverview.trim();
 
+      // When the Fonts card is kept attached, apply the brand primary font to the
+      // remix's text so the editor/export match the brand — mirroring how the
+      // server path forwards `selectedFontId`. Registered as an editor font so
+      // `fontById` resolves the real family (not the catalog fallback).
+      const brandFontIdValue =
+        showFontsCard && brandPrimaryFont ? registerBrandFont(brandPrimaryFont) : null;
+      const TEXT_KINDS = new Set(["header", "description", "eyebrow", "cta"]);
+
       // Seed the editor layers from the composed inputs: fill image layers in
       // order (assetId for persistence + previewUrl for an instant render), and
       // drop the caption / city overview into their text layers.
@@ -377,11 +386,17 @@ export function RemixComposer({
             visible: true,
           };
         }
-        if (layer.kind === "header" && trimmedCaption) return { ...layer, text: trimmedCaption };
-        if (layer.kind === "description" && trimmedCityOverview) {
-          return { ...layer, text: trimmedCityOverview };
+        const withFont =
+          brandFontIdValue && TEXT_KINDS.has(layer.kind)
+            ? { ...layer, fontId: brandFontIdValue }
+            : layer;
+        if (withFont.kind === "header" && trimmedCaption) {
+          return { ...withFont, text: trimmedCaption };
         }
-        return layer;
+        if (withFont.kind === "description" && trimmedCityOverview) {
+          return { ...withFont, text: trimmedCityOverview };
+        }
+        return withFont;
       });
 
       // Render the downloadable image in the browser (canvas), matching what the
