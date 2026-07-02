@@ -10,6 +10,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  X,
   CloudOff,
   CloudUpload,
   Download,
@@ -640,11 +641,15 @@ function EditorSection({
 }
 
 function EditorChatPanel({
+  open,
+  onOpenChange,
   messages,
   draft,
   onDraftChange,
   onSubmit,
 }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   messages: ChatMessage[];
   draft: string;
   onDraftChange: (value: string) => void;
@@ -653,93 +658,126 @@ function EditorChatPanel({
   const canSend = draft.trim().length > 0;
 
   return (
-    <aside className="w-full shrink-0 bg-[#0e1413] p-4 lg:h-full lg:min-h-0 lg:w-[360px] lg:overflow-hidden lg:p-6">
-      <div className="flex min-h-[600px] overflow-hidden rounded-[32px] border border-white/5 bg-[#222625] text-foreground shadow-[0_24px_70px_rgba(0,0,0,0.28)] [--background:#222625] [--border:rgba(11,15,15,0.72)] [--foreground:#f0f1ed] [--input:#151819] [--muted-foreground:#a7aba7] [--primary:#c7d36f] [--ring:#c7d36f] [--secondary:#17191b] lg:h-[calc(100dvh-7rem)] lg:max-h-[calc(100dvh-7rem)] lg:min-h-[min(600px,calc(100dvh-7rem))]">
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex items-center gap-2 px-6 py-5">
-            <MessageSquareText className="h-5 w-5 text-foreground" />
-            <h2 className="text-lg font-bold text-foreground">Chat</h2>
-          </div>
+    <>
+      <button
+        type="button"
+        aria-label="Open chat"
+        aria-expanded={open}
+        onClick={() => onOpenChange(true)}
+        className={cn(
+          "fixed bottom-5 left-5 z-40 flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-[#222625] text-foreground shadow-[0_18px_40px_rgba(0,0,0,0.35)] transition duration-300 hover:bg-[#2b302f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c7d36f]",
+          open && "pointer-events-none translate-y-3 scale-75 opacity-0",
+        )}
+      >
+        <MessageSquareText className="h-6 w-6" />
+      </button>
 
-          <div className="flex min-h-0 flex-1 flex-col border-t border-border">
-            <div className="flex items-center justify-between px-6 py-4">
-              <p className="text-[15px] font-semibold text-foreground">Chat history</p>
-              <span className="rounded-full bg-secondary px-3 py-1 text-[12px] font-semibold text-[#c7d36f]">
-                {messages.length}
-              </span>
+      <aside
+        aria-hidden={!open}
+        className={cn(
+          "fixed bottom-4 left-4 z-50 w-[min(calc(100vw-2rem),380px)] origin-bottom-left rounded-[32px] bg-[#0e1413] transition duration-300 ease-out lg:bottom-6 lg:left-6 lg:w-[360px]",
+          open
+            ? "pointer-events-auto translate-x-0 translate-y-0 scale-100 opacity-100"
+            : "pointer-events-none -translate-x-4 translate-y-8 scale-90 opacity-0",
+        )}
+      >
+        <div className="flex max-h-[calc(100dvh-2rem)] min-h-[min(600px,calc(100dvh-2rem))] overflow-hidden rounded-[32px] border border-white/5 bg-[#222625] text-foreground shadow-[0_24px_70px_rgba(0,0,0,0.28)] [--background:#222625] [--border:rgba(11,15,15,0.72)] [--foreground:#f0f1ed] [--input:#151819] [--muted-foreground:#a7aba7] [--primary:#c7d36f] [--ring:#c7d36f] [--secondary:#17191b] lg:h-[calc(100dvh-7rem)] lg:max-h-[calc(100dvh-7rem)] lg:min-h-[min(600px,calc(100dvh-7rem))]">
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex items-center justify-between gap-3 px-6 py-5">
+              <div className="flex items-center gap-2">
+                <MessageSquareText className="h-5 w-5 text-foreground" />
+                <h2 className="text-lg font-bold text-foreground">Chat</h2>
+              </div>
+              <button
+                type="button"
+                aria-label="Close chat"
+                onClick={() => onOpenChange(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
 
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 pb-5">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn(
-                    "max-w-[92%] rounded-[18px] px-4 py-3 text-[14px] leading-5",
-                    message.role === "user"
-                      ? "ml-auto bg-[#c7d36f] text-[#151819]"
-                      : "border border-white/8 bg-secondary text-foreground",
-                  )}
-                >
-                  {message.text}
-                </div>
-              ))}
-            </div>
-          </div>
+            <div className="flex min-h-0 flex-1 flex-col border-t border-border">
+              <div className="flex items-center justify-between px-6 py-4">
+                <p className="text-[15px] font-semibold text-foreground">Chat history</p>
+                <span className="rounded-full bg-secondary px-3 py-1 text-[12px] font-semibold text-[#c7d36f]">
+                  {messages.length}
+                </span>
+              </div>
 
-          <div className="border-t border-border p-4">
-            <div className="rounded-[28px] border border-white/8 bg-secondary p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus-within:ring-2 focus-within:ring-ring/70">
-              <textarea
-                value={draft}
-                rows={3}
-                placeholder="Ask EpicPost..."
-                onChange={(event) => onDraftChange(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    onSubmit();
-                  }
-                }}
-                className="min-h-[76px] w-full resize-none bg-transparent px-1 text-[15px] text-foreground outline-none placeholder:text-muted-foreground"
-              />
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  aria-label="Add attachment"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 text-foreground transition hover:bg-background"
-                >
-                  <Plus className="h-5 w-5" />
-                </button>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="inline-flex h-10 items-center gap-1.5 rounded-full border border-white/10 px-4 text-[14px] font-semibold text-foreground transition hover:bg-background"
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 pb-5">
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={cn(
+                      "max-w-[92%] rounded-[18px] px-4 py-3 text-[14px] leading-5",
+                      message.role === "user"
+                        ? "ml-auto bg-[#c7d36f] text-[#151819]"
+                        : "border border-white/8 bg-secondary text-foreground",
+                    )}
                   >
-                    Refine
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  </button>
+                    {message.text}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t border-border p-4">
+              <div className="rounded-[28px] border border-white/8 bg-secondary p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus-within:ring-2 focus-within:ring-ring/70">
+                <textarea
+                  value={draft}
+                  rows={3}
+                  placeholder="Ask EpicPost..."
+                  onChange={(event) => onDraftChange(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      onSubmit();
+                    }
+                  }}
+                  className="min-h-[76px] w-full resize-none bg-transparent px-1 text-[15px] text-foreground outline-none placeholder:text-muted-foreground"
+                />
+                <div className="mt-2 flex items-center justify-between gap-2">
                   <button
                     type="button"
-                    aria-label="Voice input"
+                    aria-label="Add attachment"
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 text-foreground transition hover:bg-background"
                   >
-                    <Mic2 className="h-4 w-4" />
+                    <Plus className="h-5 w-5" />
                   </button>
-                  <button
-                    type="button"
-                    aria-label="Send message"
-                    disabled={!canSend}
-                    onClick={onSubmit}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#c7d36f] text-[#151819] transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-white/20 disabled:text-muted-foreground"
-                  >
-                    <Send className="h-4 w-4" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="inline-flex h-10 items-center gap-1.5 rounded-full border border-white/10 px-4 text-[14px] font-semibold text-foreground transition hover:bg-background"
+                    >
+                      Refine
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Voice input"
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 text-foreground transition hover:bg-background"
+                    >
+                      <Mic2 className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Send message"
+                      disabled={!canSend}
+                      onClick={onSubmit}
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#c7d36f] text-[#151819] transition hover:brightness-110 disabled:cursor-not-allowed disabled:bg-white/20 disabled:text-muted-foreground"
+                    >
+                      <Send className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }
 
@@ -1739,6 +1777,7 @@ function EditorScreen({
   const draftStatus = remixId ? remixDraft.status : fileDraft.status;
 
   const [chatDraft, setChatDraft] = useState("");
+  const [chatOpen, setChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => [
     {
       id: "assistant-intro",
@@ -1972,6 +2011,8 @@ function EditorScreen({
 
       <div className="flex flex-1 flex-col lg:min-h-0 lg:flex-row">
         <EditorChatPanel
+          open={chatOpen}
+          onOpenChange={setChatOpen}
           messages={chatMessages}
           draft={chatDraft}
           onDraftChange={setChatDraft}
