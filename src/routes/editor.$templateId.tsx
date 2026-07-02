@@ -1399,14 +1399,15 @@ function PortoPreview({
           {overview?.visible && overviewStyle && (
             <div
               style={{
-                maxWidth: `${PORTO_CARD.overviewMaxWidth * 100}%`,
+                width: `${PORTO_CARD.overviewMaxWidth * 100}%`,
+                flexShrink: 0,
                 fontFamily: fontById(overview.fontId).family,
                 fontWeight: overviewStyle.weight,
                 fontSize: cqi(PORTO_LAYOUT.overview.size * overviewStyle.sizeScale),
                 lineHeight: PORTO_LAYOUT.overview.lineHeight,
                 letterSpacing: `${overviewStyle.letterSpacing}em`,
                 color: overview.color,
-                textAlign: "right",
+                textAlign: "left",
               }}
             >
               {overview.text}

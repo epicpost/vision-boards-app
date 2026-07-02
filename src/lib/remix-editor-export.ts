@@ -535,14 +535,15 @@ async function exportPorto(
     const size = PORTO_LAYOUT.overview.size * style.sizeScale * width;
     ctx.font = `${style.weight} ${size}px ${font.family}`;
     ctx.fillStyle = overview.color;
-    ctx.textAlign = "right";
+    ctx.textAlign = "left";
     ctx.textBaseline = "top";
     ctx.letterSpacing = `${style.letterSpacing}em`;
-    const lines = wrapLines(ctx, overview.text, PORTO_CARD.overviewMaxWidth * innerW);
+    const colW = PORTO_CARD.overviewMaxWidth * innerW;
+    const lines = wrapLines(ctx, overview.text, colW);
     const lineHeight = size * PORTO_LAYOUT.overview.lineHeight;
-    const rightX = innerX + innerW;
+    const colX = innerX + innerW - colW; // fixed right-hand column, text left-aligned
     lines.slice(0, 6).forEach((line, index) => {
-      ctx.fillText(line, rightX, rowTop + index * lineHeight);
+      ctx.fillText(line, colX, rowTop + index * lineHeight);
     });
     ctx.letterSpacing = "0px";
     ctx.restore();
