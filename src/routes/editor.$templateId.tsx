@@ -1322,7 +1322,9 @@ function PortoPreview({
   }, []);
 
   const measureCtx = useRef<CanvasRenderingContext2D | null>(null);
-  const [nameSize, setNameSize] = useState(0);
+  // Fitted name font-size plus the font's real glyph metrics (measured, so the
+  // band follows the actual text height and any font aligns flush-left).
+  const [name, setName] = useState({ size: 0, ascent: 0, left: 0 });
   useEffect(() => {
     if (!caption || !captionFont || !box.w) return;
     let cancelled = false;
@@ -1333,12 +1335,15 @@ function PortoPreview({
       }
       const ctx = measureCtx.current;
       if (!ctx) return;
-      ctx.font = `${captionStyle?.weight ?? 400} 100px ${captionFont.family}`;
+      const ref = 100;
+      ctx.font = `${captionStyle?.weight ?? 400} ${ref}px ${captionFont.family}`;
       ctx.letterSpacing = `${PORTO_CAPTION_TRACKING}em`;
-      const w = ctx.measureText(captionText).width;
+      const m = ctx.measureText(captionText);
       ctx.letterSpacing = "0px";
-      if (w > 0) {
-        setNameSize(((box.w * PORTO_CARD.nameFill) / w) * 100 * (captionStyle?.sizeScale ?? 1));
+      if (m.width > 0) {
+        const size = ((box.w * PORTO_CARD.nameFill) / m.width) * ref * (captionStyle?.sizeScale ?? 1);
+        const k = size / ref;
+        setName({ size, ascent: m.actualBoundingBoxAscent * k, left: m.actualBoundingBoxLeft * k });
       }
     };
     fit();
@@ -1349,10 +1354,15 @@ function PortoPreview({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [captionText, caption?.fontId, captionStyle?.weight, captionStyle?.sizeScale, box.w]);
 
-  // The white name band's height, and the name's baseline — pinned to the band's
-  // bottom and pushed a hair (nameOverlap × font size) into the square below it.
-  const bandH = nameSize * PORTO_CARD.nameBand;
-  const baselineY = bandH + nameSize * PORTO_CARD.nameOverlap;
+  const nameSize = name.size;
+  // The name's ink top sits at the wrapper top (baseline = ascent), so the band
+  // height follows the real text height — no clipping. Its bottom (baseline)
+  // drops a hair into the square; the white band ends there, minus that overlap.
+  const baselineY = name.ascent;
+  const bandH = Math.max(0, baselineY - nameSize * PORTO_CARD.nameOverlap);
+  // Shift by the first glyph's side bearing so the ink is flush-left with the
+  // square below (x0 − inkLeft aligns the visible edge to the wrapper's left).
+  const nameX = name.left;
 
   return (
     <div
@@ -1459,7 +1469,7 @@ function PortoPreview({
                   {/* white = keep the paper band; black text = punch a hole. */}
                   <rect x="0" y="0" width={box.w} height={bandH} fill="#fff" />
                   <text
-                    x="0"
+                    x={nameX}
                     y={baselineY}
                     dominantBaseline="alphabetic"
                     fill="#000"

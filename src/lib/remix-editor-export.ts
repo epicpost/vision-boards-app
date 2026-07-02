@@ -575,17 +575,27 @@ async function exportPorto(
     const label = caption.uppercase ? caption.text.toUpperCase() : caption.text;
     const font = fontById(caption.fontId);
     const style = resolveTextStyle(caption);
-    // Fit the name to the inner width (font-agnostic), then derive the band.
+    // Fit the name to the inner width (font-agnostic), then derive the band from
+    // the font's real metrics — ink top at the wrapper top (no clipping), flush
+    // left with the square (side-bearing shift).
     const measure = document.createElement("canvas").getContext("2d");
     let nameSize = PORTO_LAYOUT.headline.size * width;
+    let ascent = nameSize * 0.72;
+    let leftBearing = 0;
     if (measure) {
-      measure.font = `${style.weight} 100px ${font.family}`;
+      const ref = 100;
+      measure.font = `${style.weight} ${ref}px ${font.family}`;
       measure.letterSpacing = `${PORTO_CAPTION_TRACKING}em`;
-      const w = measure.measureText(label).width;
-      if (w > 0) nameSize = ((innerW * PORTO_CARD.nameFill) / w) * 100 * style.sizeScale;
+      const m = measure.measureText(label);
+      if (m.width > 0) {
+        nameSize = ((innerW * PORTO_CARD.nameFill) / m.width) * ref * style.sizeScale;
+        const k = nameSize / ref;
+        ascent = m.actualBoundingBoxAscent * k;
+        leftBearing = m.actualBoundingBoxLeft * k;
+      }
     }
-    const bandH = nameSize * PORTO_CARD.nameBand;
-    const baseline = wrapperTop + bandH + nameSize * PORTO_CARD.nameOverlap;
+    const baseline = wrapperTop + ascent;
+    const bandH = Math.max(0, ascent - nameSize * PORTO_CARD.nameOverlap);
 
     // Paint the white band over the image top, then draw the name filled with the
     // same image (cover-fit to the wrapper) so it reads continuous with the square.
@@ -595,7 +605,7 @@ async function exportPorto(
       ctx,
       image,
       label,
-      { x: innerX, y: baseline, w: innerW, h: nameSize },
+      { x: innerX + leftBearing, y: baseline, w: innerW, h: nameSize },
       wrapper,
       `${style.weight} ${nameSize}px ${font.family}`,
       caption.color,
