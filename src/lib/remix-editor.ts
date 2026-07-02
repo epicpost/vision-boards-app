@@ -9,7 +9,7 @@
 // Only the two ids wired up for the MVP have config; everything else falls back
 // to an "editor not available" state on the page.
 
-export type LayerKind = "image" | "header" | "description" | "cta" | "logo";
+export type LayerKind = "image" | "header" | "description" | "cta" | "eyebrow" | "logo";
 
 export interface EditorFont {
   id: string;
@@ -68,7 +68,7 @@ export interface ImageLayer extends BaseLayer {
 export type TextAlign = "left" | "center" | "right";
 
 export interface TextLayer extends BaseLayer {
-  kind: "header" | "description" | "cta";
+  kind: "header" | "description" | "cta" | "eyebrow";
   text: string;
   // For header/description this is the text colour; for the CTA it's the
   // button's background colour (label colour is derived for contrast).
@@ -230,7 +230,14 @@ export interface ResolvedTextStyle {
 // description 500, cta 600).
 export function resolveTextStyle(layer: TextLayer): ResolvedTextStyle {
   const font = fontById(layer.fontId);
-  const baseWeight = layer.kind === "description" ? 500 : layer.kind === "cta" ? 600 : 800;
+  const baseWeight =
+    layer.kind === "description"
+      ? 500
+      : layer.kind === "cta"
+        ? 600
+        : layer.kind === "eyebrow"
+          ? 400
+          : 800;
   return {
     sizeScale: layer.sizeScale ?? 1,
     weight: nearestWeight(font, layer.weight ?? baseWeight),
@@ -493,6 +500,18 @@ const PORTO_POSTER: RemixEditorTemplate = {
       src: "/templates/shared/porto-poster.jpg",
     },
     {
+      id: "eyebrow",
+      kind: "eyebrow",
+      label: "Country",
+      visible: true,
+      hideable: false,
+      text: "Portugal",
+      color: "#29292b",
+      fontId: "montserrat",
+      uppercase: true,
+      suggestions: ["Portugal", "Spain", "Italy", "France", "Greece"],
+    },
+    {
       id: "header",
       kind: "header",
       label: "Caption",
@@ -700,6 +719,27 @@ export function remixStateFromLayers(
   };
 }
 
+// Merge in any template layers missing from a persisted layer set (draft or
+// remix) — e.g. the Porto country eyebrow added after some remixes were saved —
+// inserted at their template position so older saves still show and can edit
+// them. Rendering keys off layer id, so position only affects control order.
+export function backfillTemplateLayers(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+): EditorLayer[] {
+  const presentIds = new Set(layers.map((layer) => layer.id));
+  const missing = cloneLayers(template).filter((layer) => !presentIds.has(layer.id));
+  if (missing.length === 0) return layers;
+  const templateOrder = template.layers.map((layer) => layer.id);
+  const rank = (id: string) => {
+    const index = templateOrder.indexOf(id);
+    // Layers not in the template (shouldn't happen) keep their relative order at
+    // the end rather than jumping to the front.
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+  };
+  return [...layers, ...missing].sort((a, b) => rank(a.id) - rank(b.id));
+}
+
 // Reconstruct the editor's working layers for a saved remix: prefer the saved
 // layer set (re-resolving each image src from its attached asset), else seed the
 // template defaults with the remix's caption/overview + attached images in order.
@@ -713,7 +753,7 @@ export function layersFromRemix(
   const saved = remix.state?.layers;
 
   if (saved && saved.length > 0) {
-    return saved.map((layer) => {
+    const restored = saved.map((layer) => {
       if (layer.kind !== "image") return { ...layer };
       const resolved = layer.assetId ? assetUrlById.get(layer.assetId) : undefined;
       return {
@@ -722,6 +762,7 @@ export function layersFromRemix(
         src: resolved ?? layer.src,
       };
     });
+    return backfillTemplateLayers(template, restored);
   }
 
   const orderedAssets = [...remix.assets].sort((a, b) => a.order - b.order);

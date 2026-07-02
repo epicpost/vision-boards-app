@@ -470,6 +470,7 @@ async function exportPorto(
     layers.find((layer) => layer.id === id) as T | undefined;
 
   const imageLayer = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const eyebrow = byId<TextLayer>("eyebrow");
   const caption = byId<TextLayer>("header");
   const overview = byId<TextLayer>("description");
   const image = imageLayer ? await loadImage(imageLayer.src) : null;
@@ -501,8 +502,13 @@ async function exportPorto(
 
   if (typeof document !== "undefined" && document.fonts) {
     const capFont = caption ? fontById(caption.fontId) : null;
+    const eyebrowFont = eyebrow ? fontById(eyebrow.fontId) : null;
     await Promise.all([
-      document.fonts.load(`400 ${PORTO_LAYOUT.eyebrow.size * width}px 'Montserrat'`),
+      document.fonts.load(
+        `${eyebrow ? resolveTextStyle(eyebrow).weight : 400} ${PORTO_LAYOUT.eyebrow.size * width}px ${
+          eyebrowFont ? primaryFamily(eyebrowFont.family) : "'Montserrat'"
+        }`,
+      ),
       overview
         ? document.fonts.load(
             `${resolveTextStyle(overview).weight} ${PORTO_LAYOUT.overview.size * width}px ${primaryFamily(fontById(overview.fontId).family)}`,
@@ -517,17 +523,22 @@ async function exportPorto(
   // Row 1 — eyebrow (left) + overview (right). Track the row's height so the
   // image wrapper starts below it (like the flex layout).
   const eyebrowSize = PORTO_LAYOUT.eyebrow.size * width;
-  ctx.save();
-  ctx.fillStyle = "#29292b";
-  ctx.font = `400 ${eyebrowSize}px 'Montserrat', sans-serif`;
-  ctx.letterSpacing = "0.025em";
-  ctx.textAlign = "left";
-  ctx.textBaseline = "top";
-  ctx.fillText("PORTUGAL", innerX, rowTop);
-  ctx.letterSpacing = "0px";
-  ctx.restore();
-
-  let rowH = eyebrowSize;
+  let rowH = 0;
+  if (eyebrow?.visible !== false && eyebrow?.text.trim()) {
+    const font = fontById(eyebrow.fontId);
+    const style = resolveTextStyle(eyebrow);
+    const label = eyebrow.uppercase ? eyebrow.text.toUpperCase() : eyebrow.text;
+    ctx.save();
+    ctx.fillStyle = eyebrow.color;
+    ctx.font = `${style.weight} ${eyebrowSize}px ${font.family}`;
+    ctx.letterSpacing = "0.025em";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(label, innerX, rowTop);
+    ctx.letterSpacing = "0px";
+    ctx.restore();
+    rowH = eyebrowSize;
+  }
   if (overview?.visible !== false && overview?.text.trim()) {
     ctx.save();
     const font = fontById(overview.fontId);

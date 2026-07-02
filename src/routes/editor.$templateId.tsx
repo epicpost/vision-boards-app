@@ -57,6 +57,7 @@ import {
   cloneLayers,
   DEFAULT_IMAGE_TRANSFORM,
   dupLayers,
+  backfillTemplateLayers,
   editorFontsHref,
   EDITOR_FONTS,
   EXPORT_FORMATS,
@@ -1287,8 +1288,10 @@ function PortoPreview({
   const image = layers.find(
     (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image",
   );
+  const eyebrow = layers.find((layer): layer is TextLayer => layer.kind === "eyebrow");
   const caption = layers.find((layer): layer is TextLayer => layer.kind === "header");
   const overview = layers.find((layer): layer is TextLayer => layer.kind === "description");
+  const eyebrowStyle = eyebrow ? resolveTextStyle(eyebrow) : null;
   const captionStyle = caption ? resolveTextStyle(caption) : null;
   const overviewStyle = overview ? resolveTextStyle(overview) : null;
   const pct = (value: number) => `${value * 100}%`;
@@ -1384,18 +1387,22 @@ function PortoPreview({
       >
         {/* Row 1 — eyebrow (left) + overview (right). */}
         <div className="flex w-full items-start justify-between" style={{ gap: cqi(0.04) }}>
-          <div
-            className="shrink-0 uppercase"
-            style={{
-              fontFamily: "'Montserrat', sans-serif",
-              fontSize: cqi(PORTO_LAYOUT.eyebrow.size),
-              lineHeight: 1,
-              letterSpacing: "0.025em",
-              color: "#29292b",
-            }}
-          >
-            PORTUGAL
-          </div>
+          {eyebrow?.visible && eyebrow.text.trim() && (
+            <div
+              className="shrink-0"
+              style={{
+                fontFamily: fontById(eyebrow.fontId).family,
+                fontWeight: eyebrowStyle?.weight,
+                fontSize: cqi(PORTO_LAYOUT.eyebrow.size),
+                lineHeight: 1,
+                letterSpacing: "0.025em",
+                color: eyebrow.color,
+                textTransform: eyebrow.uppercase ? "uppercase" : "none",
+              }}
+            >
+              {eyebrow.text}
+            </div>
+          )}
           {overview?.visible && overviewStyle && (
             <div
               style={{
@@ -1551,7 +1558,7 @@ function defaultOpenSections(template: RemixEditorTemplate): Record<string, bool
     return open;
   }
   if (template.layout === "porto") {
-    return { image: true, header: true, description: true };
+    return { image: true, eyebrow: false, header: true, description: true };
   }
   return { image: true, header: true, description: false, cta: false, logo: false };
 }
@@ -1596,7 +1603,9 @@ function EditorScreen({
     template.id,
     layers,
     (saved) => {
-      setLayers(saved);
+      // Backfill template layers added after this draft was saved (e.g. the
+      // Porto country eyebrow) so older drafts still expose them.
+      setLayers(backfillTemplateLayers(template, saved));
       setPast([]);
       setFuture([]);
     },
@@ -1669,7 +1678,10 @@ function EditorScreen({
     const layer = layers.find((current) => current.id === id);
     if (
       layer &&
-      (layer.kind === "header" || layer.kind === "description" || layer.kind === "cta")
+      (layer.kind === "header" ||
+        layer.kind === "description" ||
+        layer.kind === "cta" ||
+        layer.kind === "eyebrow")
     ) {
       void sizeScaleForFontChange(layer, fontId).then((sizeScale) =>
         updateLayer(id, { fontId, sizeScale }),
@@ -1783,6 +1795,7 @@ function EditorScreen({
   const findByKind = <T extends EditorLayer>(kind: LayerKind) =>
     layers.find((layer) => layer.kind === kind) as T | undefined;
   const image = findByKind<Extract<EditorLayer, { kind: "image" }>>("image");
+  const eyebrow = findByKind<TextLayer>("eyebrow");
   const header = findByKind<TextLayer>("header");
   const description = findByKind<TextLayer>("description");
   const cta = findByKind<TextLayer>("cta");
@@ -2104,6 +2117,39 @@ function EditorScreen({
                     updateLayer("image", { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
                   }
                 />
+              </EditorSection>
+            )}
+
+            {/* Eyebrow (porto country label) */}
+            {template.layout === "porto" && eyebrow && (
+              <EditorSection
+                title="Country"
+                open={openSections.eyebrow}
+                onToggleOpen={() => toggleOpen("eyebrow")}
+                hideable={eyebrow.hideable}
+                visible={eyebrow.visible}
+                onToggleVisible={() => toggleVisible("eyebrow")}
+              >
+                <TextField
+                  label="Country text"
+                  value={eyebrow.text}
+                  onChange={(value) => updateLayer("eyebrow", { text: value }, "eyebrow-text")}
+                  onSuggest={() => cycleSuggestion(eyebrow)}
+                />
+                <div className="mt-4">
+                  <FontDropdown
+                    value={eyebrow.fontId}
+                    color={eyebrow.color}
+                    onChange={(fontId) => changeFont("eyebrow", fontId)}
+                  />
+                </div>
+                <div className="mt-4">
+                  <ColorSwatches
+                    palette={template.palette}
+                    value={eyebrow.color}
+                    onChange={(hex) => updateLayer("eyebrow", { color: hex })}
+                  />
+                </div>
               </EditorSection>
             )}
 
