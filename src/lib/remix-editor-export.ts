@@ -8,6 +8,8 @@ import {
   LAYOUT,
   MOODBOARD_LAYOUT,
   RELAX_LAYOUT,
+  VERTICALS_LAYOUT,
+  verticalsTitleChars,
   PORTO_CAPTION_TRACKING,
   PORTO_CARD,
   PORTO_LAYOUT,
@@ -256,6 +258,86 @@ async function exportMoodboard(
     lines.forEach((line, index) => {
       ctx.fillText(line, x, startY + index * lineHeight);
     });
+    ctx.restore();
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
+// Rasterize a verticals creative: equal full-height photo strips side by side,
+// with the title's characters spread evenly across the padded width at the
+// layer's vertical position — mirroring `VerticalsPreview`.
+async function exportVerticals(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  // Order matters: `layers` keeps the panel order, so strip index = position.
+  const photoLayers = layers.filter((layer) => layer.kind === "image");
+  const stripCount = Math.max(photoLayers.length, 1);
+  const stripWidth = width / stripCount;
+  let failedStrips = 0;
+  for (let index = 0; index < photoLayers.length; index++) {
+    const layer = photoLayers[index];
+    if (!layer.visible || layer.kind !== "image") continue;
+    try {
+      const img = await loadImage(layer.src);
+      drawImageCover(
+        ctx,
+        img,
+        { x: index * stripWidth, y: 0, w: stripWidth, h: height },
+        imageTransform(layer),
+      );
+    } catch {
+      failedStrips += 1;
+    }
+  }
+  if (failedStrips > 0) {
+    throw new ExportImageError(failedStrips);
+  }
+
+  const header = layers.find(
+    (layer): layer is TextLayer => layer.kind === "header" && layer.visible,
+  );
+  if (header && header.text.trim()) {
+    const font = fontById(header.fontId);
+    const style = resolveTextStyle(header);
+    const size = VERTICALS_LAYOUT.title.size * style.sizeScale * width;
+    if (typeof document !== "undefined" && document.fonts) {
+      await document.fonts
+        .load(`${style.weight} ${size}px ${primaryFamily(font.family)}`)
+        .catch(() => undefined);
+    }
+    const raw = header.uppercase ? header.text.toUpperCase() : header.text;
+    // One glyph per strip: character i is centred on strip i, so the letter
+    // count tracks the image count — matching the preview. Extra letters past
+    // the strip count are dropped.
+    const chars = verticalsTitleChars(raw).slice(0, stripCount);
+    ctx.save();
+    ctx.font = `${style.weight} ${size}px ${font.family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    applyTextShadow(ctx, style.shadow, size);
+    ctx.fillStyle = header.color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const y = style.posY * height;
+    chars.forEach((char, index) => {
+      if (char.trim()) ctx.fillText(char, (index + 0.5) * stripWidth, y);
+    });
+    ctx.letterSpacing = "0px";
     ctx.restore();
   }
 
@@ -716,6 +798,9 @@ export async function exportCreative(
   }
   if (template.layout === "relax") {
     return exportRelax(template, layers, format, width);
+  }
+  if (template.layout === "verticals") {
+    return exportVerticals(template, layers, format, width);
   }
 
   const ratio = parseRatio(template.aspectRatio);

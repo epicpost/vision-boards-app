@@ -48,6 +48,7 @@ import {
   type PostTemplate,
   type PostTemplateFeedResponse,
 } from "@/lib/post-templates";
+import { getLocalTemplate } from "@/lib/local-templates";
 import { TemplateRequirements } from "@/components/epicpost/TemplateRequirements";
 import { RemixComposer } from "@/components/epicpost/RemixComposer";
 import {
@@ -127,7 +128,8 @@ function templateShareMetaTags(template: PostTemplate | null, pinId: string) {
 }
 
 export const Route = createFileRoute("/template/$pinId")({
-  loader: async ({ params }) => fetchPostTemplate(params.pinId).catch(() => null),
+  loader: async ({ params }) =>
+    getLocalTemplate(params.pinId) ?? (await fetchPostTemplate(params.pinId).catch(() => null)),
   head: ({ loaderData, params }) => ({
     meta: templateShareMetaTags(loaderData ?? null, params.pinId),
     links: [{ rel: "canonical", href: absoluteUrl(`/template/${params.pinId}`) }],
@@ -712,12 +714,18 @@ function PinDetail() {
   // Fetch the full single-template contract (input/output requirements, slots)
   // directly so the page can render the requirements panel even when the feed
   // cache is empty (e.g. opening the detail URL cold).
+  const localTemplate = getLocalTemplate(pinId);
   const detailQuery = useQuery({
     queryKey: postTemplateQueryKey(pinId),
     queryFn: () => fetchPostTemplate(pinId),
+    // Client-rendered templates have no backend row; serve the local definition.
+    enabled: !localTemplate,
   });
   const template =
-    detailQuery.data ?? loaderTemplate ?? templates.find((item) => item.id === pinId);
+    localTemplate ??
+    detailQuery.data ??
+    loaderTemplate ??
+    templates.find((item) => item.id === pinId);
   const shareUrl = typeof window !== "undefined" ? window.location.href : `/template/${pinId}`;
   const shareTitle = template?.title ?? "Check out this template on EpicPost";
   const shareTargets = useMemo(

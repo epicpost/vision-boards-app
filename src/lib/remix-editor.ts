@@ -84,6 +84,10 @@ export interface TextLayer extends BaseLayer {
   letterSpacing?: number; // tracking, in em (0 = default)
   align?: TextAlign; // default "center"
   shadow?: boolean; // drop shadow behind the text
+  // Vertical anchor of the text block, as a fraction of the canvas height
+  // (0 = top, 0.5 = center, 1 = bottom). Only layouts with a free-floating
+  // title (verticals) expose a control for it; absent === the layout default.
+  posY?: number;
 }
 
 export interface LogoLayer extends BaseLayer {
@@ -119,7 +123,7 @@ export const EXPORT_FORMATS: Record<ExportFormat, ExportFormatMeta> = {
 // reproduces the measured Porto travel poster reference; "relax" is a stack of
 // rounded photo panels (with gaps) and a caption + subcaption over the middle
 // panel, mirroring the `template_relax.v2.html` render engine template.
-export type TemplateLayout = "poster" | "moodboard" | "porto" | "relax" | "cover";
+export type TemplateLayout = "poster" | "moodboard" | "porto" | "relax" | "cover" | "verticals";
 
 export interface RemixEditorTemplate {
   id: string;
@@ -225,8 +229,18 @@ export function registerBrandFont(family: string): string {
   // Inject the Google Fonts stylesheet once so previews render the real family.
   // The canvas export gates on `document.fonts.load`, which this stylesheet feeds.
   if (typeof document !== "undefined") {
+    const font = BRAND_FONTS.get(id);
+    // Warm every weight so the first weight change on the brand font doesn't blink.
+    // Must run after the stylesheet parses (see preloadEditorFonts), so warm on
+    // the link's load event; if the link already exists, the CSS is ready now.
+    const warm = () => {
+      if (font) preloadEditorFonts([font]);
+    };
     const linkId = `remix-editor-font-${id}`;
-    if (!document.getElementById(linkId)) {
+    const existing = document.getElementById(linkId);
+    if (existing) {
+      warm();
+    } else {
       const name = clean.replace(/\s+/g, "+");
       const link = document.createElement("link");
       link.id = linkId;
@@ -234,6 +248,7 @@ export function registerBrandFont(family: string): string {
       link.href = `https://fonts.googleapis.com/css2?family=${name}:wght@${BRAND_FONT_WEIGHTS.join(
         ";",
       )}&display=swap`;
+      link.addEventListener("load", warm, { once: true });
       document.head.appendChild(link);
     }
   }
@@ -273,6 +288,21 @@ export function editorFontsHref(): string {
   return `https://fonts.googleapis.com/css2?${families}&display=swap`;
 }
 
+// Eagerly fetch every weight of the given fonts into the FontFaceSet so the first
+// weight change doesn't trigger a fetch-and-swap (the "blink"). `display=swap`
+// only downloads a weight on first use, so without this the first Bold/Regular
+// click flashes while that weight loads; warming them up front makes it instant.
+export function preloadEditorFonts(fonts: readonly EditorFont[] = EDITOR_FONTS): void {
+  if (typeof document === "undefined" || !document.fonts) return;
+  for (const font of fonts) {
+    const name = googleFamilyName(font);
+    for (const weight of font.weights) {
+      // Fire-and-forget: resolves once the weight file is cached.
+      document.fonts.load(`${weight} 16px "${name}"`).catch(() => undefined);
+    }
+  }
+}
+
 // Drop-shadow behind text. Expressed in em for CSS so it scales with font size;
 // the canvas export derives px offsets/blur from the same ratios.
 export const TEXT_SHADOW_CSS = "0 0.04em 0.25em rgba(0,0,0,0.35)";
@@ -284,6 +314,7 @@ export interface ResolvedTextStyle {
   letterSpacing: number;
   align: TextAlign;
   shadow: boolean;
+  posY: number;
 }
 
 // The effective style for a text layer: explicit overrides, else sensible
@@ -306,6 +337,7 @@ export function resolveTextStyle(layer: TextLayer): ResolvedTextStyle {
     letterSpacing: layer.letterSpacing ?? 0,
     align: layer.align ?? "center",
     shadow: layer.shadow ?? false,
+    posY: layer.posY ?? 0.5,
   };
 }
 
@@ -732,12 +764,92 @@ const FRANKOF_TIMELESS: RemixEditorTemplate = {
   ],
 };
 
+// Travel Inspiration Pin — 2–7 full-height vertical photo strips side by side,
+// with an optional title whose letters spread evenly across the poster width
+// (one letter landing roughly per strip, as in the reference pin). The title can
+// sit at any vertical position via the layer's `posY`. Strips are dynamic: the
+// editor can add/remove photo layers within VERTICALS_LAYOUT.min/maxStrips and
+// the preview/export derive the strip count from the image layer count.
+const TRAVEL_PIN: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000032",
+  title: "Travel Inspiration Pin",
+  layout: "verticals",
+  aspectRatio: "3 / 4",
+  background: "#101311",
+  palette: [
+    { label: "Gold", value: "#e9c33c" },
+    { label: "Paper", value: "#ffffff" },
+    { label: "Coral", value: "#e8542a" },
+    { label: "Sea", value: "#1f6f6b" },
+    { label: "Ink", value: "#141414" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "photo-1",
+      kind: "image",
+      label: "Photo 1",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/barcelona-park.jpg",
+    },
+    {
+      id: "photo-2",
+      kind: "image",
+      label: "Photo 2",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/Beach Quotes.jpg",
+    },
+    {
+      id: "photo-3",
+      kind: "image",
+      label: "Photo 3",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/Bali photo.jpg",
+    },
+    {
+      id: "photo-4",
+      kind: "image",
+      label: "Photo 4",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/porto-poster.jpg",
+    },
+    {
+      id: "photo-5",
+      kind: "image",
+      label: "Photo 5",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/barcelona-skyline.jpg",
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Title",
+      visible: true,
+      hideable: true,
+      text: "Costa",
+      color: "#e9c33c",
+      fontId: "playfair",
+      uppercase: true,
+      weight: 500,
+      shadow: false,
+      posY: 0.5,
+      suggestions: ["Costa", "Rica", "Wild", "Coast", "Aloha"],
+    },
+  ],
+};
+
 const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [TEMPLATE_28.id]: TEMPLATE_28,
   [TEMPLATE_205.id]: TEMPLATE_205,
   [PORTO_POSTER.id]: PORTO_POSTER,
   [RELAX_TRIO.id]: RELAX_TRIO,
   [FRANKOF_TIMELESS.id]: FRANKOF_TIMELESS,
+  [TRAVEL_PIN.id]: TRAVEL_PIN,
 };
 
 export function getRemixEditorTemplate(id: string): RemixEditorTemplate | null {
@@ -841,7 +953,13 @@ export function backfillTemplateLayers(
   layers: EditorLayer[],
 ): EditorLayer[] {
   const presentIds = new Set(layers.map((layer) => layer.id));
-  const missing = cloneLayers(template).filter((layer) => !presentIds.has(layer.id));
+  const missing = cloneLayers(template).filter(
+    (layer) =>
+      !presentIds.has(layer.id) &&
+      // Verticals strips are user-add/removable, so a saved set with fewer
+      // photos than the template is intentional — don't resurrect them.
+      !(template.layout === "verticals" && layer.kind === "image"),
+  );
   if (missing.length === 0) return layers;
   const templateOrder = template.layers.map((layer) => layer.id);
   const rank = (id: string) => {
@@ -967,6 +1085,26 @@ export const COVER_LAYOUT = {
   // any photo. `start` is where the darkening begins (fraction of height).
   scrim: { start: 0.4, color: "15, 14, 12", opacity: 0.7 },
 } as const;
+
+// ── Verticals geometry ───────────────────────────────────────────────────────
+// Full-height photo strips of equal width; the title's letters are placed one
+// per strip, each centred on its strip — so the number of letters tracks the
+// number of images and a 5-letter word on 5 strips lands a letter on each,
+// matching the Travel Inspiration Pin reference. `size` is a fraction of the
+// canvas width. Letters beyond the strip count are dropped (the intended use is
+// one letter per strip); shorter words simply leave the trailing strips
+// letter-free.
+export const VERTICALS_LAYOUT = {
+  minStrips: 2,
+  maxStrips: 7,
+  title: { size: 0.1, lineHeight: 1 },
+} as const;
+
+// The title characters (whitespace collapsed to single spaces), used to place
+// one glyph per strip in both the preview and the export.
+export function verticalsTitleChars(text: string): string[] {
+  return Array.from(text.replace(/\s+/g, " ").trim());
+}
 
 // Measured from public/templates/shared/porto-poster.jpg (736 x 1308) and
 // expressed as canvas fractions so the DOM preview and export share the same

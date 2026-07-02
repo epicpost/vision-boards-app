@@ -65,6 +65,7 @@ import {
   EDITOR_FONTS,
   EXPORT_FORMATS,
   fontById,
+  preloadEditorFonts,
   registerBrandFont,
   getRemixEditorTemplate,
   imageTransform,
@@ -74,6 +75,8 @@ import {
   LAYOUT,
   MOODBOARD_LAYOUT,
   RELAX_LAYOUT,
+  VERTICALS_LAYOUT,
+  verticalsTitleChars,
   PORTO_CAPTION_TRACKING,
   PORTO_CARD,
   PORTO_LAYOUT,
@@ -1199,6 +1202,99 @@ function MoodboardPreview({
   );
 }
 
+// Verticals: equal full-height photo strips side by side, with the title's
+// characters spread evenly across the padded width (one flex cell per letter)
+// at the layer's vertical position — mirroring `exportVerticals`.
+function VerticalsPreview({
+  template,
+  layers,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const photos = layers.filter(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image",
+  );
+  const header = layers.find((layer): layer is TextLayer => layer.kind === "header");
+  const headerStyle = header ? resolveTextStyle(header) : null;
+  const stripCount = Math.max(photos.length, 1);
+  const stripWidth = 100 / stripCount;
+  const cqi = (value: number) => `${value * 100}cqi`;
+  // One glyph per strip: character i lands on strip i, so the letter count
+  // tracks the image count. Extra letters past the strip count are dropped.
+  const titleChars = header ? verticalsTitleChars(header.text).slice(0, stripCount) : [];
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+      }}
+    >
+      {photos.map((photo, index) =>
+        photo.visible ? (
+          <DraggableImage
+            key={photo.id}
+            layer={photo}
+            fit="cover"
+            selected={selectedId === photo.id}
+            onSelect={() => onSelect(photo.id)}
+            onPan={(offsetX, offsetY) =>
+              updateLayer(
+                photo.id,
+                { transform: { ...imageTransform(photo), offsetX, offsetY } },
+                `pan-${photo.id}`,
+              )
+            }
+            className="top-0 h-full"
+            style={{ left: `${index * stripWidth}%`, width: `${stripWidth}%` }}
+          />
+        ) : null,
+      )}
+
+      {header?.visible && headerStyle && header.text.trim() && (
+        <div
+          className="pointer-events-none absolute -translate-y-1/2"
+          style={{
+            left: 0,
+            right: 0,
+            top: `${headerStyle.posY * 100}%`,
+            fontFamily: fontById(header.fontId).family,
+            fontWeight: headerStyle.weight,
+            fontSize: cqi(VERTICALS_LAYOUT.title.size * headerStyle.sizeScale),
+            lineHeight: VERTICALS_LAYOUT.title.lineHeight,
+            letterSpacing: `${headerStyle.letterSpacing}em`,
+            color: header.color,
+            textTransform: header.uppercase ? "uppercase" : "none",
+            textShadow: headerStyle.shadow ? TEXT_SHADOW_CSS : "none",
+          }}
+        >
+          {titleChars.map((char, index) =>
+            char.trim() ? (
+              <span
+                key={index}
+                className="absolute -translate-x-1/2 -translate-y-1/2 whitespace-pre text-center"
+                // Centre the glyph on its strip's midpoint.
+                style={{ left: `${(index + 0.5) * stripWidth}%`, top: 0 }}
+              >
+                {char}
+              </span>
+            ) : null,
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Relax trio: rounded photo panels stacked with a soft gap on a paper
 // background, and a caption + subcaption over the middle panel (left-aligned) —
 // mirroring `template_relax.v2.html` and `exportRelax`.
@@ -1683,6 +1779,7 @@ type LayerPatch = Partial<{
   letterSpacing: number;
   align: TextAlign;
   shadow: boolean;
+  posY: number;
   assetId: string;
 }>;
 
@@ -1698,7 +1795,8 @@ function defaultOpenSections(template: RemixEditorTemplate): Record<string, bool
   if (
     template.layout === "moodboard" ||
     template.layout === "relax" ||
-    template.layout === "cover"
+    template.layout === "cover" ||
+    template.layout === "verticals"
   ) {
     const open: Record<string, boolean> = {};
     template.layers.forEach((layer, index) => {
@@ -1804,12 +1902,23 @@ function EditorScreen({
   // Load the editor's webfonts once so previews and the picker render correctly.
   useEffect(() => {
     if (typeof document === "undefined") return;
+    // Warm every weight (catalog + any brand fonts) so the first weight change
+    // doesn't fetch-and-swap the glyphs (the "blink"). Must run *after* the
+    // stylesheet parses — `document.fonts.load` no-ops until the @font-face rules
+    // exist — so this fires on the link's load event (or immediately if already
+    // present). Idempotent.
+    const warm = () => preloadEditorFonts([...brandEditorFonts(), ...EDITOR_FONTS]);
     const id = "remix-editor-fonts";
-    if (document.getElementById(id)) return;
+    const existing = document.getElementById(id);
+    if (existing) {
+      warm();
+      return;
+    }
     const link = document.createElement("link");
     link.id = id;
     link.rel = "stylesheet";
     link.href = editorFontsHref();
+    link.addEventListener("load", warm, { once: true });
     document.head.appendChild(link);
   }, []);
 
@@ -1887,6 +1996,48 @@ function EditorScreen({
     );
     const next = layer.suggestions[(index + 1) % layer.suggestions.length];
     updateLayer(layer.id, { text: next });
+  }
+
+  // Verticals only: strips are dynamic. Adding clones a template default photo
+  // under a fresh id; removing drops the layer. Labels are renumbered so the
+  // panel always reads "Photo 1…N" in strip order.
+  function renumberPhotos(next: EditorLayer[]): EditorLayer[] {
+    let count = 0;
+    return next.map((layer) =>
+      layer.kind === "image" ? { ...layer, label: `Photo ${++count}` } : layer,
+    );
+  }
+
+  function addStrip() {
+    const count = layers.filter((layer) => layer.kind === "image").length;
+    if (count >= VERTICALS_LAYOUT.maxStrips) return;
+    let n = count + 1;
+    while (layers.some((layer) => layer.id === `photo-${n}`)) n++;
+    const defaults = template.layers.filter(
+      (layer): layer is ImageLayer => layer.kind === "image",
+    );
+    const fresh: ImageLayer = {
+      id: `photo-${n}`,
+      kind: "image",
+      label: `Photo ${count + 1}`,
+      visible: true,
+      hideable: false,
+      src: defaults[count % defaults.length]?.src ?? defaults[0].src,
+    };
+    const lastImage = layers.reduce(
+      (last, layer, index) => (layer.kind === "image" ? index : last),
+      -1,
+    );
+    const next = [...layers];
+    next.splice(lastImage + 1, 0, fresh);
+    apply(renumberPhotos(next));
+    setOpenSections((current) => ({ ...current, [fresh.id]: true }));
+  }
+
+  function removeStrip(id: string) {
+    const count = layers.filter((layer) => layer.kind === "image").length;
+    if (count <= VERTICALS_LAYOUT.minStrips) return;
+    apply(renumberPhotos(layers.filter((layer) => layer.id !== id)));
   }
 
   function openReplace(id: string) {
@@ -2089,6 +2240,7 @@ function EditorScreen({
                 template.layout === "cover"
                 ? "max-w-[300px]"
                 : "max-w-[360px]",
+              template.layout === "verticals" && "max-w-[420px]",
             )}
             // Tapping anywhere in the preview that isn't an image clears the
             // selection, so the crop outline only shows while an image is
@@ -2100,6 +2252,14 @@ function EditorScreen({
           >
             {template.layout === "moodboard" ? (
               <MoodboardPreview
+                template={template}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
+            ) : template.layout === "verticals" ? (
+              <VerticalsPreview
                 template={template}
                 layers={layers}
                 selectedId={selectedImageId}
@@ -2194,10 +2354,12 @@ function EditorScreen({
               <h2 className="text-lg font-bold text-foreground">Edit creative</h2>
             </div>
 
-            {/* Moodboard / relax / cover: one replaceable photo per panel + the title. */}
+            {/* Moodboard / relax / cover / verticals: one replaceable photo per
+                panel + the title. */}
             {(template.layout === "moodboard" ||
               template.layout === "relax" ||
-              template.layout === "cover") && (
+              template.layout === "cover" ||
+              template.layout === "verticals") && (
               <>
                 {photos.map((photo) => (
                   <EditorSection
@@ -2222,6 +2384,17 @@ function EditorScreen({
                         Replace photo
                       </button>
                     </div>
+                    {template.layout === "verticals" &&
+                      photos.length > VERTICALS_LAYOUT.minStrips && (
+                        <button
+                          type="button"
+                          onClick={() => removeStrip(photo.id)}
+                          className="mt-3 inline-flex h-9 items-center gap-2 rounded-full border border-border px-4 text-[13px] font-semibold text-foreground transition hover:bg-secondary"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          Remove photo
+                        </button>
+                      )}
                     <ImageControls
                       layer={photo}
                       onChange={(transform, key) => updateLayer(photo.id, { transform }, key)}
@@ -2231,6 +2404,20 @@ function EditorScreen({
                     />
                   </EditorSection>
                 ))}
+
+                {template.layout === "verticals" &&
+                  photos.length < VERTICALS_LAYOUT.maxStrips && (
+                    <div className="border-b border-border px-6 py-4">
+                      <button
+                        type="button"
+                        onClick={addStrip}
+                        className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                      >
+                        <Plus className="h-4 w-4 text-[#c7d36f]" />
+                        Add photo ({photos.length}/{VERTICALS_LAYOUT.maxStrips})
+                      </button>
+                    </div>
+                  )}
 
                 {header && (
                   <EditorSection
@@ -2261,6 +2448,25 @@ function EditorScreen({
                         onChange={(hex) => updateLayer(header.id, { color: hex })}
                       />
                     </div>
+                    {template.layout === "verticals" && (
+                      <div className="mt-4">
+                        <div className="mb-2 flex items-center justify-between text-[13px] font-medium text-muted-foreground">
+                          <span>Vertical position</span>
+                          <span className="tabular-nums">
+                            {Math.round(resolveTextStyle(header).posY * 100)}%
+                          </span>
+                        </div>
+                        <Slider
+                          value={[resolveTextStyle(header).posY]}
+                          min={0.05}
+                          max={0.95}
+                          step={0.01}
+                          onValueChange={([value]) =>
+                            updateLayer(header.id, { posY: value }, `posy-${header.id}`)
+                          }
+                        />
+                      </div>
+                    )}
                     <TextStyleControls
                       layer={header}
                       onChange={(patch, key) => updateLayer(header.id, patch, key)}
@@ -2274,6 +2480,7 @@ function EditorScreen({
             {template.layout !== "moodboard" &&
               template.layout !== "relax" &&
               template.layout !== "cover" &&
+              template.layout !== "verticals" &&
               image && (
               <EditorSection
                 title="Image"
@@ -2343,6 +2550,7 @@ function EditorScreen({
             {template.layout !== "moodboard" &&
               template.layout !== "relax" &&
               template.layout !== "cover" &&
+              template.layout !== "verticals" &&
               header && (
               <EditorSection
                 title={template.layout === "porto" ? "Caption" : "Header"}
