@@ -1466,8 +1466,10 @@ function PortoPreview({
             >
               <defs>
                 <mask id="porto-name-cut">
-                  {/* white = keep the paper band; black text = punch a hole. */}
-                  <rect x="0" y="0" width={box.w} height={bandH} fill="#fff" />
+                  {/* white = keep the paper band; black text = punch a hole. The
+                      band overscans top/left/right by 2px so no subpixel sliver of
+                      the photo peeks out; the bottom stays exactly at the square. */}
+                  <rect x={-2} y={-2} width={box.w + 4} height={bandH + 2} fill="#fff" />
                   <text
                     x={nameX}
                     y={baselineY}
@@ -1485,10 +1487,10 @@ function PortoPreview({
                 </mask>
               </defs>
               <rect
-                x="0"
-                y="0"
-                width={box.w}
-                height={bandH}
+                x={-2}
+                y={-2}
+                width={box.w + 4}
+                height={bandH + 2}
                 fill={template.background}
                 mask="url(#porto-name-cut)"
               />

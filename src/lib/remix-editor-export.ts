@@ -599,8 +599,9 @@ async function exportPorto(
 
     // Paint the white band over the image top, then draw the name filled with the
     // same image (cover-fit to the wrapper) so it reads continuous with the square.
+    // Overscan top/left/right by 2px so no subpixel sliver of the photo peeks out.
     ctx.fillStyle = template.background;
-    ctx.fillRect(wrapper.x, wrapper.y, wrapper.w, bandH);
+    ctx.fillRect(wrapper.x - 2, wrapper.y - 2, wrapper.w + 4, bandH + 2);
     drawTextImageFill(
       ctx,
       image,
