@@ -141,7 +141,9 @@ export type TemplateLayout =
   | "editorial"
   | "collage"
   | "sliced"
-  | "duel";
+  | "duel"
+  | "postcard"
+  | "citymask";
 
 export interface RemixEditorTemplate {
   id: string;
@@ -1577,6 +1579,155 @@ const DUEL_THIS_OR_THAT: RemixEditorTemplate = {
   ],
 };
 
+// City "postcard" poster — a full-bleed travel photo with a giant condensed city
+// name stacked one letter per line down the right edge (white, difference-blended
+// over the photo so it inverts the picture: light letters over dark areas, dark
+// letters over light ones), a rotated subtitle in the paper left gutter and a
+// country label bottom-right. One required photo, a required city caption; the
+// subtitle and country are optional. Mirrors
+// public/templates/shared/26bf922044a5d6b1d6fd11eb539dd481.jpg (LONDON / England).
+const POSTCARD_LONDON: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000036",
+  title: "City Postcard",
+  layout: "postcard",
+  aspectRatio: "735 / 1067",
+  background: "#f4f2ec",
+  palette: [
+    { label: "Paper", value: "#f4f2ec" },
+    { label: "Ink", value: "#14161a" },
+    { label: "White", value: "#ffffff" },
+    { label: "Slate", value: "#3a3f45" },
+    { label: "Stone", value: "#8a8577" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/barcelona-park.jpg",
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "City",
+      visible: true,
+      hideable: false,
+      text: "London",
+      // White by default so the difference blend inverts the photo behind each
+      // letter (light letters over dark photo, dark letters over light photo).
+      color: "#ffffff",
+      fontId: "anton",
+      uppercase: true,
+      weight: 400,
+      suggestions: ["London", "Paris", "Tokyo", "New York", "Rome"],
+    },
+    {
+      id: "eyebrow",
+      kind: "eyebrow",
+      label: "Subtitle",
+      visible: true,
+      hideable: true,
+      text: "St. Pauls Cathedral",
+      color: "#14161a",
+      fontId: "oswald",
+      uppercase: true,
+      weight: 600,
+      letterSpacing: 0.16,
+      suggestions: [
+        "St. Pauls Cathedral",
+        "The Eiffel Tower",
+        "Shibuya Crossing",
+        "Central Park",
+      ],
+    },
+    {
+      id: "cta",
+      kind: "cta",
+      label: "Country",
+      visible: true,
+      hideable: true,
+      text: "England",
+      color: "#14161a",
+      fontId: "oswald",
+      uppercase: true,
+      weight: 700,
+      letterSpacing: 0.3,
+      suggestions: ["England", "France", "Japan", "USA", "Italy"],
+    },
+  ],
+};
+
+// City "text-mask" poster — a full-bleed photo revealed only through a giant
+// uppercase city name that is auto-fit and word-wrapped to fill most of the
+// frame (long words break across lines, e.g. SAN / FRAN / CISCO); everything
+// outside the letters is solid black. An optional right-aligned country label
+// and a small flag sit in the upper right. One required photo, a required city
+// caption (brand font supported); the country label is optional. Mirrors
+// public/templates/shared/f2cb6d0c961e8d61a6940e642fc153ea.jpg (SAN FRANCISCO).
+const CITYMASK_SAN_FRANCISCO: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000037",
+  title: "City Text Mask",
+  layout: "citymask",
+  aspectRatio: "736 / 1308",
+  background: "#000000",
+  palette: [
+    { label: "Black", value: "#000000" },
+    { label: "White", value: "#ffffff" },
+    { label: "Ink", value: "#14161a" },
+    { label: "Slate", value: "#3a3f45" },
+    { label: "Stone", value: "#8a8577" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/barcelona-skyline.jpg",
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "City",
+      visible: true,
+      hideable: false,
+      text: "San Francisco",
+      // Colour is unused (the photo shows through the letters), but a value is
+      // kept so the no-photo fallback still paints legible letters.
+      color: "#ffffff",
+      fontId: "archivo",
+      uppercase: true,
+      weight: 400,
+      suggestions: ["San Francisco", "Los Angeles", "New York", "Chicago", "Miami"],
+    },
+    {
+      id: "cta",
+      kind: "cta",
+      label: "Country",
+      visible: true,
+      hideable: true,
+      text: "United States of America",
+      color: "#ffffff",
+      fontId: "oswald",
+      uppercase: true,
+      weight: 700,
+      letterSpacing: 0.06,
+      suggestions: [
+        "United States of America",
+        "United Kingdom",
+        "France",
+        "Japan",
+        "Italy",
+      ],
+    },
+  ],
+};
+
 const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [TEMPLATE_28.id]: TEMPLATE_28,
   [TEMPLATE_205.id]: TEMPLATE_205,
@@ -1595,6 +1746,8 @@ const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [SOULKIN_SPLIT.id]: SOULKIN_SPLIT,
   [SUNDAY_POSTER.id]: SUNDAY_POSTER,
   [DUEL_THIS_OR_THAT.id]: DUEL_THIS_OR_THAT,
+  [POSTCARD_LONDON.id]: POSTCARD_LONDON,
+  [CITYMASK_SAN_FRANCISCO.id]: CITYMASK_SAN_FRANCISCO,
 };
 
 export function getRemixEditorTemplate(id: string): RemixEditorTemplate | null {
@@ -2172,23 +2325,29 @@ export function portoCaptionFontSize(caption: TextLayer, canvasWidth: number): n
 }
 
 // ── Sliced-type geometry ─────────────────────────────────────────────────────
-// The SUNDAY poster: a giant word (the caption) set one big letter per
-// horizontal band, each letter stretched to the full letter-box width and filled
-// with its own horizontal slice of a single photo — so the picture reads
-// continuous down the word, with a hairline paper gap between bands. A right-hand
-// column carries the date (stacked characters), a wrapped quote and the year
-// (stacked characters). Measured from public/templates/shared/sunday.jpg
-// (674 × 898) and expressed as canvas fractions so the SVG preview and the canvas
-// export share the same geometry.
+// The SUNDAY poster: a single photo fills the left column as a solid block that
+// transitions, on its right edge, into a giant word (the caption) set one big
+// letter per horizontal band. The photo runs continuous from the left margin
+// up to and including each letter — the letter's counters (holes) and the paper
+// to its right are what carve the letterform out of the picture — so the image
+// reads as one sliced photograph, not isolated photo-filled letters. Bands are
+// separated by a hairline paper gap. A right-hand column carries the date
+// (stacked characters), a wrapped quote and the year (stacked characters).
+// Measured from public/templates/shared/sunday.jpg (674 × 898) and expressed as
+// canvas fractions so the SVG preview and the canvas export share the geometry.
 export const SLICED_LAYOUT = {
-  // The letter/photo box (left column).
-  box: { x: 50 / 674, top: 67 / 898, bottom: 829 / 898, width: 0.71 },
+  // The letter/photo box (left column). Photo cover-fits this box; the caption
+  // letters are right-aligned to its right edge and the block fills the rest.
+  box: { x: 50 / 674, top: 67 / 898, bottom: 829 / 898, width: 0.72 },
+  // Each letter's width as a multiple of its band height — the letters sit on
+  // the right of the box at roughly this aspect (the photo block fills the space
+  // to their left), matching the reference proportions.
+  letterAspect: 1.32,
   // Paper hairline between letter bands, as a fraction of height (≈2px at the
   // 1440px export height, matching the reference's 1–2px separators).
   gap: 2 / 1440,
-  // Archivo Black cap-height / em — used to size letters so their caps fill a
-  // band. A rough per-family constant; letters are clipped to their band so an
-  // imperfect fit can't spill into the gaps.
+  // Archivo Black cap-height / em — the fallback letter fit used only when a
+  // browser can't report glyph ink metrics (letters are clipped to their band).
   capRatio: 0.72,
   // Right-hand text column.
   right: {
@@ -2374,4 +2533,261 @@ export function duelPollGeometry(
     h: rowH,
   }));
   return { x, y, w, h, rows };
+}
+
+// ── Postcard (city poster) geometry ──────────────────────────────────────────
+// A full-bleed photo (paper shows only in the left gutter and bottom footer),
+// the city name set one letter per cell stacked down a right-hand column (each
+// glyph stretched to fill its cell, white, difference-blended over the photo so
+// it inverts the picture beneath), a rotated subtitle reading up the left gutter
+// and a tracked country label bottom-right. Horizontal measures and font sizes
+// are fractions of the canvas *width*; vertical anchors are fractions of
+// *height*. Shared by the DOM preview (PostcardPreview) and the canvas export
+// (exportPostcard). Measured from the 735 × 1067 LONDON reference.
+export const POSTCARD_LAYOUT = {
+  // Photo frame — bleeds to the top and right; paper shows in the left gutter
+  // (x < left) and the bottom footer (y > bottom).
+  photo: { left: 0.052, top: 0, right: 1, bottom: 0.95 },
+  // Rotated subtitle in the left gutter (reads bottom-to-top, i.e. rotate(-90));
+  // anchored at its centre so any length stays centred in the upper-left gutter.
+  subtitle: { centerX: 0.032, centerY: 0.2, size: 0.028, tracking: 0.16 },
+  // Giant stacked city name on the right. Each letter fills its cell; cells run
+  // from `top` to `bottom` of the height, right-aligned between `left`/`right`.
+  title: { left: 0.6, right: 0.965, top: 0.018, bottom: 0.9, gap: 2 / 1067, capRatio: 0.72 },
+  // Country label — ink on the paper footer, right-aligned to the title's edge.
+  country: { right: 0.965, baseline: 0.978, size: 0.034, tracking: 0.3 },
+} as const;
+
+// The caption characters that become stacked title cells (whitespace dropped).
+// One glyph per cell in both the preview and the export.
+export function postcardTitleChars(text: string): string[] {
+  return Array.from((text ?? "").replace(/\s+/g, "").trim());
+}
+
+export interface PostcardTitleGeometry {
+  left: number;
+  right: number;
+  w: number;
+  top: number;
+  gap: number;
+  cellH: number;
+  cells: { y: number; h: number }[];
+}
+
+// The title column and its per-letter cell rectangles for `count` characters, in
+// target canvas units (px, or 100 / 100·ratio for a cqi/viewBox preview). Shared
+// by the preview and export so both stack the letters identically.
+export function postcardTitleGeometry(
+  count: number,
+  width: number,
+  height: number,
+): PostcardTitleGeometry {
+  const left = POSTCARD_LAYOUT.title.left * width;
+  const right = POSTCARD_LAYOUT.title.right * width;
+  const w = right - left;
+  const top = POSTCARD_LAYOUT.title.top * height;
+  const span = (POSTCARD_LAYOUT.title.bottom - POSTCARD_LAYOUT.title.top) * height;
+  const n = Math.max(count, 1);
+  const gap = POSTCARD_LAYOUT.title.gap * height;
+  const cellH = (span - gap * (n - 1)) / n;
+  const cells = Array.from({ length: n }, (_, i) => ({ y: top + i * (cellH + gap), h: cellH }));
+  return { left, right, w, top, gap, cellH, cells };
+}
+
+// ── City text-mask geometry ──────────────────────────────────────────────────
+// A giant uppercase city name that is auto-fit and word-wrapped to fill the text
+// box, then used as a mask over a full-bleed photo (the photo shows only through
+// the letters, everything else is black). A small right-aligned country label +
+// flag sit in the upper right. Horizontal measures, font sizes and the flag size
+// are fractions of the canvas *width*; vertical anchors are fractions of
+// *height*. Shared by the DOM preview (CityMaskPreview) and the canvas export
+// (exportCityMask). Measured from the 736 × 1308 SAN FRANCISCO reference.
+export const CITYMASK_LAYOUT = {
+  // The text box the wrapped city name is fit into (fills most of the frame).
+  title: { left: 0.035, right: 0.955, top: 0.13, bottom: 0.8, lineHeight: 0.9, capRatio: 0.72 },
+  // Country label — bold condensed, right-aligned, upper right.
+  label: {
+    right: 0.94,
+    top: 0.285,
+    size: 0.032,
+    lineHeight: 1.12,
+    maxWidth: 0.28,
+    tracking: 0.06,
+    gap: 0.03,
+  },
+  // Small flag beneath the label (US 1.9:1 proportions), right-aligned.
+  flag: { width: 0.12, aspect: 1.9 },
+} as const;
+
+// Greedy word wrap that also breaks a single word too wide for the column across
+// lines (char by char), so a long city like FRANCISCO becomes FRAN / CISCO.
+// `measure` returns a string's width at font-size 1 (resolution independent);
+// `maxW` is the column width in the same units as the caller's font size.
+function wrapMaskedWord(
+  text: string,
+  measure: (s: string) => number,
+  maxW: number,
+): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let cur = "";
+  const flush = () => {
+    if (cur) {
+      lines.push(cur);
+      cur = "";
+    }
+  };
+  for (const word of words) {
+    const candidate = cur ? `${cur} ${word}` : word;
+    if (measure(candidate) <= maxW) {
+      cur = candidate;
+      continue;
+    }
+    flush();
+    if (measure(word) <= maxW) {
+      cur = word;
+      continue;
+    }
+    // The word alone is wider than the column — split it across lines.
+    let chunk = "";
+    for (const ch of Array.from(word)) {
+      const next = chunk + ch;
+      if (chunk && measure(next) > maxW) {
+        lines.push(chunk);
+        chunk = ch;
+      } else {
+        chunk = next;
+      }
+    }
+    cur = chunk;
+  }
+  flush();
+  return lines.length ? lines : [text];
+}
+
+export interface CityMaskLine {
+  text: string;
+  // Baseline offset from the block top, in unscaled units (before `scaleY`).
+  baseline: number;
+}
+
+export interface CityMaskGeometry {
+  fontSize: number;
+  left: number;
+  // Top of the text block (px). The lines are drawn under a
+  // `translate(0, top) scale(1, scaleY)` transform so the caption stretches
+  // vertically to fill the box while its letters keep their width.
+  top: number;
+  scaleY: number;
+  lines: CityMaskLine[];
+}
+
+// The fitted font size and per-line baselines for the wrapped city name, in the
+// target canvas units (px, or 100 / 100·ratio for a viewBox preview). The size
+// is binary-searched so the wrapped lines fill the box height without any line
+// overflowing the column width. Shared by the preview and export so both wrap
+// and stack the caption identically. Falls back to a single centred line when
+// glyph measurement is unavailable (no DOM).
+export function cityMaskGeometry(
+  text: string,
+  fontId: string,
+  weight: number,
+  width: number,
+  height: number,
+): CityMaskGeometry {
+  const L = CITYMASK_LAYOUT.title;
+  const left = L.left * width;
+  const boxW = (L.right - L.left) * width;
+  const top = L.top * height;
+  const boxH = (L.bottom - L.top) * height;
+  const clean = (text ?? "").trim();
+  const ctx = getMeasureCtx();
+  const font = fontById(fontId);
+  if (!ctx || !clean) {
+    const fontSize = clean ? boxH * 0.5 : 0;
+    return {
+      fontSize,
+      left,
+      top,
+      scaleY: 1,
+      lines: clean ? [{ text: clean, baseline: boxH / 2 + fontSize * (L.capRatio / 2) }] : [],
+    };
+  }
+  // Measure at a 100px reference; width scales linearly with font size, so
+  // `measure` gives width per 1px of font size.
+  ctx.font = `${weight} 100px ${font.family}`;
+  const measure = (s: string) => ctx.measureText(s).width / 100;
+
+  // Scan candidate font sizes. At each size the caption is greedily wrapped to
+  // fit the column; a layout is feasible when it also fits the box height. We
+  // pick the highest-scoring feasible layout: score favours a bigger font, but
+  // penalises breaking a word into more pieces than necessary and orphan lines
+  // far shorter than the rest. So SAN FRANCISCO settles on SAN / FRAN / CISCO
+  // (one break in FRANCISCO) rather than a slightly bigger SAN / FRA / NCIS / CO
+  // (two breaks) or SAN / FRAN / CISC / O (a lonely trailing letter).
+  const wordCount = clean.split(/\s+/).filter(Boolean).length;
+  let bestSize = 8;
+  let bestLines = [clean];
+  let bestScore = -Infinity;
+  const steps = 140;
+  for (let i = 1; i <= steps; i++) {
+    const size = (boxH * i) / steps;
+    const lines = wrapMaskedWord(clean, measure, boxW / size);
+    const needed = lines.length * size * L.lineHeight;
+    if (needed > boxH) continue;
+    const widths = lines.map((ln) => measure(ln) * size);
+    const widest = Math.max(...widths);
+    if (widest > boxW + 1) continue;
+    const shortest = Math.min(...widths);
+    const balanced = lines.length === 1 || shortest / widest >= 0.42;
+    const extraSplits = Math.max(0, lines.length - wordCount);
+    const score = (size * (balanced ? 1 : 0.55)) / (1 + 0.5 * extraSplits);
+    if (score > bestScore) {
+      bestScore = score;
+      bestSize = size;
+      bestLines = lines;
+    }
+  }
+  // Fill the column width exactly with the widest line, then stretch the whole
+  // block vertically to fill the box height (letters keep their width but grow
+  // taller — as in the reference, where the letters are noticeably elongated).
+  const widest = bestLines.reduce((max, ln) => Math.max(max, measure(ln)), 0);
+  const fontSize = widest > 0 ? Math.min(boxW / widest, bestSize * 3) : bestSize;
+  const slot = fontSize * L.lineHeight;
+  const naturalH = bestLines.length * slot;
+  const scaleY = naturalH > 0 ? Math.max(0.9, Math.min(boxH / naturalH, 1.6)) : 1;
+  const blockH = naturalH * scaleY;
+  const blockTop = top + Math.max(0, (boxH - blockH) / 2);
+  const lines = bestLines.map((ln, i) => ({
+    text: ln,
+    baseline: i * slot + fontSize * L.capRatio,
+  }));
+  return { fontSize, left, top: blockTop, scaleY, lines };
+}
+
+// The country label wrapped to its column (greedy word wrap, no mid-word breaks).
+// Shared so the preview and export stack the label identically.
+export function cityMaskLabelLines(text: string, fontId: string, weight: number, width: number): string[] {
+  const clean = (text ?? "").trim();
+  if (!clean) return [];
+  const ctx = getMeasureCtx();
+  if (!ctx) return [clean];
+  const font = fontById(fontId);
+  const size = CITYMASK_LAYOUT.label.size * width;
+  ctx.font = `${weight} ${size}px ${font.family}`;
+  const maxW = CITYMASK_LAYOUT.label.maxWidth * width;
+  const words = clean.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let cur = words[0] ?? "";
+  for (let i = 1; i < words.length; i++) {
+    const candidate = `${cur} ${words[i]}`;
+    if (ctx.measureText(candidate).width <= maxW) {
+      cur = candidate;
+    } else {
+      lines.push(cur);
+      cur = words[i];
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines.length ? lines : [clean];
 }

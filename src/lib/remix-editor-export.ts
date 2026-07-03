@@ -24,6 +24,12 @@ import {
   duelDisplayCase,
   duelVisibleOptions,
   duelPollGeometry,
+  POSTCARD_LAYOUT,
+  postcardTitleChars,
+  postcardTitleGeometry,
+  CITYMASK_LAYOUT,
+  cityMaskGeometry,
+  cityMaskLabelLines,
   PORTO_CAPTION_TRACKING,
   PORTO_CARD,
   PORTO_LAYOUT,
@@ -504,6 +510,310 @@ async function exportDuel(
   return canvasToBlob(canvas, format);
 }
 
+// Rasterize a city postcard: a full-bleed photo, the city name stacked one
+// glyph per cell down the right column (each stretched to fill its cell and
+// difference-blended over the photo so it inverts the picture beneath), a
+// rotated subtitle up the left gutter and a tracked country label bottom-right.
+// Mirrors `PostcardPreview`.
+async function exportPostcard(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+
+  const photoLayer = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const city = byId<TextLayer>("header");
+  const subtitle = byId<TextLayer>("eyebrow");
+  const country = byId<TextLayer>("cta");
+
+  // Paper canvas.
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  // Full-bleed photo into its frame (paper shows in the gutter and footer).
+  const p = POSTCARD_LAYOUT.photo;
+  const photoBox = {
+    x: p.left * width,
+    y: p.top * height,
+    w: (p.right - p.left) * width,
+    h: (p.bottom - p.top) * height,
+  };
+  if (photoLayer?.visible && photoLayer.src) {
+    try {
+      const img = await loadImage(photoLayer.src);
+      drawImageCover(ctx, img, photoBox, imageTransform(photoLayer));
+    } catch {
+      throw new ExportImageError(1);
+    }
+  }
+
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      [city, subtitle, country].map((layer) => {
+        if (!layer?.visible || !layer.text.trim()) return Promise.resolve();
+        const font = fontById(layer.fontId);
+        return document.fonts
+          .load(`${resolveTextStyle(layer).weight} 100px ${primaryFamily(font.family)}`)
+          .catch(() => undefined);
+      }),
+    ).catch(() => undefined);
+  }
+
+  // Giant stacked city name — one glyph per cell, each stretched to fill its
+  // cell, drawn white and difference-blended over the photo so it inverts the
+  // picture (light letters over dark areas, dark letters over light ones).
+  if (city?.visible && city.text.trim()) {
+    const font = fontById(city.fontId);
+    const style = resolveTextStyle(city);
+    const label = city.uppercase ? city.text.toUpperCase() : city.text;
+    const chars = postcardTitleChars(label);
+    if (chars.length) {
+      const geo = postcardTitleGeometry(chars.length, width, height);
+      const fallbackSize = geo.cellH / POSTCARD_LAYOUT.title.capRatio;
+      ctx.save();
+      ctx.globalCompositeOperation = "difference";
+      ctx.fillStyle = city.color;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+      chars.forEach((ch, index) => {
+        const cell = geo.cells[index];
+        const met = slicedGlyphMetrics(ch, city.fontId, style.weight);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(geo.left, cell.y, geo.w, cell.h);
+        ctx.clip();
+        if (met) {
+          // Stretch the glyph's ink box to fill the whole cell (full width and
+          // height), so every letter reads as one solid block down the column.
+          ctx.translate(geo.left, cell.y);
+          ctx.scale(geo.w / met.inkW, cell.h / met.inkH);
+          ctx.font = `${style.weight} ${met.refSize}px ${font.family}`;
+          ctx.fillText(ch, met.left, met.ascent);
+        } else {
+          // Approximate cap-height fit when ink metrics are unavailable.
+          ctx.font = `${style.weight} ${fallbackSize}px ${font.family}`;
+          const natural = ctx.measureText(ch).width || 1;
+          const baseline = cell.y + (cell.h + fallbackSize * POSTCARD_LAYOUT.title.capRatio) / 2;
+          ctx.translate(geo.left, baseline);
+          ctx.scale(geo.w / natural, 1);
+          ctx.fillText(ch, 0, 0);
+        }
+        ctx.restore();
+      });
+      ctx.restore();
+    }
+  }
+
+  // Rotated subtitle up the left gutter (reads bottom-to-top).
+  if (subtitle?.visible && subtitle.text.trim()) {
+    const font = fontById(subtitle.fontId);
+    const style = resolveTextStyle(subtitle);
+    const size = POSTCARD_LAYOUT.subtitle.size * style.sizeScale * width;
+    const label = subtitle.uppercase ? subtitle.text.toUpperCase() : subtitle.text;
+    ctx.save();
+    ctx.translate(POSTCARD_LAYOUT.subtitle.centerX * width, POSTCARD_LAYOUT.subtitle.centerY * height);
+    ctx.rotate(-Math.PI / 2);
+    ctx.font = `${style.weight} ${size}px ${font.family}`;
+    ctx.letterSpacing = `${style.letterSpacing || POSTCARD_LAYOUT.subtitle.tracking}em`;
+    ctx.fillStyle = subtitle.color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, 0, 0);
+    ctx.letterSpacing = "0px";
+    ctx.restore();
+  }
+
+  // Country label — ink on the paper footer, right-aligned to the title edge.
+  if (country?.visible && country.text.trim()) {
+    const font = fontById(country.fontId);
+    const style = resolveTextStyle(country);
+    const size = POSTCARD_LAYOUT.country.size * style.sizeScale * width;
+    const label = country.uppercase ? country.text.toUpperCase() : country.text;
+    ctx.save();
+    ctx.font = `${style.weight} ${size}px ${font.family}`;
+    ctx.letterSpacing = `${style.letterSpacing || POSTCARD_LAYOUT.country.tracking}em`;
+    ctx.fillStyle = country.color;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText(label, POSTCARD_LAYOUT.country.right * width, POSTCARD_LAYOUT.country.baseline * height);
+    ctx.letterSpacing = "0px";
+    ctx.restore();
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
+// Draw a small US flag into the box (white field, 13 red/white stripes, a blue
+// canton with a grid of white stars). Shared spec with the DOM preview's SVG.
+function drawUsFlag(
+  ctx: CanvasRenderingContext2D,
+  box: { x: number; y: number; w: number; h: number },
+) {
+  const { x, y, w, h } = box;
+  const stripeH = h / 13;
+  ctx.save();
+  ctx.fillStyle = "#f4f4f2";
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = "#b7332f";
+  for (let i = 0; i < 13; i += 2) {
+    ctx.fillRect(x, y + i * stripeH, w, stripeH);
+  }
+  const cantonW = w * 0.4;
+  const cantonH = stripeH * 7;
+  ctx.fillStyle = "#1c2a5e";
+  ctx.fillRect(x, y, cantonW, cantonH);
+  // Star grid: 5 columns × 4 rows of small dots inside the canton.
+  ctx.fillStyle = "#f4f4f2";
+  const cols = 5;
+  const rows = 4;
+  const r = Math.max(cantonW / 22, 0.5);
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const sx = x + ((col + 0.5) / cols) * cantonW;
+      const sy = y + ((row + 0.5) / rows) * cantonH;
+      ctx.beginPath();
+      ctx.arc(sx, sy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+// Rasterize a city text-mask poster: a full-bleed photo revealed only through a
+// giant word-wrapped city name (everything else black), with an optional
+// right-aligned country label and flag in the upper right. Mirrors
+// `CityMaskPreview`.
+async function exportCityMask(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+
+  const photoLayer = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const city = byId<TextLayer>("header");
+  const country = byId<TextLayer>("cta");
+
+  // Solid black canvas — the photo only shows through the letters.
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  let photo: HTMLImageElement | null = null;
+  if (photoLayer?.visible && photoLayer.src) {
+    try {
+      photo = await loadImage(photoLayer.src);
+    } catch {
+      throw new ExportImageError(1);
+    }
+  }
+  const photoTransform = photoLayer ? imageTransform(photoLayer) : DEFAULT_IMAGE_TRANSFORM;
+
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      [city, country].map((layer) => {
+        if (!layer?.visible || !layer.text.trim()) return Promise.resolve();
+        const font = fontById(layer.fontId);
+        return document.fonts
+          .load(`${resolveTextStyle(layer).weight} 100px ${primaryFamily(font.family)}`)
+          .catch(() => undefined);
+      }),
+    ).catch(() => undefined);
+  }
+
+  // Giant word-wrapped city name, used to mask the full-bleed photo.
+  if (city?.visible && city.text.trim()) {
+    const font = fontById(city.fontId);
+    const style = resolveTextStyle(city);
+    const label = city.uppercase ? city.text.toUpperCase() : city.text;
+    const geo = cityMaskGeometry(label, city.fontId, style.weight, width, height);
+    if (geo.lines.length && geo.fontSize > 0) {
+      const paintText = (target: CanvasRenderingContext2D) => {
+        target.save();
+        // Stretch the block vertically to fill the box (letters keep their width).
+        target.translate(0, geo.top);
+        target.scale(1, geo.scaleY);
+        target.font = `${style.weight} ${geo.fontSize}px ${font.family}`;
+        target.textAlign = "left";
+        target.textBaseline = "alphabetic";
+        geo.lines.forEach((line) => target.fillText(line.text, geo.left, line.baseline));
+        target.restore();
+      };
+      if (photo) {
+        // Paint the letters into a mask, keep the photo only where they are, then
+        // composite the masked photo over the black canvas.
+        const mask = document.createElement("canvas");
+        mask.width = width;
+        mask.height = height;
+        const maskCtx = mask.getContext("2d");
+        if (maskCtx) {
+          maskCtx.fillStyle = "#000";
+          paintText(maskCtx);
+          maskCtx.globalCompositeOperation = "source-in";
+          drawImageCover(maskCtx, photo, { x: 0, y: 0, w: width, h: height }, photoTransform);
+          ctx.drawImage(mask, 0, 0);
+        }
+      } else {
+        ctx.save();
+        ctx.fillStyle = city.color;
+        paintText(ctx);
+        ctx.restore();
+      }
+    }
+  }
+
+  // Country label + flag, upper right.
+  if (country?.visible && country.text.trim()) {
+    const font = fontById(country.fontId);
+    const style = resolveTextStyle(country);
+    const label = country.uppercase ? country.text.toUpperCase() : country.text;
+    const lines = cityMaskLabelLines(label, country.fontId, style.weight, width);
+    const size = CITYMASK_LAYOUT.label.size * style.sizeScale * width;
+    const slot = size * CITYMASK_LAYOUT.label.lineHeight;
+    const rightX = CITYMASK_LAYOUT.label.right * width;
+    const topY = CITYMASK_LAYOUT.label.top * height;
+    ctx.save();
+    ctx.font = `${style.weight} ${size}px ${font.family}`;
+    ctx.letterSpacing = `${style.letterSpacing || CITYMASK_LAYOUT.label.tracking}em`;
+    ctx.fillStyle = country.color;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "alphabetic";
+    lines.forEach((line, i) => ctx.fillText(line, rightX, topY + i * slot + size * 0.8));
+    ctx.letterSpacing = "0px";
+    ctx.restore();
+
+    // Flag beneath the label, right-aligned to the same edge.
+    const flagW = CITYMASK_LAYOUT.flag.width * width;
+    const flagH = flagW / CITYMASK_LAYOUT.flag.aspect;
+    const flagY = topY + lines.length * slot + CITYMASK_LAYOUT.label.gap * height;
+    drawUsFlag(ctx, { x: rightX - flagW, y: flagY, w: flagW, h: flagH });
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
 // Trace a rounded rectangle path (used to clip each relax photo panel).
 function roundRectPath(
   ctx: CanvasRenderingContext2D,
@@ -929,7 +1239,10 @@ async function exportSliced(
       const geo = slicedGeometry(chars.length, width, height);
       const fontSize = geo.bandH / SLICED_LAYOUT.capRatio;
 
-      const paintGlyphs = (target: CanvasRenderingContext2D) => {
+      // `withBlock` fills the left photo block (leftMargin → each letter) so the
+      // picture runs continuous into the letter, as in the reference. Off for the
+      // no-photo fallback (which paints solid-colour letters only).
+      const paintGlyphs = (target: CanvasRenderingContext2D, withBlock: boolean) => {
         target.textAlign = "left";
         target.textBaseline = "alphabetic";
         chars.forEach((ch, index) => {
@@ -938,13 +1251,20 @@ async function exportSliced(
           target.beginPath();
           target.rect(geo.x, band.y, geo.w, band.h);
           target.clip();
-          // Stretch the glyph's measured ink box to exactly fill its band —
-          // full slice width AND height, as in the reference — so the sliced
-          // photo dominates each band no matter which font family is applied.
           const met = slicedGlyphMetrics(ch, caption.fontId, style.weight);
           if (met) {
-            target.translate(geo.x, band.y);
-            target.scale(geo.w / met.inkW, band.h / met.inkH);
+            // Letter sized to fill the band height, kept near its natural aspect
+            // and right-aligned to the box's right edge; the photo block fills
+            // the space to its left so the image transitions into the letter.
+            const scaleY = band.h / met.inkH;
+            const glyphW = Math.min(band.h * SLICED_LAYOUT.letterAspect, geo.w);
+            const scaleX = glyphW / met.inkW;
+            const originX = geo.x + geo.w - glyphW;
+            if (withBlock && originX > geo.x) {
+              target.fillRect(geo.x, band.y, originX - geo.x, band.h);
+            }
+            target.translate(originX, band.y);
+            target.scale(scaleX, scaleY);
             target.font = `${style.weight} ${met.refSize}px ${font.family}`;
             target.fillText(ch, met.left, met.ascent);
           } else {
@@ -967,7 +1287,7 @@ async function exportSliced(
         const maskCtx = mask.getContext("2d");
         if (maskCtx) {
           maskCtx.fillStyle = "#000";
-          paintGlyphs(maskCtx);
+          paintGlyphs(maskCtx, true);
           maskCtx.globalCompositeOperation = "source-in";
           drawImageCover(
             maskCtx,
@@ -980,7 +1300,7 @@ async function exportSliced(
       } else {
         ctx.save();
         ctx.fillStyle = caption.color;
-        paintGlyphs(ctx);
+        paintGlyphs(ctx, false);
         ctx.restore();
       }
     }
@@ -1826,6 +2146,12 @@ export async function exportCreative(
   }
   if (template.layout === "duel") {
     return exportDuel(template, layers, format, width);
+  }
+  if (template.layout === "postcard") {
+    return exportPostcard(template, layers, format, width);
+  }
+  if (template.layout === "citymask") {
+    return exportCityMask(template, layers, format, width);
   }
 
   const ratio = parseRatio(template.aspectRatio);

@@ -357,8 +357,108 @@ const DUEL_THIS_OR_THAT: PostTemplate = {
   },
 };
 
+// City Text Mask — the SAN FRANCISCO poster. Preview art lives at
+// public/templates/shared/f2cb6d0c961e8d61a6940e642fc153ea.jpg (736 x 1308).
+const CITYMASK_SAN_FRANCISCO: PostTemplate = {
+  id: "11000000-0000-0000-0000-000000000037",
+  title: "City Text Mask",
+  preview: "/templates/shared/f2cb6d0c961e8d61a6940e642fc153ea.jpg",
+  preview_type: "image",
+  preview_width: 736,
+  preview_height: 1308,
+  likes_count: 0,
+  is_saved: false,
+  is_liked: false,
+  is_remixed: false,
+  assets: [
+    {
+      id: "citymask-cover",
+      url: "/templates/shared/f2cb6d0c961e8d61a6940e642fc153ea.jpg",
+      type: "image",
+      order: 0,
+      width: 736,
+      height: 1308,
+    },
+  ],
+  board_id: null,
+  board_name: null,
+  remix_id: null,
+  description:
+    "A city text-mask poster: your photo revealed only through a giant city name that auto-fits and wraps to fill the frame (everything else black), with an optional country label and flag. Bring your own photo, city caption and font.",
+  tags: ["typography", "poster", "text mask", "travel", "city"],
+  comments: [],
+  created_at: "2026-07-03T00:00:00.000Z",
+  updated_at: "2026-07-03T00:00:00.000Z",
+  template_type: "image",
+  aspect_ratio: "736 / 1308",
+  input_image_count: 1,
+  capabilities: {
+    supports_ai_generation: false,
+    supports_remix: true,
+    supports_asset_replacement: true,
+    supports_text_rewrite: true,
+    supports_brand_adaptation: true,
+    supports_aspect_ratio_conversion: false,
+    supports_language_adaptation: false,
+    supports_batch_generation: false,
+    supports_variants: true,
+  },
+  // A required city caption drives the composer's Fonts/Colors cards (optional
+  // font family); one required photo shows through the letters. The optional
+  // country label + flag are edited in the editor, not the composer.
+  input_requirements: {
+    assets: [
+      {
+        key: "photo",
+        type: "image",
+        required: true,
+        min_count: 1,
+        max_count: 1,
+        accepted_mime_types: ["image/png", "image/jpeg", "image/webp"],
+        preferred_aspect_ratios: [],
+        min_width: null,
+        min_height: null,
+        allow_crop: true,
+        allow_background_extend: false,
+        allow_background_removal: false,
+        transparent_preferred: false,
+        description: "The photo revealed through the city name's letters.",
+      },
+    ],
+    text_requirements: [
+      {
+        key: "caption",
+        label: "City",
+        required: true,
+        max_chars: 20,
+        recommended_chars: 12,
+        visible_on_asset: true,
+        ai_can_generate: false,
+        ai_can_rewrite: true,
+        allowed_values: [],
+        description: "The city name set in giant masked letters (uppercased).",
+      },
+    ],
+    text_density: "low",
+    text_overflow_strategy: "shrink",
+  },
+  agent_hints: {
+    render_defaults: {
+      caption_color: "#ffffff",
+      caption_color_options: [
+        { label: "White", value: "#ffffff" },
+        { label: "Black", value: "#000000" },
+        { label: "Ink", value: "#14161a" },
+        { label: "Slate", value: "#3a3f45" },
+        { label: "Stone", value: "#8a8577" },
+      ],
+    },
+  },
+};
+
 // Local templates, newest first — prepended to the feed's "All" list.
 export const LOCAL_TEMPLATES: PostTemplate[] = [
+  CITYMASK_SAN_FRANCISCO,
   DUEL_THIS_OR_THAT,
   SUNDAY_SLICED_POSTER,
   SOULKIN_SPLIT_PIN,

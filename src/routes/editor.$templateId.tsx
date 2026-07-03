@@ -93,6 +93,12 @@ import {
   duelDisplayCase,
   duelVisibleOptions,
   duelPollGeometry,
+  POSTCARD_LAYOUT,
+  postcardTitleChars,
+  postcardTitleGeometry,
+  CITYMASK_LAYOUT,
+  cityMaskGeometry,
+  cityMaskLabelLines,
   PORTO_CAPTION_TRACKING,
   PORTO_CARD,
   PORTO_LAYOUT,
@@ -1746,26 +1752,32 @@ function SlicedPreview({
     };
   }, [captionFace]);
 
-  // Each glyph's ink box is stretched to exactly fill its band — full slice
-  // width AND height, as in the reference — via a per-glyph transform. When ink
-  // metrics are unavailable, fall back to a width-only `textLength` stretch at
-  // an approximate cap-height fit (`transform: null`).
+  // Each glyph is sized to fill its band height at a near-natural aspect and
+  // right-aligned to the box edge; `blockW` is the photo block filling the space
+  // to its left, so the picture runs continuous into the letter (as in the
+  // reference). When ink metrics are unavailable, fall back to a width-only
+  // `textLength` stretch at an approximate cap-height fit (`transform: null`).
   const glyphs = chars.map((ch, index) => {
     const band = geo.bands[index];
     const met =
       caption && captionStyle ? slicedGlyphMetrics(ch, caption.fontId, captionStyle.weight) : null;
     if (met) {
+      const scaleY = band.h / met.inkH;
+      const glyphW = Math.min(band.h * SLICED_LAYOUT.letterAspect, geo.w);
+      const scaleX = glyphW / met.inkW;
+      const originX = geo.x + geo.w - glyphW;
       return {
         ch,
         index,
-        transform: `translate(${geo.x} ${band.y}) scale(${geo.w / met.inkW} ${band.h / met.inkH})`,
+        transform: `translate(${originX} ${band.y}) scale(${scaleX} ${scaleY})`,
         x: met.left,
         y: met.ascent,
         size: met.refSize,
+        block: originX > geo.x ? { x: geo.x, y: band.y, w: originX - geo.x, h: band.h } : null,
       };
     }
     const baseline = band.y + (band.h + fontSize * SLICED_LAYOUT.capRatio) / 2;
-    return { ch, index, transform: null, x: geo.x, y: baseline, size: fontSize };
+    return { ch, index, transform: null, x: geo.x, y: baseline, size: fontSize, block: null };
   });
 
   // Stacked single-character block (date / year), rendered as pre-line text.
@@ -1803,6 +1815,17 @@ function SlicedPreview({
             <>
               <defs>
                 <clipPath id={clipId}>
+                  {glyphs.map((glyph) =>
+                    glyph.block ? (
+                      <rect
+                        key={`block-${glyph.index}`}
+                        x={glyph.block.x}
+                        y={glyph.block.y}
+                        width={glyph.block.w}
+                        height={glyph.block.h}
+                      />
+                    ) : null,
+                  )}
                   {glyphs.map((glyph) => (
                     <text
                       key={glyph.index}
@@ -2110,6 +2133,404 @@ function DuelPreview({
           }}
         >
           {wordmark.uppercase ? wordmark.text.toUpperCase() : wordmark.text}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// City postcard poster (the LONDON template): a full-bleed travel photo, the
+// city name stacked one letter per cell down the right column (each glyph
+// stretched to fill its cell and difference-blended over the photo so it inverts
+// the picture: light letters over dark areas, dark letters over light ones), a
+// rotated subtitle up the left gutter and a tracked country label bottom-right.
+// Mirrors `exportPostcard`.
+function PostcardPreview({
+  template,
+  layers,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const clipId = useId();
+  const photo = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.id === "image",
+  );
+  const city = layers.find((layer): layer is TextLayer => layer.id === "header");
+  const subtitle = layers.find((layer): layer is TextLayer => layer.id === "eyebrow");
+  const country = layers.find((layer): layer is TextLayer => layer.id === "cta");
+
+  const [rw, rh] = template.aspectRatio.split("/").map((part) => Number(part.trim()));
+  const ratio = rw && rh ? rw / rh : 0.6888;
+  const Wv = 1000;
+  const Hv = Math.round(Wv / ratio);
+  const pct = (value: number) => `${value * 100}%`;
+  const cqi = (value: number) => `${value * 100}cqi`;
+
+  const cityStyle = city ? resolveTextStyle(city) : null;
+  const label = city ? (city.uppercase ? city.text.toUpperCase() : city.text) : "";
+  const chars = postcardTitleChars(label);
+  const showTitle = Boolean(city?.visible && chars.length);
+  const cityFont = city ? fontById(city.fontId).family : "sans-serif";
+  const geo = postcardTitleGeometry(chars.length || 1, Wv, Hv);
+  const p = POSTCARD_LAYOUT.photo;
+
+  // Glyph ink metrics only measure truthfully once the caption's face is loaded;
+  // bump a tick when it lands so the letters re-measure and settle.
+  const [, setFontTick] = useState(0);
+  const cityFace = city
+    ? `${cityStyle?.weight ?? 400} 100px ${fontById(city.fontId).family.split(",")[0].trim()}`
+    : null;
+  useEffect(() => {
+    if (!cityFace || typeof document === "undefined" || !document.fonts) return;
+    let live = true;
+    document.fonts
+      .load(cityFace)
+      .then(() => {
+        if (live) setFontTick((tick) => tick + 1);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [cityFace]);
+
+  // Each glyph is stretched to fill its whole cell (full width and height) so the
+  // letters read as solid blocks down the column. When ink metrics are
+  // unavailable, fall back to a width-only `textLength` stretch at a cap-height fit.
+  const glyphs = chars.map((ch, index) => {
+    const cell = geo.cells[index];
+    const met = city && cityStyle ? slicedGlyphMetrics(ch, city.fontId, cityStyle.weight) : null;
+    if (met) {
+      return {
+        ch,
+        index,
+        transform: `translate(${geo.left} ${cell.y}) scale(${geo.w / met.inkW} ${cell.h / met.inkH})`,
+        x: met.left,
+        y: met.ascent,
+        size: met.refSize,
+      };
+    }
+    const size = cell.h / POSTCARD_LAYOUT.title.capRatio;
+    const baseline = cell.y + (cell.h + size * POSTCARD_LAYOUT.title.capRatio) / 2;
+    return { ch, index, transform: null, x: geo.left, y: baseline, size };
+  });
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+        isolation: "isolate",
+      }}
+    >
+      {/* Full-bleed photo into its frame (paper shows in the gutter and footer). */}
+      {photo?.visible && photo.src && (
+        <DraggableImage
+          layer={photo}
+          fit="cover"
+          selected={selectedId === photo.id}
+          onSelect={() => onSelect(photo.id)}
+          onPan={(offsetX, offsetY) =>
+            updateLayer(
+              photo.id,
+              { transform: { ...imageTransform(photo), offsetX, offsetY } },
+              `pan-${photo.id}`,
+            )
+          }
+          style={{
+            left: pct(p.left),
+            top: pct(p.top),
+            width: pct(p.right - p.left),
+            height: pct(p.bottom - p.top),
+          }}
+        />
+      )}
+
+      {/* Giant stacked city name — white, difference-blended over the photo. */}
+      {showTitle && cityStyle && (
+        <svg
+          className="pointer-events-none absolute inset-0 h-full w-full"
+          viewBox={`0 0 ${Wv} ${Hv}`}
+          preserveAspectRatio="none"
+          style={{ mixBlendMode: "difference" }}
+        >
+          <defs>
+            <clipPath id={clipId}>
+              {geo.cells.map((cell, index) => (
+                <rect key={index} x={geo.left} y={cell.y} width={geo.w} height={cell.h} />
+              ))}
+            </clipPath>
+          </defs>
+          <g clipPath={`url(#${clipId})`} fill={city!.color}>
+            {glyphs.map((glyph) => (
+              <text
+                key={glyph.index}
+                x={glyph.x}
+                y={glyph.y}
+                transform={glyph.transform ?? undefined}
+                textLength={glyph.transform ? undefined : geo.w}
+                lengthAdjust={glyph.transform ? undefined : "spacingAndGlyphs"}
+                textAnchor="start"
+                style={{
+                  fontFamily: cityFont,
+                  fontWeight: cityStyle.weight,
+                  fontSize: `${glyph.size}px`,
+                }}
+              >
+                {glyph.ch}
+              </text>
+            ))}
+          </g>
+        </svg>
+      )}
+
+      {/* Rotated subtitle up the left gutter (reads bottom-to-top). */}
+      {subtitle?.visible && subtitle.text.trim() && (
+        <div
+          className="pointer-events-none absolute whitespace-nowrap"
+          style={{
+            left: pct(POSTCARD_LAYOUT.subtitle.centerX),
+            top: pct(POSTCARD_LAYOUT.subtitle.centerY),
+            transform: "translate(-50%, -50%) rotate(-90deg)",
+            transformOrigin: "center",
+            fontFamily: fontById(subtitle.fontId).family,
+            fontWeight: resolveTextStyle(subtitle).weight,
+            fontSize: cqi(POSTCARD_LAYOUT.subtitle.size * resolveTextStyle(subtitle).sizeScale),
+            letterSpacing: `${resolveTextStyle(subtitle).letterSpacing || POSTCARD_LAYOUT.subtitle.tracking}em`,
+            color: subtitle.color,
+          }}
+        >
+          {subtitle.uppercase ? subtitle.text.toUpperCase() : subtitle.text}
+        </div>
+      )}
+
+      {/* Country label — ink on the paper footer, right-aligned to the title. */}
+      {country?.visible && country.text.trim() && (
+        <div
+          className="pointer-events-none absolute whitespace-nowrap text-right"
+          style={{
+            right: pct(1 - POSTCARD_LAYOUT.country.right),
+            top: pct(POSTCARD_LAYOUT.country.baseline),
+            transform: "translateY(-100%)",
+            fontFamily: fontById(country.fontId).family,
+            fontWeight: resolveTextStyle(country).weight,
+            fontSize: cqi(POSTCARD_LAYOUT.country.size * resolveTextStyle(country).sizeScale),
+            letterSpacing: `${resolveTextStyle(country).letterSpacing || POSTCARD_LAYOUT.country.tracking}em`,
+            color: country.color,
+          }}
+        >
+          {country.uppercase ? country.text.toUpperCase() : country.text}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// A small US flag (white field, 13 red/white stripes, blue canton with a grid of
+// white stars). Sized by `width` (any CSS length). Shared spec with `drawUsFlag`.
+function FlagUS({ width }: { width: string }) {
+  const W = 190;
+  const H = 100;
+  const stripeH = H / 13;
+  const cantonW = W * 0.4;
+  const cantonH = stripeH * 7;
+  const stars: { cx: number; cy: number }[] = [];
+  const cols = 5;
+  const rows = 4;
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      stars.push({
+        cx: ((col + 0.5) / cols) * cantonW,
+        cy: ((row + 0.5) / rows) * cantonH,
+      });
+    }
+  }
+  return (
+    <svg
+      width={width}
+      viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio="none"
+      style={{ display: "block" }}
+      aria-hidden
+    >
+      <rect x={0} y={0} width={W} height={H} fill="#f4f4f2" />
+      {Array.from({ length: 7 }, (_, i) => (
+        <rect key={i} x={0} y={i * 2 * stripeH} width={W} height={stripeH} fill="#b7332f" />
+      ))}
+      <rect x={0} y={0} width={cantonW} height={cantonH} fill="#1c2a5e" />
+      {stars.map((star, i) => (
+        <circle key={i} cx={star.cx} cy={star.cy} r={cantonW / 22} fill="#f4f4f2" />
+      ))}
+    </svg>
+  );
+}
+
+// City text-mask poster (the SAN FRANCISCO template): a full-bleed photo revealed
+// only through a giant word-wrapped city name (everything else black), with an
+// optional right-aligned country label and flag in the upper right. Mirrors
+// `exportCityMask`.
+function CityMaskPreview({
+  template,
+  layers,
+  selectedId,
+  onSelect,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const clipId = useId();
+  const photo = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.id === "image",
+  );
+  const city = layers.find((layer): layer is TextLayer => layer.id === "header");
+  const country = layers.find((layer): layer is TextLayer => layer.id === "cta");
+
+  const [rw, rh] = template.aspectRatio.split("/").map((part) => Number(part.trim()));
+  const ratio = rw && rh ? rw / rh : 736 / 1308;
+  const Wv = 1000;
+  const Hv = Math.round(Wv / ratio);
+  const pct = (value: number) => `${value * 100}%`;
+  const cqi = (value: number) => `${value * 100}cqi`;
+
+  const cityStyle = city ? resolveTextStyle(city) : null;
+  const label = city ? (city.uppercase ? city.text.toUpperCase() : city.text) : "";
+  const showPhotoFill = Boolean(photo?.visible && photo.src);
+  const cityFont = city ? fontById(city.fontId).family : "sans-serif";
+
+  // Glyph metrics/wrapping only settle once the caption's face is loaded; bump a
+  // tick when it lands so the lines re-wrap and re-fit.
+  const [, setFontTick] = useState(0);
+  const cityFace = city
+    ? `${cityStyle?.weight ?? 400} 100px ${fontById(city.fontId).family.split(",")[0].trim()}`
+    : null;
+  const countryFace =
+    country && country.visible
+      ? `${resolveTextStyle(country).weight} 100px ${fontById(country.fontId).family.split(",")[0].trim()}`
+      : null;
+  useEffect(() => {
+    if (typeof document === "undefined" || !document.fonts) return;
+    let live = true;
+    const faces = [cityFace, countryFace].filter(Boolean) as string[];
+    if (!faces.length) return;
+    Promise.all(faces.map((face) => document.fonts.load(face).catch(() => undefined)))
+      .then(() => {
+        if (live) setFontTick((tick) => tick + 1);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [cityFace, countryFace]);
+
+  const geo =
+    city && cityStyle ? cityMaskGeometry(label, city.fontId, cityStyle.weight, Wv, Hv) : null;
+  const showTitle = Boolean(city?.visible && geo?.lines.length);
+
+  const countryStyle = country ? resolveTextStyle(country) : null;
+  const countryLabel = country ? (country.uppercase ? country.text.toUpperCase() : country.text) : "";
+  const countryLines =
+    country && countryStyle
+      ? cityMaskLabelLines(countryLabel, country.fontId, countryStyle.weight, Wv)
+      : [];
+  const showCountry = Boolean(country?.visible && country?.text.trim() && countryLines.length);
+
+  const titleTexts = geo
+    ? geo.lines.map((line, index) => (
+        <text
+          key={index}
+          x={geo.left}
+          y={line.baseline}
+          transform={`translate(0 ${geo.top}) scale(1 ${geo.scaleY})`}
+          textAnchor="start"
+          style={{
+            fontFamily: cityFont,
+            fontWeight: cityStyle?.weight,
+            fontSize: `${geo.fontSize}px`,
+          }}
+        >
+          {line.text}
+        </text>
+      ))
+    : null;
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+        isolation: "isolate",
+      }}
+    >
+      {showTitle && geo && (
+        <svg
+          className="absolute inset-0 h-full w-full"
+          viewBox={`0 0 ${Wv} ${Hv}`}
+          preserveAspectRatio="none"
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            if (photo) onSelect(photo.id);
+          }}
+        >
+          {showPhotoFill ? (
+            <>
+              <defs>
+                <clipPath id={clipId}>{titleTexts}</clipPath>
+              </defs>
+              <image
+                href={photo!.src}
+                x={0}
+                y={0}
+                width={Wv}
+                height={Hv}
+                preserveAspectRatio="xMidYMid slice"
+                clipPath={`url(#${clipId})`}
+              />
+            </>
+          ) : (
+            <g fill={city!.color}>{titleTexts}</g>
+          )}
+        </svg>
+      )}
+
+      {/* Country label + flag, upper right. */}
+      {showCountry && countryStyle && (
+        <div
+          className="pointer-events-none absolute flex flex-col items-end text-right"
+          style={{
+            right: pct(1 - CITYMASK_LAYOUT.label.right),
+            top: pct(CITYMASK_LAYOUT.label.top),
+            color: country!.color,
+          }}
+        >
+          <div
+            style={{
+              fontFamily: fontById(country!.fontId).family,
+              fontWeight: countryStyle.weight,
+              fontSize: cqi(CITYMASK_LAYOUT.label.size * countryStyle.sizeScale),
+              lineHeight: CITYMASK_LAYOUT.label.lineHeight,
+              letterSpacing: `${countryStyle.letterSpacing || CITYMASK_LAYOUT.label.tracking}em`,
+            }}
+          >
+            {countryLines.map((line, index) => (
+              <div key={index}>{line}</div>
+            ))}
+          </div>
+          <div style={{ marginTop: cqi(CITYMASK_LAYOUT.label.gap) }}>
+            <FlagUS width={cqi(CITYMASK_LAYOUT.flag.width)} />
+          </div>
         </div>
       )}
     </div>
@@ -2794,6 +3215,12 @@ function defaultOpenSections(template: RemixEditorTemplate): Record<string, bool
       description: false,
     };
   }
+  if (template.layout === "postcard") {
+    return { image: true, header: true, eyebrow: false, cta: false };
+  }
+  if (template.layout === "citymask") {
+    return { image: true, header: true, cta: false };
+  }
   return { image: true, header: true, description: false, cta: false, logo: false };
 }
 
@@ -3242,7 +3669,9 @@ function EditorScreen({
                 template.layout === "porto" ||
                 template.layout === "relax" ||
                 template.layout === "cover" ||
-                template.layout === "duel"
+                template.layout === "duel" ||
+                template.layout === "postcard" ||
+                template.layout === "citymask"
                 ? "max-w-[300px]"
                 : "max-w-[360px]",
               template.layout === "verticals" && "max-w-[420px]",
@@ -3334,6 +3763,21 @@ function EditorScreen({
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
                 updateLayer={updateLayer}
+              />
+            ) : template.layout === "postcard" ? (
+              <PostcardPreview
+                template={template}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
+            ) : template.layout === "citymask" ? (
+              <CityMaskPreview
+                template={template}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
               />
             ) : (
               <CreativePreview
@@ -3748,6 +4192,169 @@ function EditorScreen({
               </>
             )}
 
+            {/* City postcard: the photo, the giant city name, the optional
+                subtitle and the optional country label. */}
+            {template.layout === "postcard" && (
+              <>
+                {image && (
+                  <EditorSection
+                    title={image.label}
+                    open={openSections.image ?? true}
+                    onToggleOpen={() => toggleOpen("image")}
+                    hideable={image.hideable}
+                    visible={image.visible}
+                    onToggleVisible={() => toggleVisible("image")}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+                        <img src={image.src} alt="" className="h-full w-full object-cover" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openReplace("image")}
+                        className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                      >
+                        <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                        Replace photo
+                      </button>
+                    </div>
+                    <ImageControls
+                      layer={image}
+                      onChange={(transform, key) => updateLayer("image", { transform }, key)}
+                      onReset={() =>
+                        updateLayer("image", { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                      }
+                    />
+                  </EditorSection>
+                )}
+
+                {[
+                  { layer: header, title: "City", label: "City name" },
+                  { layer: eyebrow, title: "Subtitle", label: "Subtitle text" },
+                  { layer: cta, title: "Country", label: "Country text" },
+                ].map(({ layer, title, label }) =>
+                  layer ? (
+                    <EditorSection
+                      key={layer.id}
+                      title={title}
+                      open={openSections[layer.id] ?? layer.id === "header"}
+                      onToggleOpen={() => toggleOpen(layer.id)}
+                      hideable={layer.hideable}
+                      visible={layer.visible}
+                      onToggleVisible={() => toggleVisible(layer.id)}
+                    >
+                      <TextField
+                        label={label}
+                        value={layer.text}
+                        onChange={(value) => updateLayer(layer.id, { text: value }, `${layer.id}-text`)}
+                        onSuggest={() => cycleSuggestion(layer)}
+                      />
+                      <div className="mt-4">
+                        <FontDropdown
+                          value={layer.fontId}
+                          color={layer.color}
+                          onChange={(fontId) => changeFont(layer.id, fontId)}
+                        />
+                      </div>
+                      <div className="mt-4">
+                        <ColorSwatches
+                          palette={template.palette}
+                          value={layer.color}
+                          onChange={(hex) => updateLayer(layer.id, { color: hex })}
+                        />
+                      </div>
+                      <TextStyleControls
+                        layer={layer}
+                        onChange={(patch, key) => updateLayer(layer.id, patch, key)}
+                      />
+                    </EditorSection>
+                  ) : null,
+                )}
+              </>
+            )}
+
+            {/* City text mask: the photo (revealed through the letters), the
+                giant city name and the optional country label + flag. */}
+            {template.layout === "citymask" && (
+              <>
+                {image && (
+                  <EditorSection
+                    title={image.label}
+                    open={openSections.image ?? true}
+                    onToggleOpen={() => toggleOpen("image")}
+                    hideable={image.hideable}
+                    visible={image.visible}
+                    onToggleVisible={() => toggleVisible("image")}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+                        <img src={image.src} alt="" className="h-full w-full object-cover" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openReplace("image")}
+                        className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                      >
+                        <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                        Replace photo
+                      </button>
+                    </div>
+                    <ImageControls
+                      layer={image}
+                      onChange={(transform, key) => updateLayer("image", { transform }, key)}
+                      onReset={() =>
+                        updateLayer("image", { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                      }
+                    />
+                  </EditorSection>
+                )}
+
+                {[
+                  { layer: header, title: "City", label: "City name" },
+                  { layer: cta, title: "Country", label: "Country text" },
+                ].map(({ layer, title, label }) =>
+                  layer ? (
+                    <EditorSection
+                      key={layer.id}
+                      title={title}
+                      open={openSections[layer.id] ?? layer.id === "header"}
+                      onToggleOpen={() => toggleOpen(layer.id)}
+                      hideable={layer.hideable}
+                      visible={layer.visible}
+                      onToggleVisible={() => toggleVisible(layer.id)}
+                    >
+                      <TextField
+                        label={label}
+                        value={layer.text}
+                        onChange={(value) => updateLayer(layer.id, { text: value }, `${layer.id}-text`)}
+                        onSuggest={() => cycleSuggestion(layer)}
+                      />
+                      <div className="mt-4">
+                        <FontDropdown
+                          value={layer.fontId}
+                          color={layer.color}
+                          onChange={(fontId) => changeFont(layer.id, fontId)}
+                        />
+                      </div>
+                      {layer.id === "cta" && (
+                        <div className="mt-4">
+                          <ColorSwatches
+                            palette={template.palette}
+                            value={layer.color}
+                            onChange={(hex) => updateLayer(layer.id, { color: hex })}
+                          />
+                        </div>
+                      )}
+                      <TextStyleControls
+                        layer={layer}
+                        onChange={(patch, key) => updateLayer(layer.id, patch, key)}
+                      />
+                    </EditorSection>
+                  ) : null,
+                )}
+              </>
+            )}
+
             {/* Image */}
             {template.layout !== "moodboard" &&
               template.layout !== "relax" &&
@@ -3756,6 +4363,8 @@ function EditorScreen({
               template.layout !== "collage" &&
               template.layout !== "sliced" &&
               template.layout !== "duel" &&
+              template.layout !== "postcard" &&
+              template.layout !== "citymask" &&
               image && (
               <EditorSection
                 title="Image"
@@ -3829,6 +4438,8 @@ function EditorScreen({
               template.layout !== "collage" &&
               template.layout !== "sliced" &&
               template.layout !== "duel" &&
+              template.layout !== "postcard" &&
+              template.layout !== "citymask" &&
               header && (
               <EditorSection
                 title={template.layout === "porto" ? "Caption" : "Header"}
@@ -3866,7 +4477,11 @@ function EditorScreen({
             )}
 
             {/* Description */}
-            {template.layout !== "sliced" && template.layout !== "duel" && description && (
+            {template.layout !== "sliced" &&
+              template.layout !== "duel" &&
+              template.layout !== "postcard" &&
+              template.layout !== "citymask" &&
+              description && (
               <EditorSection
                 title={
                   template.layout === "porto"
@@ -3918,7 +4533,11 @@ function EditorScreen({
             )}
 
             {/* Call to action */}
-            {template.layout !== "sliced" && template.layout !== "duel" && cta && (
+            {template.layout !== "sliced" &&
+              template.layout !== "duel" &&
+              template.layout !== "postcard" &&
+              template.layout !== "citymask" &&
+              cta && (
               <EditorSection
                 title="Call to action"
                 open={openSections.cta}
