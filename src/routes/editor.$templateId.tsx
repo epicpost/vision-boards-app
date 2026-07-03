@@ -2421,6 +2421,14 @@ function EditorScreen({
                 onSelect={setSelectedImageId}
                 updateLayer={updateLayer}
               />
+            ) : template.layout === "split" ? (
+              <SplitPreview
+                template={template}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
             ) : (
               <CreativePreview
                 template={template}
