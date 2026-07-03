@@ -1213,6 +1213,50 @@ export const SPLIT_LAYOUT = {
   body: { x: 0.075, bottom: 0.06, width: 0.34, size: 0.03, lineHeight: 1.4 },
 } as const;
 
+// The split headline's base size (`SPLIT_LAYOUT.headline.size`) is tuned for the
+// template's default face (Archivo Black). When a *different* font is applied —
+// e.g. an optional brand font from the composer's Fonts card — its glyph widths
+// differ, so at the same size a narrow face looks small and a wide one overflows
+// the paper panel (wrapping one letter per line). This auto-fits the headline to
+// the chosen font: it measures the (uppercased) text with both faces and scales
+// the base size by their width ratio, keeping the same few-characters-per-line
+// rhythm across fonts. Then applies the user's size override and clamps to a sane
+// band. `canvasWidth` is the render width (pass 100 to get a `cqi` value for the
+// DOM preview; the pixel width otherwise). Falls back to the plain base size when
+// it can't measure (no DOM, empty text, or the font isn't loaded yet), so it is
+// never a wrong guess — only a no-op.
+const SPLIT_HEADLINE_BASE_FONT = "archivo";
+export function splitHeadlineFontSize(header: TextLayer, canvasWidth: number): number {
+  const style = resolveTextStyle(header);
+  const base = SPLIT_LAYOUT.headline.size * canvasWidth;
+  const fallback = base * style.sizeScale;
+  if (header.fontId === SPLIT_HEADLINE_BASE_FONT) return fallback;
+
+  const label = (header.uppercase ? header.text.toUpperCase() : header.text)
+    .replace(/\s+/g, " ")
+    .trim();
+  const ctx = getMeasureCtx();
+  if (!ctx || !label) return fallback;
+
+  const baseFont = fontById(SPLIT_HEADLINE_BASE_FONT);
+  const newFont = fontById(header.fontId);
+  const ref = 100;
+  ctx.letterSpacing = `${style.letterSpacing}em`;
+  ctx.font = `${nearestWeight(baseFont, header.weight ?? 800)} ${ref}px ${baseFont.family}`;
+  const widthBase = ctx.measureText(label).width;
+  ctx.font = `${style.weight} ${ref}px ${newFont.family}`;
+  const widthNew = ctx.measureText(label).width;
+  ctx.letterSpacing = "0px"; // reset the shared measuring context
+  if (!widthBase || !widthNew) return fallback;
+
+  const scaled = base * (widthBase / widthNew) * style.sizeScale;
+  // Keep within a sane band of the base so an extreme face can't blow up or vanish.
+  return Math.min(
+    base * 1.8 * style.sizeScale,
+    Math.max(base * 0.6 * style.sizeScale, scaled),
+  );
+}
+
 // Measured from public/templates/shared/porto-poster.jpg (736 x 1308) and
 // expressed as canvas fractions so the DOM preview and export share the same
 // geometry.

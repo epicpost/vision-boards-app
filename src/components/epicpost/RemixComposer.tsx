@@ -398,13 +398,19 @@ export function RemixComposer({
           brandFontIdValue && TEXT_KINDS.has(layer.kind)
             ? { ...layer, fontId: brandFontIdValue }
             : layer;
-        if (withFont.kind === "header" && trimmedCaption) {
-          return { ...withFont, text: trimmedCaption };
+        // Mirrors the Fonts card: an explicit (or template-default) colour pick
+        // from the Colors card applies to the same text layers.
+        const withColor =
+          selectedCaptionColor && TEXT_KINDS.has(withFont.kind)
+            ? { ...withFont, color: selectedCaptionColor }
+            : withFont;
+        if (withColor.kind === "header" && trimmedCaption) {
+          return { ...withColor, text: trimmedCaption };
         }
-        if (withFont.kind === "description" && trimmedCityOverview) {
-          return { ...withFont, text: trimmedCityOverview };
+        if (withColor.kind === "description" && trimmedCityOverview) {
+          return { ...withColor, text: trimmedCityOverview };
         }
-        return withFont;
+        return withColor;
       });
 
       // Render the downloadable image in the browser (canvas), matching what the

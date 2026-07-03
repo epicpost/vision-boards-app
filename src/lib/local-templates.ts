@@ -54,6 +54,41 @@ const TRAVEL_INSPIRATION_PIN: PostTemplate = {
     supports_batch_generation: false,
     supports_variants: true,
   },
+  // Surfaces the composer's optional Fonts/Colors cards for this template: a
+  // (non-required) caption requirement makes `requiresText` true, and the
+  // title-colour palette mirrors TRAVEL_PIN's palette in remix-editor.ts so a
+  // picked swatch matches what the editor itself offers.
+  input_requirements: {
+    assets: [],
+    text_requirements: [
+      {
+        key: "title",
+        label: "Title",
+        required: false,
+        max_chars: 24,
+        recommended_chars: 8,
+        visible_on_asset: true,
+        ai_can_generate: false,
+        ai_can_rewrite: true,
+        allowed_values: [],
+        description: "One word spread across the photo strips.",
+      },
+    ],
+    text_density: "low",
+    text_overflow_strategy: "shrink",
+  },
+  agent_hints: {
+    render_defaults: {
+      caption_color: "#e9c33c",
+      caption_color_options: [
+        { label: "Gold", value: "#e9c33c" },
+        { label: "Paper", value: "#ffffff" },
+        { label: "Coral", value: "#e8542a" },
+        { label: "Sea", value: "#1f6f6b" },
+        { label: "Ink", value: "#141414" },
+      ],
+    },
+  },
 };
 
 // Soulkin Split Pin — the split-editorial editor template. Preview art lives at

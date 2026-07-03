@@ -19,6 +19,7 @@ import {
   imageTransform,
   readableTextColor,
   resolveTextStyle,
+  splitHeadlineFontSize,
   type EditorLayer,
   type ExportFormat,
   type ImageTransform,
@@ -621,7 +622,9 @@ async function exportSplit(
   if (header?.visible && header.text.trim()) {
     const font = fontById(header.fontId);
     const style = resolveTextStyle(header);
-    const size = SPLIT_LAYOUT.headline.size * style.sizeScale * width;
+    // Auto-fit the headline to the chosen font (e.g. an applied brand font) so it
+    // fills the paper panel with the same rhythm regardless of face.
+    const size = splitHeadlineFontSize(header, width);
     const lineHeight = size * SPLIT_LAYOUT.headline.lineHeight;
     const x = SPLIT_LAYOUT.headline.x * width;
     const top = SPLIT_LAYOUT.headline.top * height;

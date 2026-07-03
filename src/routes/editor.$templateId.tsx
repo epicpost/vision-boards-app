@@ -76,6 +76,7 @@ import {
   MOODBOARD_LAYOUT,
   RELAX_LAYOUT,
   SPLIT_LAYOUT,
+  splitHeadlineFontSize,
   VERTICALS_LAYOUT,
   verticalsTitleChars,
   PORTO_CAPTION_TRACKING,
@@ -1571,7 +1572,8 @@ function SplitPreview({
             width: pct(SPLIT_LAYOUT.headline.width),
             fontFamily: fontById(header.fontId).family,
             fontWeight: headerStyle.weight,
-            fontSize: cqi(SPLIT_LAYOUT.headline.size * headerStyle.sizeScale),
+            // Auto-fit the headline to the chosen font (cqi = % of canvas width).
+            fontSize: `${splitHeadlineFontSize(header, 100)}cqi`,
             lineHeight: SPLIT_LAYOUT.headline.lineHeight,
             letterSpacing: `${headerStyle.letterSpacing}em`,
             textTransform: header.uppercase ? "uppercase" : "none",
