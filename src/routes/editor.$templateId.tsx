@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   AlignCenter,
   AlignLeft,
@@ -17,6 +17,7 @@ import {
   Eye,
   EyeOff,
   Flag,
+  Image as ImageIcon,
   FolderInput,
   Globe,
   Instagram,
@@ -81,6 +82,9 @@ import {
   RELAX_LAYOUT,
   SPLIT_LAYOUT,
   splitHeadlineFontSize,
+  SLICED_LAYOUT,
+  slicedChars,
+  slicedGeometry,
   VERTICALS_LAYOUT,
   verticalsTitleChars,
   PORTO_CAPTION_TRACKING,
@@ -1665,6 +1669,216 @@ function SplitPreview({
   );
 }
 
+// Sliced-type poster (the SUNDAY template): a giant caption set one big letter
+// per horizontal band, each letter stretched to the letter-box width and filled
+// with its own horizontal slice of a single photo (so the picture reads
+// continuous down the word), plus an optional right-hand date / quote / year.
+// The stretched, photo-filled letters are drawn with an inline SVG (a clip-path
+// of the letters over one cover-fit image); the paper, optional background image
+// and right column are DOM layers. Mirrors `exportSliced`.
+function SlicedPreview({
+  template,
+  layers,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const clipId = useId();
+  const photo = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.id === "image",
+  );
+  const background = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.id === "background",
+  );
+  const caption = layers.find((layer): layer is TextLayer => layer.id === "header");
+  const date = layers.find((layer): layer is TextLayer => layer.id === "eyebrow");
+  const quote = layers.find((layer): layer is TextLayer => layer.id === "description");
+  const year = layers.find((layer): layer is TextLayer => layer.id === "cta");
+
+  const [rw, rh] = template.aspectRatio.split("/").map((part) => Number(part.trim()));
+  const ratio = rw && rh ? rw / rh : 0.75;
+  // SVG user-space canvas (viewBox) — same aspect as the container so it fills 1:1.
+  const Wv = 1000;
+  const Hv = Math.round(Wv / ratio);
+
+  const pct = (value: number) => `${value * 100}%`;
+  const cqi = (value: number) => `${value * 100}cqi`;
+
+  const captionStyle = caption ? resolveTextStyle(caption) : null;
+  const label = caption
+    ? caption.uppercase
+      ? caption.text.toUpperCase()
+      : caption.text
+    : "";
+  const chars = slicedChars(label);
+  const showLetters = Boolean(caption?.visible && chars.length);
+  const showPhotoFill = Boolean(photo?.visible && photo.src);
+
+  const geo = slicedGeometry(chars.length || 1, Wv, Hv);
+  const fontSize = geo.bandH / SLICED_LAYOUT.capRatio;
+  const letterFont = caption ? fontById(caption.fontId).family : "sans-serif";
+
+  const glyphs = chars.map((ch, index) => {
+    const band = geo.bands[index];
+    const baseline = band.y + (band.h + fontSize * SLICED_LAYOUT.capRatio) / 2;
+    return { ch, index, baseline };
+  });
+
+  // Stacked single-character block (date / year), rendered as pre-line text.
+  const stackedText = (layer: TextLayer | undefined) =>
+    layer && layer.text.trim()
+      ? Array.from((layer.uppercase ? layer.text.toUpperCase() : layer.text).replace(/\s+/g, "")).join(
+          "\n",
+        )
+      : "";
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+      }}
+    >
+      {background?.visible && background.src && (
+        <img src={background.src} alt="" className="absolute inset-0 h-full w-full object-cover" />
+      )}
+
+      {showLetters && captionStyle && (
+        <svg
+          className="absolute inset-0 h-full w-full"
+          viewBox={`0 0 ${Wv} ${Hv}`}
+          preserveAspectRatio="none"
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            if (photo) onSelect(photo.id);
+          }}
+        >
+          {showPhotoFill ? (
+            <>
+              <defs>
+                <clipPath id={clipId}>
+                  {glyphs.map((glyph) => (
+                    <text
+                      key={glyph.index}
+                      x={geo.x}
+                      y={glyph.baseline}
+                      textLength={geo.w}
+                      lengthAdjust="spacingAndGlyphs"
+                      textAnchor="start"
+                      style={{
+                        fontFamily: letterFont,
+                        fontWeight: captionStyle.weight,
+                        fontSize: `${fontSize}px`,
+                      }}
+                    >
+                      {glyph.ch}
+                    </text>
+                  ))}
+                </clipPath>
+              </defs>
+              <image
+                href={photo!.src}
+                x={geo.x}
+                y={geo.top}
+                width={geo.w}
+                height={geo.boxH}
+                preserveAspectRatio="xMidYMid slice"
+                clipPath={`url(#${clipId})`}
+              />
+            </>
+          ) : (
+            glyphs.map((glyph) => (
+              <text
+                key={glyph.index}
+                x={geo.x}
+                y={glyph.baseline}
+                textLength={geo.w}
+                lengthAdjust="spacingAndGlyphs"
+                textAnchor="start"
+                fill={caption!.color}
+                style={{
+                  fontFamily: letterFont,
+                  fontWeight: captionStyle.weight,
+                  fontSize: `${fontSize}px`,
+                }}
+              >
+                {glyph.ch}
+              </text>
+            ))
+          )}
+        </svg>
+      )}
+
+      {/* Date — stacked characters, top-right. */}
+      {date?.visible && date.text.trim() && (
+        <div
+          className="pointer-events-none absolute -translate-x-1/2 text-center"
+          style={{
+            left: pct(SLICED_LAYOUT.right.center),
+            top: pct(SLICED_LAYOUT.right.date.top),
+            fontFamily: fontById(date.fontId).family,
+            fontWeight: resolveTextStyle(date).weight,
+            fontSize: cqi(SLICED_LAYOUT.right.date.size),
+            lineHeight: SLICED_LAYOUT.right.date.lineHeight,
+            color: date.color,
+            whiteSpace: "pre-line",
+          }}
+        >
+          {stackedText(date)}
+        </div>
+      )}
+
+      {/* Quote — wrapped italic serif, right-aligned, vertically centred. */}
+      {quote?.visible && quote.text.trim() && (
+        <div
+          className="pointer-events-none absolute -translate-y-1/2 text-right"
+          style={{
+            right: pct(1 - SLICED_LAYOUT.right.edge),
+            top: pct(SLICED_LAYOUT.right.quote.centerY),
+            width: cqi(SLICED_LAYOUT.right.quote.width),
+            fontFamily: fontById(quote.fontId).family,
+            fontStyle: "italic",
+            fontWeight: resolveTextStyle(quote).weight,
+            fontSize: cqi(SLICED_LAYOUT.right.quote.size),
+            lineHeight: SLICED_LAYOUT.right.quote.lineHeight,
+            color: quote.color,
+            whiteSpace: "pre-line",
+          }}
+        >
+          {quote.text}
+        </div>
+      )}
+
+      {/* Year — stacked characters, bottom-right. */}
+      {year?.visible && year.text.trim() && (
+        <div
+          className="pointer-events-none absolute -translate-x-1/2 text-center"
+          style={{
+            left: pct(SLICED_LAYOUT.right.center),
+            bottom: pct(1 - SLICED_LAYOUT.right.year.bottom),
+            fontFamily: fontById(year.fontId).family,
+            fontWeight: resolveTextStyle(year).weight,
+            fontSize: cqi(SLICED_LAYOUT.right.year.size),
+            lineHeight: SLICED_LAYOUT.right.year.lineHeight,
+            color: year.color,
+            whiteSpace: "pre-line",
+          }}
+        >
+          {stackedText(year)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // The decorative arrow disc used on the editorial footer slides (1, 8). A ringed
 // circle with a right-arrow, stroked in `color`. Mirrors `.arrow` in
 // `template_frankof.v2.html` and `drawEditorialArrow` in the export.
@@ -1849,6 +2063,9 @@ function CollagePreview({
   const header = layers.find((layer): layer is TextLayer => layer.kind === "header");
   const brand = layers.find((layer): layer is TextLayer => layer.kind === "eyebrow");
   const description = layers.find((layer): layer is TextLayer => layer.kind === "description");
+  const logo = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "logo" }> => layer.kind === "logo",
+  );
 
   const Photo = ({
     layer,
@@ -1903,7 +2120,18 @@ function CollagePreview({
     );
   };
 
-  const Wordmark = () => {
+  // Top-right brand slot: the uploaded logo takes precedence over the wordmark.
+  const HeaderRight = () => {
+    if (logo?.visible && logo.src) {
+      return (
+        <img
+          src={logo.src}
+          alt=""
+          className="pointer-events-none shrink-0 object-contain"
+          style={{ height: cqi(L.logo.height), maxWidth: cqi(L.logo.maxWidth), marginLeft: "auto" }}
+        />
+      );
+    }
     if (!brand?.visible || !brand.text.trim()) return null;
     const style = resolveTextStyle(brand);
     return (
@@ -1969,7 +2197,7 @@ function CollagePreview({
       <>
         <div className="flex shrink-0 items-start" style={{ gap: cqi(s.headGap) }}>
           <Headline size={s.headline} />
-          <Wordmark />
+          <HeaderRight />
         </div>
         <div className="flex shrink-0 items-start" style={{ marginTop: cqi(s.midTop), gap: cqi(s.midGap) }}>
           {bodyText(s.body.size, s.body.lineHeight, s.body.maxWidth) ?? <div className="flex-1" />}
@@ -1994,7 +2222,7 @@ function CollagePreview({
       <>
         <div className="flex shrink-0 items-start" style={{ gap: cqi(s.headGap) }}>
           <Headline size={s.headline} />
-          <Wordmark />
+          <HeaderRight />
         </div>
         <div className="shrink-0" style={{ marginTop: cqi(s.sub.top) }}>
           {bodyText(s.sub.size, s.sub.lineHeight)}
@@ -2345,6 +2573,9 @@ function defaultOpenSections(template: RemixEditorTemplate): Record<string, bool
   if (template.layout === "porto") {
     return { image: true, eyebrow: false, header: true, description: true };
   }
+  if (template.layout === "sliced") {
+    return { image: true, background: false, header: true, eyebrow: false, description: false, cta: false };
+  }
   return { image: true, header: true, description: false, cta: false, logo: false };
 }
 
@@ -2652,6 +2883,11 @@ function EditorScreen({
   const findByKind = <T extends EditorLayer>(kind: LayerKind) =>
     layers.find((layer) => layer.kind === kind) as T | undefined;
   const image = findByKind<Extract<EditorLayer, { kind: "image" }>>("image");
+  // Sliced layout carries a second, optional image layer (the full-bleed
+  // background) alongside the sliced photo; look it up by id, not kind.
+  const slicedBackground = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.id === "background",
+  );
   const eyebrow = findByKind<TextLayer>("eyebrow");
   const header = findByKind<TextLayer>("header");
   const description = findByKind<TextLayer>("description");
@@ -2835,6 +3071,14 @@ function EditorScreen({
               />
             ) : template.layout === "split" ? (
               <SplitPreview
+                template={template}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
+            ) : template.layout === "sliced" ? (
+              <SlicedPreview
                 template={template}
                 layers={layers}
                 selectedId={selectedImageId}
@@ -3044,12 +3288,104 @@ function EditorScreen({
               </>
             )}
 
+            {/* Sliced-type poster: photo + optional background + caption + the
+                optional date / quote / year. */}
+            {template.layout === "sliced" && (
+              <>
+                {[image, slicedBackground].map((img) =>
+                  img ? (
+                    <EditorSection
+                      key={img.id}
+                      title={img.label}
+                      open={openSections[img.id] ?? false}
+                      onToggleOpen={() => toggleOpen(img.id)}
+                      hideable={img.hideable}
+                      visible={img.visible}
+                      onToggleVisible={() => toggleVisible(img.id)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-border bg-secondary">
+                          {img.src ? (
+                            <img src={img.src} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => openReplace(img.id)}
+                          className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                        >
+                          <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                          {img.src ? "Replace photo" : "Add photo"}
+                        </button>
+                      </div>
+                      {img.id === "background" && (
+                        <p className="mt-3 text-[13px] text-muted-foreground">
+                          Optional — toggle the eye to show a full-bleed image behind the design.
+                        </p>
+                      )}
+                      <ImageControls
+                        layer={img}
+                        onChange={(transform, key) => updateLayer(img.id, { transform }, key)}
+                        onReset={() =>
+                          updateLayer(img.id, { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                        }
+                      />
+                    </EditorSection>
+                  ) : null,
+                )}
+
+                {[
+                  { layer: header, title: "Caption", label: "Caption text", multiline: false },
+                  { layer: eyebrow, title: "Date", label: "Date text", multiline: false },
+                  { layer: description, title: "Quote", label: "Quote text", multiline: true },
+                  { layer: cta, title: "Year", label: "Year text", multiline: false },
+                ].map(({ layer, title, label, multiline }) =>
+                  layer ? (
+                    <EditorSection
+                      key={layer.id}
+                      title={title}
+                      open={openSections[layer.id] ?? false}
+                      onToggleOpen={() => toggleOpen(layer.id)}
+                      hideable={layer.hideable}
+                      visible={layer.visible}
+                      onToggleVisible={() => toggleVisible(layer.id)}
+                    >
+                      <TextField
+                        label={label}
+                        value={layer.text}
+                        multiline={multiline}
+                        onChange={(value) => updateLayer(layer.id, { text: value }, `${layer.id}-text`)}
+                        onSuggest={() => cycleSuggestion(layer)}
+                      />
+                      <div className="mt-4">
+                        <FontDropdown
+                          value={layer.fontId}
+                          color={layer.color}
+                          onChange={(fontId) => changeFont(layer.id, fontId)}
+                        />
+                      </div>
+                      <div className="mt-4">
+                        <ColorSwatches
+                          palette={template.palette}
+                          value={layer.color}
+                          onChange={(hex) => updateLayer(layer.id, { color: hex })}
+                        />
+                      </div>
+                    </EditorSection>
+                  ) : null,
+                )}
+              </>
+            )}
+
             {/* Image */}
             {template.layout !== "moodboard" &&
               template.layout !== "relax" &&
               template.layout !== "cover" &&
               template.layout !== "verticals" &&
               template.layout !== "collage" &&
+              template.layout !== "sliced" &&
               image && (
               <EditorSection
                 title="Image"
@@ -3121,6 +3457,7 @@ function EditorScreen({
               template.layout !== "cover" &&
               template.layout !== "verticals" &&
               template.layout !== "collage" &&
+              template.layout !== "sliced" &&
               header && (
               <EditorSection
                 title={template.layout === "porto" ? "Caption" : "Header"}
@@ -3158,7 +3495,7 @@ function EditorScreen({
             )}
 
             {/* Description */}
-            {description && (
+            {template.layout !== "sliced" && description && (
               <EditorSection
                 title={
                   template.layout === "porto"
@@ -3210,7 +3547,7 @@ function EditorScreen({
             )}
 
             {/* Call to action */}
-            {cta && (
+            {template.layout !== "sliced" && cta && (
               <EditorSection
                 title="Call to action"
                 open={openSections.cta}

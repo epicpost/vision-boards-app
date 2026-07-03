@@ -113,11 +113,16 @@ export function RemixComposer({
   );
 
   // Templates can ask for the brand logo and/or render brand text on the asset.
-  // When they do, we auto-attach the matching brand-kit cards below.
+  // When they do, we auto-attach the matching brand-kit cards below. Client-side
+  // editor templates advertise the same capability by carrying an optional `logo`
+  // layer (e.g. the FRANKOF design slide), so the Logo card shows for them too.
+  const editorLogoCapable =
+    getRemixEditorTemplate(template.id)?.layers.some((layer) => layer.kind === "logo") ?? false;
   const requiresLogo =
-    template.input_requirements?.assets.some((asset) => asset.type === "logo") ??
-    template.output_spec?.contains_branding_slot ??
-    false;
+    editorLogoCapable ||
+    (template.input_requirements?.assets.some((asset) => asset.type === "logo") ??
+      template.output_spec?.contains_branding_slot ??
+      false);
   const requiresText = Boolean(captionRequirement);
 
   // Prefer the explicit asset contract; fall back to the template's image count
@@ -426,6 +431,15 @@ export function RemixComposer({
           imageCursor++;
           return seededImageLayers;
         }
+        // Optional logo: when the Logo card is kept attached, fill the layer with
+        // the brand logo and show it (it replaces the wordmark in the render).
+        if (layer.kind === "logo") {
+          return [
+            showLogoCard && brandLogoUrl
+              ? { ...layer, src: brandLogoUrl, visible: true }
+              : layer,
+          ];
+        }
         const withFont =
           brandFontIdValue && TEXT_KINDS.has(layer.kind)
             ? { ...layer, fontId: brandFontIdValue }
@@ -452,7 +466,7 @@ export function RemixComposer({
       setPhase("generating");
       const cleanLayers = await Promise.all(
         layers.map(async (layer) =>
-          layer.kind === "image" && layer.src
+          (layer.kind === "image" || layer.kind === "logo") && layer.src
             ? { ...layer, src: await resolveCleanImageSrc(layer.src) }
             : layer,
         ),

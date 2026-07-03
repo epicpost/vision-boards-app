@@ -159,8 +159,111 @@ const SOULKIN_SPLIT_PIN: PostTemplate = {
   },
 };
 
+// Sunday Sliced Type — the sliced-type editor template. Preview art lives at
+// public/templates/shared/sunday.jpg (674 x 898).
+const SUNDAY_SLICED_POSTER: PostTemplate = {
+  id: "11000000-0000-0000-0000-000000000034",
+  title: "Sunday Sliced Type",
+  preview: "/templates/shared/sunday.jpg",
+  preview_type: "image",
+  preview_width: 674,
+  preview_height: 898,
+  likes_count: 0,
+  is_saved: false,
+  is_liked: false,
+  is_remixed: false,
+  assets: [
+    {
+      id: "sunday-sliced-cover",
+      url: "/templates/shared/sunday.jpg",
+      type: "image",
+      order: 0,
+      width: 674,
+      height: 898,
+    },
+  ],
+  board_id: null,
+  board_name: null,
+  remix_id: null,
+  description:
+    "A sliced-type poster: your caption set one giant letter per row, each filled with its own horizontal slice of a single photo, with an optional date, quote and year. Bring your own photo, caption and fonts.",
+  tags: ["typography", "editorial", "poster", "sliced", "minimal"],
+  comments: [],
+  created_at: "2026-07-03T00:00:00.000Z",
+  updated_at: "2026-07-03T00:00:00.000Z",
+  template_type: "image",
+  aspect_ratio: "3 / 4",
+  input_image_count: 1,
+  capabilities: {
+    supports_ai_generation: false,
+    supports_remix: true,
+    supports_asset_replacement: true,
+    supports_text_rewrite: true,
+    supports_brand_adaptation: true,
+    supports_aspect_ratio_conversion: false,
+    supports_language_adaptation: false,
+    supports_batch_generation: false,
+    supports_variants: true,
+  },
+  // A required caption drives the composer's Fonts/Colors cards (optional font
+  // family); one required photo fills the sliced letters. The optional date,
+  // quote and year are edited in the editor, not the composer.
+  input_requirements: {
+    assets: [
+      {
+        key: "photo",
+        type: "image",
+        required: true,
+        min_count: 1,
+        max_count: 1,
+        accepted_mime_types: ["image/png", "image/jpeg", "image/webp"],
+        preferred_aspect_ratios: [],
+        min_width: null,
+        min_height: null,
+        allow_crop: true,
+        allow_background_extend: false,
+        allow_background_removal: false,
+        transparent_preferred: false,
+        description: "The photo sliced across the caption's letters.",
+      },
+    ],
+    text_requirements: [
+      {
+        key: "caption",
+        label: "Caption",
+        required: true,
+        max_chars: 16,
+        recommended_chars: 6,
+        visible_on_asset: true,
+        ai_can_generate: false,
+        ai_can_rewrite: true,
+        allowed_values: [],
+        description: "The word set in giant sliced letters (uppercased).",
+      },
+    ],
+    text_density: "low",
+    text_overflow_strategy: "shrink",
+  },
+  agent_hints: {
+    render_defaults: {
+      caption_color: "#33302b",
+      caption_color_options: [
+        { label: "Ink", value: "#33302b" },
+        { label: "Paper", value: "#f3ece4" },
+        { label: "Forest", value: "#3f5d3a" },
+        { label: "Clay", value: "#a5714e" },
+        { label: "Black", value: "#141414" },
+      ],
+    },
+  },
+};
+
 // Local templates, newest first — prepended to the feed's "All" list.
-export const LOCAL_TEMPLATES: PostTemplate[] = [SOULKIN_SPLIT_PIN, TRAVEL_INSPIRATION_PIN];
+export const LOCAL_TEMPLATES: PostTemplate[] = [
+  SUNDAY_SLICED_POSTER,
+  SOULKIN_SPLIT_PIN,
+  TRAVEL_INSPIRATION_PIN,
+];
 
 const LOCAL_TEMPLATES_BY_ID = new Map(LOCAL_TEMPLATES.map((template) => [template.id, template]));
 

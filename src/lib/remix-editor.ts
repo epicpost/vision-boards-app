@@ -139,7 +139,8 @@ export type TemplateLayout =
   | "verticals"
   | "split"
   | "editorial"
-  | "collage";
+  | "collage"
+  | "sliced";
 
 export interface RemixEditorTemplate {
   id: string;
@@ -1160,6 +1161,16 @@ const FRANKOF_DESIGN: RemixEditorTemplate = {
     { id: "photo-1", kind: "image", label: "Card photo", visible: true, hideable: false, src: "/templates/frankof-collection/slide-05.png" },
     { id: "photo-2", kind: "image", label: "Photo 2", visible: true, hideable: false, src: "/templates/frankof-collection/slide-01.png" },
     { id: "photo-3", kind: "image", label: "Photo 3", visible: true, hideable: false, src: "/templates/frankof-collection/slide-08.png" },
+    // Optional brand logo — off by default; when shown it replaces the wordmark
+    // in the top-right slot. The composer's Logo card fills this from the brand kit.
+    {
+      id: "logo",
+      kind: "logo",
+      label: "Logo",
+      visible: false,
+      hideable: true,
+      src: "/transparent-logo.png",
+    },
   ],
 };
 
@@ -1372,6 +1383,103 @@ const SOULKIN_SPLIT: RemixEditorTemplate = {
   ],
 };
 
+// SUNDAY "sliced type" poster — a paper canvas with a giant word (the caption)
+// set one big letter per horizontal band, each letter filled with its own
+// horizontal slice of a single photo so the picture reads continuous down the
+// word, with a hairline paper gap between bands. A right-hand column carries an
+// optional date, quote and year. Mirrors public/templates/shared/sunday.jpg.
+const SUNDAY_POSTER: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000034",
+  title: "Sunday Sliced Type",
+  layout: "sliced",
+  aspectRatio: "3 / 4",
+  background: "#f3ece4",
+  palette: [
+    { label: "Paper", value: "#f3ece4" },
+    { label: "Ink", value: "#33302b" },
+    { label: "Forest", value: "#3f5d3a" },
+    { label: "Clay", value: "#a5714e" },
+    { label: "Black", value: "#141414" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/barcelona-park.jpg",
+    },
+    // Optional full-bleed background image behind everything — off by default
+    // (the paper shows through). Changeable/replaceable in the editor.
+    {
+      id: "background",
+      kind: "image",
+      label: "Background image",
+      visible: false,
+      hideable: true,
+      src: "",
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Caption",
+      visible: true,
+      hideable: false,
+      text: "Sunday",
+      // Fallback colour used when the photo can't fill the letters.
+      color: "#33302b",
+      fontId: "archivo",
+      uppercase: true,
+      suggestions: ["Sunday", "Monday", "Friday", "Escape", "Slow"],
+    },
+    {
+      id: "eyebrow",
+      kind: "eyebrow",
+      label: "Date",
+      visible: true,
+      hideable: true,
+      text: "3 May",
+      color: "#33302b",
+      fontId: "playfair",
+      uppercase: true,
+      weight: 400,
+      suggestions: ["3 May", "1 Jan", "24 Dec", "14 Feb"],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Quote",
+      visible: true,
+      hideable: true,
+      text: "Make each day your masterpiece.\n— John Wooden",
+      color: "#33302b",
+      fontId: "playfair",
+      uppercase: false,
+      weight: 400,
+      suggestions: [
+        "Make each day your masterpiece.\n— John Wooden",
+        "Almost everything will work again\nif you unplug it.",
+        "The quieter you become,\nthe more you can hear.",
+      ],
+    },
+    {
+      id: "cta",
+      kind: "cta",
+      label: "Year",
+      visible: true,
+      hideable: true,
+      text: "2026",
+      color: "#33302b",
+      fontId: "playfair",
+      uppercase: false,
+      weight: 400,
+      suggestions: ["2026", "2025", "2027"],
+    },
+  ],
+};
+
 const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [TEMPLATE_28.id]: TEMPLATE_28,
   [TEMPLATE_205.id]: TEMPLATE_205,
@@ -1388,6 +1496,7 @@ const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [FRANKOF_TRENDS.id]: FRANKOF_TRENDS,
   [TRAVEL_PIN.id]: TRAVEL_PIN,
   [SOULKIN_SPLIT.id]: SOULKIN_SPLIT,
+  [SUNDAY_POSTER.id]: SUNDAY_POSTER,
 };
 
 export function getRemixEditorTemplate(id: string): RemixEditorTemplate | null {
@@ -1770,6 +1879,9 @@ export const COLLAGE_LAYOUT = {
   gap: 24 / 1080,
   // The brand wordmark (an editable `eyebrow` layer) sits top-right on slides 5/7.
   wordmark: { size: 32 / 1080, tracking: 0.06, lineHeight: 1 },
+  // An optional brand logo image occupies the same top-right slot as the wordmark
+  // (and takes precedence over it when shown). Contained within this box, right-aligned.
+  logo: { height: 52 / 1080, maxWidth: 240 / 1080 },
   s3: {
     padTop: 96 / 1080,
     padBottom: 88 / 1080,
@@ -1959,4 +2071,72 @@ export function portoCaptionFontSize(caption: TextLayer, canvasWidth: number): n
   // Keep within a reasonable band relative to the canvas (a 1–2 char word
   // shouldn't explode; a very long one shouldn't vanish).
   return Math.min(0.5 * canvasWidth, Math.max(0.07 * canvasWidth, size));
+}
+
+// ── Sliced-type geometry ─────────────────────────────────────────────────────
+// The SUNDAY poster: a giant word (the caption) set one big letter per
+// horizontal band, each letter stretched to the full letter-box width and filled
+// with its own horizontal slice of a single photo — so the picture reads
+// continuous down the word, with a hairline paper gap between bands. A right-hand
+// column carries the date (stacked characters), a wrapped quote and the year
+// (stacked characters). Measured from public/templates/shared/sunday.jpg
+// (674 × 898) and expressed as canvas fractions so the SVG preview and the canvas
+// export share the same geometry.
+export const SLICED_LAYOUT = {
+  // The letter/photo box (left column).
+  box: { x: 50 / 674, top: 67 / 898, bottom: 829 / 898, width: 0.71 },
+  // Paper hairline between letter bands, as a fraction of height (≈2px at the
+  // 1440px export height, matching the reference's 1–2px separators).
+  gap: 2 / 1440,
+  // Archivo Black cap-height / em — used to size letters so their caps fill a
+  // band. A rough per-family constant; letters are clipped to their band so an
+  // imperfect fit can't spill into the gaps.
+  capRatio: 0.72,
+  // Right-hand text column.
+  right: {
+    // Right-aligned anchor for the quote / stacked-character blocks.
+    edge: 619 / 674,
+    center: 596 / 674,
+    date: { top: 74 / 898, size: 0.032, lineHeight: 1.32 },
+    quote: { centerY: 582 / 898, size: 0.034, lineHeight: 1.42, width: 0.16 },
+    year: { bottom: 823 / 898, size: 0.032, lineHeight: 1.32 },
+  },
+} as const;
+
+// The caption characters that become letter bands (whitespace dropped), used to
+// place one glyph per band in both the preview and the export. The slice count
+// equals the character count.
+export function slicedChars(text: string): string[] {
+  return Array.from((text ?? "").replace(/\s+/g, "").trim());
+}
+
+export interface SlicedBand {
+  y: number;
+  h: number;
+}
+
+export interface SlicedGeometry {
+  x: number;
+  top: number;
+  w: number;
+  boxH: number;
+  gap: number;
+  bandH: number;
+  bands: SlicedBand[];
+}
+
+// The letter-box and per-band rectangles for `count` characters, in the target
+// canvas units (`width`/`height` in px, or 100/`100/ratio` for a cqi/viewBox
+// preview). Shared by the SVG preview and the canvas export so both slice the
+// photo identically.
+export function slicedGeometry(count: number, width: number, height: number): SlicedGeometry {
+  const x = SLICED_LAYOUT.box.x * width;
+  const top = SLICED_LAYOUT.box.top * height;
+  const w = SLICED_LAYOUT.box.width * width;
+  const boxH = (SLICED_LAYOUT.box.bottom - SLICED_LAYOUT.box.top) * height;
+  const n = Math.max(count, 1);
+  const gap = SLICED_LAYOUT.gap * height;
+  const bandH = (boxH - gap * (n - 1)) / n;
+  const bands = Array.from({ length: n }, (_, i) => ({ y: top + i * (bandH + gap), h: bandH }));
+  return { x, top, w, boxH, gap, bandH, bands };
 }

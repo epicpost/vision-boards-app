@@ -13,6 +13,9 @@ import {
   MOODBOARD_LAYOUT,
   RELAX_LAYOUT,
   SPLIT_LAYOUT,
+  SLICED_LAYOUT,
+  slicedChars,
+  slicedGeometry,
   VERTICALS_LAYOUT,
   verticalsTitleChars,
   PORTO_CAPTION_TRACKING,
@@ -697,6 +700,190 @@ async function exportSplit(
   return canvasToBlob(canvas, format);
 }
 
+// Rasterize the SUNDAY "sliced type" poster: a giant caption set one big letter
+// per horizontal band, each letter stretched to the letter-box width and filled
+// with its own horizontal slice of a single photo (hairline paper gaps between
+// bands), plus an optional right-hand date / quote / year — mirroring
+// `SlicedPreview`.
+async function exportSliced(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+
+  const photoLayer = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const background = byId<Extract<EditorLayer, { kind: "image" }>>("background");
+  const caption = byId<TextLayer>("header");
+  const date = byId<TextLayer>("eyebrow");
+  const quote = byId<TextLayer>("description");
+  const year = byId<TextLayer>("cta");
+
+  // Paper canvas.
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  // Optional full-bleed background image behind everything.
+  if (background?.visible && background.src) {
+    try {
+      const bg = await loadImage(background.src);
+      drawImageCover(ctx, bg, { x: 0, y: 0, w: width, h: height }, imageTransform(background));
+    } catch {
+      throw new ExportImageError(1);
+    }
+  }
+
+  // The required sliced photo.
+  let photo: HTMLImageElement | null = null;
+  if (photoLayer?.visible && photoLayer.src) {
+    try {
+      photo = await loadImage(photoLayer.src);
+    } catch {
+      throw new ExportImageError(1);
+    }
+  }
+  const photoTransform = photoLayer ? imageTransform(photoLayer) : DEFAULT_IMAGE_TRANSFORM;
+
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      [caption, date, quote, year].map((layer) => {
+        if (!layer?.visible || !layer.text.trim()) return Promise.resolve();
+        const font = fontById(layer.fontId);
+        return document.fonts
+          .load(`${resolveTextStyle(layer).weight} 100px ${primaryFamily(font.family)}`)
+          .catch(() => undefined);
+      }),
+    ).catch(() => undefined);
+  }
+
+  // Sliced caption. Each character is a band; the photo cover-fits the whole
+  // letter box so the bands read as one continuous, sliced picture.
+  if (caption?.visible && caption.text.trim()) {
+    const font = fontById(caption.fontId);
+    const style = resolveTextStyle(caption);
+    const label = caption.uppercase ? caption.text.toUpperCase() : caption.text;
+    const chars = slicedChars(label);
+    if (chars.length) {
+      const geo = slicedGeometry(chars.length, width, height);
+      const fontSize = geo.bandH / SLICED_LAYOUT.capRatio;
+
+      const paintGlyphs = (target: CanvasRenderingContext2D) => {
+        target.font = `${style.weight} ${fontSize}px ${font.family}`;
+        target.textAlign = "left";
+        target.textBaseline = "alphabetic";
+        chars.forEach((ch, index) => {
+          const band = geo.bands[index];
+          const natural = target.measureText(ch).width || 1;
+          const scaleX = geo.w / natural;
+          const baseline = band.y + (band.h + fontSize * SLICED_LAYOUT.capRatio) / 2;
+          target.save();
+          target.beginPath();
+          target.rect(geo.x, band.y, geo.w, band.h);
+          target.clip();
+          target.translate(geo.x, baseline);
+          target.scale(scaleX, 1);
+          target.fillText(ch, 0, 0);
+          target.restore();
+        });
+      };
+
+      if (photo) {
+        const mask = document.createElement("canvas");
+        mask.width = width;
+        mask.height = height;
+        const maskCtx = mask.getContext("2d");
+        if (maskCtx) {
+          maskCtx.fillStyle = "#000";
+          paintGlyphs(maskCtx);
+          maskCtx.globalCompositeOperation = "source-in";
+          drawImageCover(
+            maskCtx,
+            photo,
+            { x: geo.x, y: geo.top, w: geo.w, h: geo.boxH },
+            photoTransform,
+          );
+          ctx.drawImage(mask, 0, 0);
+        }
+      } else {
+        ctx.save();
+        ctx.fillStyle = caption.color;
+        paintGlyphs(ctx);
+        ctx.restore();
+      }
+    }
+  }
+
+  // ── Right-hand column ──────────────────────────────────────────────────────
+  const centerX = SLICED_LAYOUT.right.center * width;
+  const rightEdge = SLICED_LAYOUT.right.edge * width;
+
+  // A stacked-character block (date / year): one character per line, centred on
+  // the right column. `anchor` pins the block's top or bottom edge.
+  const drawStacked = (
+    layer: TextLayer | undefined,
+    spec: { size: number; lineHeight: number },
+    edgeY: number,
+    anchor: "top" | "bottom",
+  ) => {
+    if (!layer?.visible || !layer.text.trim()) return;
+    const font = fontById(layer.fontId);
+    const style = resolveTextStyle(layer);
+    const size = spec.size * style.sizeScale * width;
+    const step = size * spec.lineHeight;
+    const raw = layer.uppercase ? layer.text.toUpperCase() : layer.text;
+    const chars = Array.from(raw.replace(/\s+/g, ""));
+    if (!chars.length) return;
+    const topY = anchor === "top" ? edgeY : edgeY - (chars.length - 1) * step;
+    ctx.save();
+    ctx.font = `${style.weight} ${size}px ${font.family}`;
+    ctx.fillStyle = layer.color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    chars.forEach((ch, index) => ctx.fillText(ch, centerX, topY + index * step));
+    ctx.restore();
+  };
+
+  drawStacked(date, SLICED_LAYOUT.right.date, SLICED_LAYOUT.right.date.top * height, "top");
+  drawStacked(year, SLICED_LAYOUT.right.year, SLICED_LAYOUT.right.year.bottom * height, "bottom");
+
+  // The quote — a wrapped, italic serif block, right-aligned and vertically
+  // centred in the right column.
+  if (quote?.visible && quote.text.trim()) {
+    const font = fontById(quote.fontId);
+    const style = resolveTextStyle(quote);
+    const size = SLICED_LAYOUT.right.quote.size * style.sizeScale * width;
+    const step = size * SLICED_LAYOUT.right.quote.lineHeight;
+    ctx.save();
+    ctx.font = `italic ${style.weight} ${size}px ${font.family}`;
+    const raw = quote.uppercase ? quote.text.toUpperCase() : quote.text;
+    const lines = raw
+      .split("\n")
+      .flatMap((para) =>
+        para.trim() === "" ? [""] : wrapLines(ctx, para, SLICED_LAYOUT.right.quote.width * width),
+      );
+    const totalH = (lines.length - 1) * step;
+    const topY = SLICED_LAYOUT.right.quote.centerY * height - totalH / 2;
+    ctx.fillStyle = quote.color;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    lines.forEach((line, index) => ctx.fillText(line, rightEdge, topY + index * step));
+    ctx.restore();
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
 async function exportPorto(
   template: RemixEditorTemplate,
   layers: EditorLayer[],
@@ -1321,16 +1508,50 @@ async function exportCollage(
     }
   };
 
+  // Draw the top-right brand slot (slides 5/7): the logo if shown, else the
+  // wordmark. Returns the drawn width/height so the headline can be sized to fit
+  // beside it. Contained + right-aligned, mirroring `HeaderRight` in the preview.
+  const logoLayer = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "logo" }> =>
+      layer.kind === "logo" && layer.visible && Boolean(layer.src),
+  );
+  const drawBrandRight = async (padTop: number): Promise<{ rightW: number; rightH: number }> => {
+    if (logoLayer) {
+      let img: HTMLImageElement;
+      try {
+        img = await loadImage(logoLayer.src);
+      } catch {
+        throw new ExportImageError(1);
+      }
+      const maxH = f(L.logo.height);
+      const maxW = f(L.logo.maxWidth);
+      let dispH = maxH;
+      let dispW = img.width * (maxH / img.height);
+      if (dispW > maxW) {
+        dispH *= maxW / dispW;
+        dispW = maxW;
+      }
+      ctx.drawImage(img, contentX + contentW - dispW, padTop, dispW, dispH);
+      return { rightW: dispW, rightH: dispH };
+    }
+    if (brand) {
+      drawText(brand, wordmarkSize, L.wordmark.lineHeight, contentX, padTop, contentW);
+      return {
+        rightW: measureW(brand, wordmarkSize, contentW),
+        rightH: measureH(brand, wordmarkSize, L.wordmark.lineHeight, contentW),
+      };
+    }
+    return { rightW: 0, rightH: 0 };
+  };
+
   if (slide === 5) {
     const s = L.s5;
     const padTop = f(s.padTop);
     const padBottom = f(s.padBottom);
-    const wmW = brand ? measureW(brand, wordmarkSize, contentW) : 0;
-    const headMaxW = contentW - (brand ? wmW + f(s.headGap) : 0);
+    const { rightW, rightH } = await drawBrandRight(padTop);
+    const headMaxW = contentW - (rightW ? rightW + f(s.headGap) : 0);
     const headlineH = header ? drawText(header, headlineSize, 1.04, contentX, padTop, headMaxW) : 0;
-    if (brand) drawText(brand, wordmarkSize, L.wordmark.lineHeight, contentX, padTop, contentW);
-    const wmH = brand ? measureH(brand, wordmarkSize, L.wordmark.lineHeight, contentW) : 0;
-    const headerH = Math.max(headlineH, wmH);
+    const headerH = Math.max(headlineH, rightH);
 
     const midY = padTop + headerH + f(s.midTop);
     const cardW = f(s.card.w);
@@ -1354,12 +1575,10 @@ async function exportCollage(
     const s = L.s7;
     const padTop = f(s.padTop);
     const padBottom = f(s.padBottom);
-    const wmW = brand ? measureW(brand, wordmarkSize, contentW) : 0;
-    const headMaxW = contentW - (brand ? wmW + f(s.headGap) : 0);
+    const { rightW, rightH } = await drawBrandRight(padTop);
+    const headMaxW = contentW - (rightW ? rightW + f(s.headGap) : 0);
     const headlineH = header ? drawText(header, headlineSize, 1.04, contentX, padTop, headMaxW) : 0;
-    if (brand) drawText(brand, wordmarkSize, L.wordmark.lineHeight, contentX, padTop, contentW);
-    const wmH = brand ? measureH(brand, wordmarkSize, L.wordmark.lineHeight, contentW) : 0;
-    const headerH = Math.max(headlineH, wmH);
+    const headerH = Math.max(headlineH, rightH);
 
     const subY = padTop + headerH + f(s.sub.top);
     const subH = description
@@ -1433,6 +1652,9 @@ export async function exportCreative(
   }
   if (template.layout === "split") {
     return exportSplit(template, layers, format, width);
+  }
+  if (template.layout === "sliced") {
+    return exportSliced(template, layers, format, width);
   }
   if (template.layout === "editorial") {
     return exportEditorial(template, layers, format, width);
