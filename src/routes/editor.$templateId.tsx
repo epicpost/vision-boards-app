@@ -1711,11 +1711,7 @@ function SlicedPreview({
   const cqi = (value: number) => `${value * 100}cqi`;
 
   const captionStyle = caption ? resolveTextStyle(caption) : null;
-  const label = caption
-    ? caption.uppercase
-      ? caption.text.toUpperCase()
-      : caption.text
-    : "";
+  const label = caption ? (caption.uppercase ? caption.text.toUpperCase() : caption.text) : "";
   const chars = slicedChars(label);
   const showLetters = Boolean(caption?.visible && chars.length);
   const showPhotoFill = Boolean(photo?.visible && photo.src);
@@ -1733,9 +1729,9 @@ function SlicedPreview({
   // Stacked single-character block (date / year), rendered as pre-line text.
   const stackedText = (layer: TextLayer | undefined) =>
     layer && layer.text.trim()
-      ? Array.from((layer.uppercase ? layer.text.toUpperCase() : layer.text).replace(/\s+/g, "")).join(
-          "\n",
-        )
+      ? Array.from(
+          (layer.uppercase ? layer.text.toUpperCase() : layer.text).replace(/\s+/g, ""),
+        ).join("\n")
       : "";
 
   return (
