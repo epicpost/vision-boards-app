@@ -44,6 +44,7 @@ import {
   registerBrandFont,
   remixStateFromLayers,
   type EditorLayer,
+  type ImageLayer,
 } from "@/lib/remix-editor";
 import { exportCreative } from "@/lib/remix-editor-export";
 import { resolveCleanImageSrc } from "@/lib/image-proxy";
@@ -381,18 +382,49 @@ export function RemixComposer({
       // Seed the editor layers from the composed inputs: fill image layers in
       // order (assetId + assetUrl for persistence, previewUrl for an instant
       // render), and drop the caption / city overview into their text layers.
+      //
+      // Verticals (e.g. the Travel Inspiration Pin) has a variable strip count
+      // — the template's default layers are just a 5-strip example, so the
+      // image layers are rebuilt to match the number of uploaded photos
+      // instead of cloned 1:1 (the editor derives strip count from image
+      // layer count; see VERTICALS_LAYOUT in remix-editor.ts).
+      const clonedLayers = cloneLayers(editorTemplate);
+      const imageLayerTemplates = clonedLayers.filter(
+        (layer): layer is ImageLayer => layer.kind === "image",
+      );
+      const seededImageLayers: ImageLayer[] =
+        editorTemplate.layout === "verticals"
+          ? assets.map((asset, index) => {
+              const proto = imageLayerTemplates[index % imageLayerTemplates.length];
+              const preview = images[index]?.previewUrl;
+              return {
+                ...proto,
+                id: `photo-${index + 1}`,
+                label: `Photo ${index + 1}`,
+                assetId: asset.asset_id,
+                assetUrl: asset.url,
+                ...(preview ? { src: preview } : {}),
+                visible: true,
+              };
+            })
+          : imageLayerTemplates.map((layer, index) => {
+              const asset = assets[index];
+              const preview = images[index]?.previewUrl;
+              return {
+                ...layer,
+                ...(asset ? { assetId: asset.asset_id, assetUrl: asset.url } : {}),
+                ...(preview ? { src: preview } : {}),
+                visible: true,
+              };
+            });
       let imageCursor = 0;
-      const layers: EditorLayer[] = cloneLayers(editorTemplate).map((layer) => {
+      const layers: EditorLayer[] = clonedLayers.flatMap((layer): EditorLayer[] => {
         if (layer.kind === "image") {
-          const index = imageCursor++;
-          const asset = assets[index];
-          const preview = images[index]?.previewUrl;
-          return {
-            ...layer,
-            ...(asset ? { assetId: asset.asset_id, assetUrl: asset.url } : {}),
-            ...(preview ? { src: preview } : {}),
-            visible: true,
-          };
+          // The prototype layers are dropped after seeding the first one — the
+          // real image layers (`seededImageLayers`) replace them in place.
+          if (imageCursor > 0) return [];
+          imageCursor++;
+          return seededImageLayers;
         }
         const withFont =
           brandFontIdValue && TEXT_KINDS.has(layer.kind)
@@ -405,12 +437,12 @@ export function RemixComposer({
             ? { ...withFont, color: selectedCaptionColor }
             : withFont;
         if (withColor.kind === "header" && trimmedCaption) {
-          return { ...withColor, text: trimmedCaption };
+          return [{ ...withColor, text: trimmedCaption }];
         }
         if (withColor.kind === "description" && trimmedCityOverview) {
-          return { ...withColor, text: trimmedCityOverview };
+          return [{ ...withColor, text: trimmedCityOverview }];
         }
-        return withColor;
+        return [withColor];
       });
 
       // Render the downloadable image in the browser (canvas), matching what the

@@ -537,7 +537,7 @@ function RemixesGrid() {
     anchor.remove();
   }
 
-  if (remixesQuery.isLoading) {
+  if (remixesQuery.isLoading || savedRemixesQuery.isLoading) {
     return (
       <div className="columns-2 sm:columns-3 md:columns-4 lg:columns-5 gap-3 [column-fill:_balance]">
         {Array.from({ length: 10 }, (_, index) => (

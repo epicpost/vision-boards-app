@@ -137,7 +137,9 @@ export type TemplateLayout =
   | "relax"
   | "cover"
   | "verticals"
-  | "split";
+  | "split"
+  | "editorial"
+  | "collage";
 
 export interface RemixEditorTemplate {
   id: string;
@@ -778,6 +780,457 @@ const FRANKOF_TIMELESS: RemixEditorTemplate = {
   ],
 };
 
+// The full-bleed FRANKOF slides share slide 9's palette (paper white on a dark
+// canvas, with warm/cool accents), so the caption reads on any photo.
+const FRANKOF_COVER_PALETTE: EditorColor[] = [
+  { label: "Paper", value: "#fdfcfa" },
+  { label: "Cream", value: "#f5e9d4" },
+  { label: "Ink", value: "#111111" },
+  { label: "Sunset", value: "#ff5a3c" },
+  { label: "Sky", value: "#3c7dff" },
+];
+
+// FRANKOF "Interior feature" — slide 2 of the editorial carousel (id ...0102). A
+// full-bleed interior photo with a white headline bottom-left over a soft bottom
+// scrim, mirroring `template_frankof.v2.html`'s `.s2`. Reuses the `cover` renderer
+// with slide-2 geometry (see COVER_VARIANTS).
+const FRANKOF_INTERIOR: RemixEditorTemplate = {
+  id: "13000000-0000-0000-0000-000000000102",
+  title: "Interior Feature",
+  layout: "cover",
+  aspectRatio: "4 / 5",
+  background: "#1d1b19",
+  palette: FRANKOF_COVER_PALETTE,
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/frankof-collection/slide-02.png",
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Headline",
+      visible: true,
+      hideable: true,
+      text: "Rooms that\ntell a story",
+      color: "#fdfcfa",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 500,
+      align: "left",
+      shadow: true,
+      suggestions: [
+        "Rooms that\ntell a story",
+        "Live with\nintention",
+        "Quiet\nluxury",
+        "Made to\nlast",
+      ],
+    },
+  ],
+};
+
+// FRANKOF "Editorial cover" — slide 4 (id ...0104). Full-bleed photo with a white
+// headline and subtitle top-left over a top scrim, mirroring `.s4`. Reuses the
+// `cover` renderer with slide-4 geometry (top anchor + subtitle; see
+// COVER_VARIANTS) and adds a `description` layer for the subtitle.
+const FRANKOF_STATEMENT: RemixEditorTemplate = {
+  id: "13000000-0000-0000-0000-000000000104",
+  title: "Editorial Cover",
+  layout: "cover",
+  aspectRatio: "4 / 5",
+  background: "#1d1b19",
+  palette: FRANKOF_COVER_PALETTE,
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/frankof-collection/slide-04.png",
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Headline",
+      visible: true,
+      hideable: true,
+      text: "Design\nthat lasts",
+      color: "#fdfcfa",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 500,
+      align: "left",
+      shadow: true,
+      suggestions: [
+        "Design\nthat lasts",
+        "Form meets\nfeeling",
+        "The art of\nthe everyday",
+        "Considered\nby design",
+      ],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Subtitle",
+      visible: true,
+      hideable: true,
+      text: "Considered pieces for calm, characterful rooms.",
+      color: "#fdfcfa",
+      fontId: "poppins",
+      uppercase: false,
+      weight: 400,
+      align: "left",
+      shadow: true,
+      suggestions: [
+        "Considered pieces for calm, characterful rooms.",
+        "Where craft and comfort meet.",
+        "Timeless materials, honest making.",
+      ],
+    },
+  ],
+};
+
+// The paper FRANKOF slides (1, 6, 8) share an editorial ink-on-paper palette.
+const FRANKOF_PAPER_PALETTE: EditorColor[] = [
+  { label: "Ink", value: "#1d1b19" },
+  { label: "Paper", value: "#f5f2ec" },
+  { label: "Navy", value: "#1d3c63" },
+  { label: "Sunset", value: "#ff5a3c" },
+  { label: "Grey", value: "#6f6c66" },
+];
+
+// FRANKOF "Concept" — slide 1 (id ...0101). Paper background, uppercase headline
+// top, a product photo centred on the paper (contain), and a footer caption +
+// arrow. Mirrors `template_frankof.v2.html`'s `.s1`.
+const FRANKOF_CONCEPT: RemixEditorTemplate = {
+  id: "13000000-0000-0000-0000-000000000101",
+  title: "Concept Intro",
+  layout: "editorial",
+  aspectRatio: "4 / 5",
+  background: "#f5f2ec",
+  palette: FRANKOF_PAPER_PALETTE,
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "header",
+      kind: "header",
+      label: "Headline",
+      visible: true,
+      hideable: true,
+      text: "Our\nconcept",
+      color: "#1d1b19",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 500,
+      align: "left",
+      suggestions: ["Our\nconcept", "The\nidea", "Where it\nbegins", "Our\nstory"],
+    },
+    {
+      id: "image",
+      kind: "image",
+      label: "Photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/frankof-collection/slide-01.png",
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Caption",
+      visible: true,
+      hideable: true,
+      text: "FRANKOF — 2026 collection",
+      color: "#6f6c66",
+      fontId: "poppins",
+      uppercase: false,
+      weight: 400,
+      align: "left",
+      suggestions: [
+        "FRANKOF — 2026 collection",
+        "Designed in-house",
+        "Made to be lived in",
+      ],
+    },
+  ],
+};
+
+// FRANKOF "Showcase" — slide 6 (id ...0106). Paper background, uppercase headline
+// top, a large photo filling the rest of the frame (cover). No footer. Mirrors
+// `.s6`.
+const FRANKOF_SHOWCASE: RemixEditorTemplate = {
+  id: "13000000-0000-0000-0000-000000000106",
+  title: "Full-Frame Showcase",
+  layout: "editorial",
+  aspectRatio: "4 / 5",
+  background: "#f5f2ec",
+  palette: FRANKOF_PAPER_PALETTE,
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "header",
+      kind: "header",
+      label: "Headline",
+      visible: true,
+      hideable: true,
+      text: "Beauty\nor comfort?",
+      color: "#1d1b19",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 500,
+      align: "left",
+      suggestions: [
+        "Beauty\nor comfort?",
+        "Why not\nboth?",
+        "Form and\nfunction",
+        "Made for\nliving",
+      ],
+    },
+    {
+      id: "image",
+      kind: "image",
+      label: "Photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/frankof-collection/slide-06.png",
+    },
+  ],
+};
+
+// FRANKOF "Feature" — slide 8 (id ...0108). Paper background, uppercase headline
+// top, a framed photo (cover), and a footer body caption + arrow. Mirrors `.s8`.
+const FRANKOF_FEATURE: RemixEditorTemplate = {
+  id: "13000000-0000-0000-0000-000000000108",
+  title: "Feature Story",
+  layout: "editorial",
+  aspectRatio: "4 / 5",
+  background: "#f5f2ec",
+  palette: FRANKOF_PAPER_PALETTE,
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "header",
+      kind: "header",
+      label: "Headline",
+      visible: true,
+      hideable: true,
+      text: "Your\nfavorite\nstyle",
+      color: "#1d1b19",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 500,
+      align: "left",
+      suggestions: [
+        "Your\nfavorite\nstyle",
+        "Find your\nfit",
+        "Signature\npieces",
+        "The\nfeature",
+      ],
+    },
+    {
+      id: "image",
+      kind: "image",
+      label: "Photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/frankof-collection/slide-08.png",
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Caption",
+      visible: true,
+      hideable: true,
+      text: "A closer look at the pieces our community keeps coming back to.",
+      color: "#6f6c66",
+      fontId: "poppins",
+      uppercase: false,
+      weight: 400,
+      align: "left",
+      suggestions: [
+        "A closer look at the pieces our community keeps coming back to.",
+        "The details that make the difference.",
+        "Styled for real, everyday rooms.",
+      ],
+    },
+  ],
+};
+
+// FRANKOF "Reviews" — slide 3 (id ...0103). Paper background, a headline beside a
+// small thumbnail, then a wide photo over a two-photo pair. Mirrors `.s3`.
+const FRANKOF_REVIEWS: RemixEditorTemplate = {
+  id: "13000000-0000-0000-0000-000000000103",
+  title: "Reviews Grid",
+  layout: "collage",
+  aspectRatio: "4 / 5",
+  background: "#f5f2ec",
+  palette: FRANKOF_PAPER_PALETTE,
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "header",
+      kind: "header",
+      label: "Headline",
+      visible: true,
+      hideable: true,
+      text: "What people\nare saying",
+      color: "#1d1b19",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 500,
+      align: "left",
+      suggestions: [
+        "What people\nare saying",
+        "Loved by\nour community",
+        "Real homes,\nreal reviews",
+        "In your\nwords",
+      ],
+    },
+    { id: "photo-1", kind: "image", label: "Thumbnail", visible: true, hideable: false, src: "/templates/frankof-collection/slide-03.png" },
+    { id: "photo-2", kind: "image", label: "Wide photo", visible: true, hideable: false, src: "/templates/frankof-collection/slide-06.png" },
+    { id: "photo-3", kind: "image", label: "Photo 3", visible: true, hideable: false, src: "/templates/frankof-collection/slide-02.png" },
+    { id: "photo-4", kind: "image", label: "Photo 4", visible: true, hideable: false, src: "/templates/frankof-collection/slide-04.png" },
+  ],
+};
+
+// FRANKOF "Design for life" — slide 5 (id ...0105). Headline + brand wordmark, a
+// body paragraph beside a product card, then a two-photo pair. Mirrors `.s5`.
+const FRANKOF_DESIGN: RemixEditorTemplate = {
+  id: "13000000-0000-0000-0000-000000000105",
+  title: "Design Story",
+  layout: "collage",
+  aspectRatio: "4 / 5",
+  background: "#f5f2ec",
+  palette: FRANKOF_PAPER_PALETTE,
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "header",
+      kind: "header",
+      label: "Headline",
+      visible: true,
+      hideable: true,
+      text: "Designed\nfor life",
+      color: "#1d1b19",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 500,
+      align: "left",
+      suggestions: ["Designed\nfor life", "Built to\nlast", "Made with\ncare", "Our\nphilosophy"],
+    },
+    {
+      id: "eyebrow",
+      kind: "eyebrow",
+      label: "Brand",
+      visible: true,
+      hideable: true,
+      text: "FRANKOF",
+      color: "#1d1b19",
+      fontId: "poppins",
+      uppercase: true,
+      weight: 500,
+      letterSpacing: 0.06,
+      align: "right",
+      suggestions: ["FRANKOF", "STUDIO", "MAISON"],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Body",
+      visible: true,
+      hideable: true,
+      text: "We design furniture to be lived with — honest materials, quiet forms, and details that last for years.",
+      color: "#5e5b56",
+      fontId: "poppins",
+      uppercase: false,
+      weight: 300,
+      align: "left",
+      suggestions: [
+        "We design furniture to be lived with — honest materials, quiet forms, and details that last for years.",
+        "Every piece starts with how you actually live, then works back to form.",
+        "Considered, comfortable, and made to age well.",
+      ],
+    },
+    { id: "photo-1", kind: "image", label: "Card photo", visible: true, hideable: false, src: "/templates/frankof-collection/slide-05.png" },
+    { id: "photo-2", kind: "image", label: "Photo 2", visible: true, hideable: false, src: "/templates/frankof-collection/slide-01.png" },
+    { id: "photo-3", kind: "image", label: "Photo 3", visible: true, hideable: false, src: "/templates/frankof-collection/slide-08.png" },
+  ],
+};
+
+// FRANKOF "Trends" — slide 7 (id ...0107). Headline + brand wordmark, a subtitle,
+// then an asymmetric two-photo pair (a tall photo and a shorter one). Mirrors `.s7`.
+const FRANKOF_TRENDS: RemixEditorTemplate = {
+  id: "13000000-0000-0000-0000-000000000107",
+  title: "Trends Feature",
+  layout: "collage",
+  aspectRatio: "4 / 5",
+  background: "#f5f2ec",
+  palette: FRANKOF_PAPER_PALETTE,
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "header",
+      kind: "header",
+      label: "Headline",
+      visible: true,
+      hideable: true,
+      text: "This season's\ntrends",
+      color: "#1d1b19",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 500,
+      align: "left",
+      suggestions: [
+        "This season's\ntrends",
+        "What's\nnext",
+        "The new\nneutrals",
+        "Trending\nnow",
+      ],
+    },
+    {
+      id: "eyebrow",
+      kind: "eyebrow",
+      label: "Brand",
+      visible: true,
+      hideable: true,
+      text: "FRANKOF",
+      color: "#1d1b19",
+      fontId: "poppins",
+      uppercase: true,
+      weight: 500,
+      letterSpacing: 0.06,
+      align: "right",
+      suggestions: ["FRANKOF", "STUDIO", "MAISON"],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Subtitle",
+      visible: true,
+      hideable: true,
+      text: "The shapes, tones and textures shaping interiors this year.",
+      color: "#5e5b56",
+      fontId: "poppins",
+      uppercase: false,
+      weight: 400,
+      align: "left",
+      suggestions: [
+        "The shapes, tones and textures shaping interiors this year.",
+        "Soft curves, warm neutrals, and natural materials.",
+        "What our design team is watching right now.",
+      ],
+    },
+    { id: "photo-1", kind: "image", label: "Tall photo", visible: true, hideable: false, src: "/templates/frankof-collection/slide-07.png" },
+    { id: "photo-2", kind: "image", label: "Photo 2", visible: true, hideable: false, src: "/templates/frankof-collection/slide-02.png" },
+  ],
+};
+
 // Travel Inspiration Pin — 2–7 full-height vertical photo strips side by side,
 // with an optional title whose letters spread evenly across the poster width
 // (one letter landing roughly per strip, as in the reference pin). The title can
@@ -925,6 +1378,14 @@ const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [PORTO_POSTER.id]: PORTO_POSTER,
   [RELAX_TRIO.id]: RELAX_TRIO,
   [FRANKOF_TIMELESS.id]: FRANKOF_TIMELESS,
+  [FRANKOF_INTERIOR.id]: FRANKOF_INTERIOR,
+  [FRANKOF_STATEMENT.id]: FRANKOF_STATEMENT,
+  [FRANKOF_CONCEPT.id]: FRANKOF_CONCEPT,
+  [FRANKOF_SHOWCASE.id]: FRANKOF_SHOWCASE,
+  [FRANKOF_FEATURE.id]: FRANKOF_FEATURE,
+  [FRANKOF_REVIEWS.id]: FRANKOF_REVIEWS,
+  [FRANKOF_DESIGN.id]: FRANKOF_DESIGN,
+  [FRANKOF_TRENDS.id]: FRANKOF_TRENDS,
   [TRAVEL_PIN.id]: TRAVEL_PIN,
   [SOULKIN_SPLIT.id]: SOULKIN_SPLIT,
 };
@@ -1166,19 +1627,189 @@ export const RELAX_LAYOUT = {
 } as const;
 
 // ── FRANKOF cover geometry ───────────────────────────────────────────────────
-// Full-bleed photo with a large uppercase headline bottom-left, over a bottom
-// scrim. Fractions of the canvas *width* (padX/right/size) match the render
-// engine's CSS pixels at the 1080px reference (template_frankof.v2.html slide 9:
-// left 88px, right 110px, font-size 80px); `bottom` is a fraction of height
-// (104/1350). The preview and export share these so both position identically.
-export const COVER_LAYOUT = {
+// Full-bleed photo with a large uppercase headline (and optional subtitle) over a
+// scrim, mirroring template_frankof.v2.html's full-bleed slides (2, 4, 9). The
+// text block is anchored to one edge (`edge`, fraction of height) — bottom for
+// slides 2/9, top for slide 4 — so it grows away from that edge. `padX`/`padRight`
+// and font sizes are fractions of the canvas *width* to match the CSS pixels at
+// the 1080px reference. The preview and export share this so both position
+// identically. Geometry differs per slide, so templates resolve theirs via
+// `coverGeometry(template.id)`, falling back to the slide-9 default below.
+export interface CoverGeometry {
+  padX: number;
+  padRight: number;
+  // Which edge the text block hugs; it expands toward the opposite edge.
+  anchor: "top" | "bottom";
+  // Distance of the block from the anchored edge, as a fraction of height.
+  edge: number;
+  headline: { size: number; lineHeight: number };
+  // Optional subtitle rendered below the headline (slide 4).
+  subtitle?: { size: number; lineHeight: number; gap: number; maxWidth: number };
+  // Vertical (180deg) scrim so the text stays legible over any photo. `from`/`to`
+  // are gradient positions (fraction of height, ascending) and the opacities are
+  // that gradient's endpoints. A bottom scrim darkens downward
+  // (fromOpacity 0 → toOpacity); a top scrim darkens upward (fromOpacity → 0).
+  scrim: { color: string; from: number; to: number; fromOpacity: number; toOpacity: number };
+}
+
+// Slide 9 — the default cover geometry (full-bleed photo, headline bottom-left).
+export const COVER_LAYOUT: CoverGeometry = {
   padX: 88 / 1080,
   padRight: 110 / 1080,
-  headline: { size: 80 / 1080, lineHeight: 0.96, bottom: 104 / 1350 },
-  // Bottom scrim: a transparent-to-dark gradient so the headline stays legible on
-  // any photo. `start` is where the darkening begins (fraction of height).
-  scrim: { start: 0.4, color: "15, 14, 12", opacity: 0.7 },
+  anchor: "bottom",
+  edge: 104 / 1350,
+  headline: { size: 80 / 1080, lineHeight: 0.96 },
+  scrim: { color: "15, 14, 12", from: 0.4, to: 1, fromOpacity: 0, toOpacity: 0.7 },
+};
+
+// Per-slide overrides. Slides 2 and 4 reuse the cover renderer with their own
+// geometry from template_frankof.v2.html's `.s2` / `.s4`.
+export const COVER_VARIANTS: Record<string, CoverGeometry> = {
+  // Slide 2 — full-bleed interior, white headline bottom-left (font 70px, a
+  // lighter, higher-starting scrim than slide 9).
+  "13000000-0000-0000-0000-000000000102": {
+    padX: 88 / 1080,
+    padRight: 120 / 1080,
+    anchor: "bottom",
+    edge: 110 / 1350,
+    headline: { size: 70 / 1080, lineHeight: 1.04 },
+    scrim: { color: "15, 14, 12", from: 0.45, to: 1, fromOpacity: 0, toOpacity: 0.62 },
+  },
+  // Slide 4 — full-bleed photo, white headline + subtitle top-left over a top
+  // scrim that fades out by ~46% height.
+  "13000000-0000-0000-0000-000000000104": {
+    padX: 88 / 1080,
+    padRight: 140 / 1080,
+    anchor: "top",
+    edge: 96 / 1350,
+    headline: { size: 66 / 1080, lineHeight: 1.04 },
+    subtitle: { size: 30 / 1080, lineHeight: 1.5, gap: 28 / 1080, maxWidth: 560 / 1080 },
+    scrim: { color: "15, 14, 12", from: 0, to: 0.46, fromOpacity: 0.5, toOpacity: 0 },
+  },
+};
+
+export function coverGeometry(templateId: string): CoverGeometry {
+  return COVER_VARIANTS[templateId] ?? COVER_LAYOUT;
+}
+
+// ── FRANKOF editorial paper geometry ─────────────────────────────────────────
+// The paper-background slides that stack, top to bottom: an uppercase headline,
+// a flexible photo (fills the remaining space, `contain` for the product shot or
+// `cover` for a full frame), and an optional footer (a caption + a decorative
+// arrow disc). Mirrors `template_frankof.v2.html`'s `.s1` (concept), `.s6`
+// (showcase) and `.s8` (feature). Horizontal measures and font sizes are
+// fractions of the canvas *width*; vertical paddings/gaps are fractions of
+// *height* (the 1080×1350 reference). The preview lays this out with flexbox and
+// the export computes the same boxes so the download matches. Templates resolve
+// their geometry via `editorialGeometry(template.id)`.
+export interface EditorialGeometry {
+  padX: number;
+  padTop: number;
+  padBottom: number;
+  headline: { size: number; lineHeight: number; gap: number };
+  // `bleed` extends the photo to the canvas' left/right/bottom edges (only the
+  // headline keeps the side padding), as in slide 6's full-frame `.big`.
+  media: { fit: "cover" | "contain"; gapBottom: number; bleed?: boolean };
+  // Optional bottom row: a caption (the `description` layer) on the left and a
+  // decorative arrow disc on the right. `maxWidth` bounds the caption (width
+  // fraction); `arrow` toggles the disc.
+  footer?: { size: number; lineHeight: number; maxWidth: number; arrow: boolean };
+}
+
+// The decorative arrow disc's diameter as a fraction of the canvas width (96px at
+// the 1080 reference) — shared by the preview and export.
+export const EDITORIAL_ARROW = 96 / 1080;
+
+export const EDITORIAL_VARIANTS: Record<string, EditorialGeometry> = {
+  // Slide 1 — concept: headline top, product centred on paper (contain), footer
+  // caption + arrow.
+  "13000000-0000-0000-0000-000000000101": {
+    padX: 88 / 1080,
+    padTop: 100 / 1350,
+    padBottom: 92 / 1350,
+    headline: { size: 70 / 1080, lineHeight: 1.04, gap: 30 / 1350 },
+    media: { fit: "contain", gapBottom: 36 / 1350 },
+    footer: { size: 27 / 1080, lineHeight: 1.3, maxWidth: 640 / 1080, arrow: true },
+  },
+  // Slide 6 — showcase: headline top, large photo fills to the bottom edge (cover,
+  // no footer).
+  "13000000-0000-0000-0000-000000000106": {
+    padX: 88 / 1080,
+    padTop: 104 / 1350,
+    padBottom: 0,
+    headline: { size: 70 / 1080, lineHeight: 1.04, gap: 56 / 1350 },
+    media: { fit: "cover", gapBottom: 0, bleed: true },
+  },
+  // Slide 8 — feature: headline top, framed photo (cover), footer caption + arrow.
+  "13000000-0000-0000-0000-000000000108": {
+    padX: 88 / 1080,
+    padTop: 100 / 1350,
+    padBottom: 92 / 1350,
+    headline: { size: 70 / 1080, lineHeight: 1.04, gap: 40 / 1350 },
+    media: { fit: "cover", gapBottom: 40 / 1350 },
+    footer: { size: 27 / 1080, lineHeight: 1.6, maxWidth: 640 / 1080, arrow: true },
+  },
+};
+
+export function editorialGeometry(templateId: string): EditorialGeometry {
+  return EDITORIAL_VARIANTS[templateId] ?? EDITORIAL_VARIANTS["13000000-0000-0000-0000-000000000101"];
+}
+
+// ── FRANKOF collage geometry ─────────────────────────────────────────────────
+// The paper multi-photo slides: slide 3 (reviews — headline + thumb, then a wide
+// photo over a two-photo pair), slide 5 (design-for-life — headline + wordmark,
+// body + product card, then a two-photo pair) and slide 7 (trends — headline +
+// wordmark, subtitle, then an asymmetric two-photo pair). Mirrors
+// `template_frankof.v2.html`'s `.s3`/`.s5`/`.s7`. Every measure is a fraction of
+// the canvas *width* (each CSS pixel is absolute at the 1080 reference, so
+// px/1080 works for both the width-based `cqi` preview units and the export's
+// pixel width). `fr` values are unitless grid ratios. The preview lays these out
+// with fl/grid boxes and the export computes the same boxes.
+export const COLLAGE_LAYOUT = {
+  padX: 88 / 1080,
+  gap: 24 / 1080,
+  // The brand wordmark (an editable `eyebrow` layer) sits top-right on slides 5/7.
+  wordmark: { size: 32 / 1080, tracking: 0.06, lineHeight: 1 },
+  s3: {
+    padTop: 96 / 1080,
+    padBottom: 88 / 1080,
+    headline: 62 / 1080,
+    headGap: 40 / 1080,
+    thumbW: 300 / 1080,
+    thumbH: 214 / 1080,
+    gridTop: 42 / 1080,
+    rows: [1.18, 1] as const, // top (wide) : bottom (pair)
+    pairCols: [1, 1.25] as const,
+  },
+  s5: {
+    padTop: 96 / 1080,
+    padBottom: 88 / 1080,
+    headline: 60 / 1080,
+    headGap: 30 / 1080,
+    midTop: 40 / 1080,
+    midGap: 44 / 1080,
+    body: { size: 28 / 1080, maxWidth: 540 / 1080, lineHeight: 1.6 },
+    card: { w: 250 / 1080, h: 320 / 1080 },
+    pairTop: 44 / 1080,
+  },
+  s7: {
+    padTop: 100 / 1080,
+    padBottom: 88 / 1080,
+    headline: 64 / 1080,
+    headGap: 30 / 1080,
+    sub: { size: 30 / 1080, lineHeight: 1.5, top: 30 / 1080 },
+    pairTop: 46 / 1080,
+    cols: [1.62, 1] as const,
+    secondHeight: 0.58, // right photo is 58% height, top-aligned
+  },
 } as const;
+
+// Which collage slide a template renders (3, 5 or 7), from its id suffix.
+export function collageSlide(templateId: string): 3 | 5 | 7 {
+  if (templateId.endsWith("0105")) return 5;
+  if (templateId.endsWith("0107")) return 7;
+  return 3;
+}
 
 // ── Verticals geometry ───────────────────────────────────────────────────────
 // Full-height photo strips of equal width; the title's letters are placed one

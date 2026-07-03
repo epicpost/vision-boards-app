@@ -42,7 +42,7 @@ const TRAVEL_INSPIRATION_PIN: PostTemplate = {
   updated_at: "2026-07-03T00:00:00.000Z",
   template_type: "image",
   aspect_ratio: "3 / 4",
-  input_image_count: 5,
+  input_image_count: 2,
   capabilities: {
     supports_ai_generation: false,
     supports_remix: true,
@@ -59,7 +59,27 @@ const TRAVEL_INSPIRATION_PIN: PostTemplate = {
   // title-colour palette mirrors TRAVEL_PIN's palette in remix-editor.ts so a
   // picked swatch matches what the editor itself offers.
   input_requirements: {
-    assets: [],
+    // Mirrors VERTICALS_LAYOUT.min/maxStrips in remix-editor.ts — the editor
+    // supports 2-7 photo strips, so the composer's upload requirement should
+    // match instead of falling back to the fixed `input_image_count`.
+    assets: [
+      {
+        key: "photos",
+        type: "image",
+        required: true,
+        min_count: 2,
+        max_count: 7,
+        accepted_mime_types: ["image/png", "image/jpeg", "image/webp"],
+        preferred_aspect_ratios: [],
+        min_width: null,
+        min_height: null,
+        allow_crop: true,
+        allow_background_extend: false,
+        allow_background_removal: false,
+        transparent_preferred: false,
+        description: "2-7 full-height vertical photo strips.",
+      },
+    ],
     text_requirements: [
       {
         key: "title",

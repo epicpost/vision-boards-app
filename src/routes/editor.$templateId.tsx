@@ -71,7 +71,11 @@ import {
   imageTransform,
   layersFromRemix,
   isLightColor,
-  COVER_LAYOUT,
+  coverGeometry,
+  editorialGeometry,
+  EDITORIAL_ARROW,
+  COLLAGE_LAYOUT,
+  collageSlide,
   LAYOUT,
   MOODBOARD_LAYOUT,
   RELAX_LAYOUT,
@@ -1418,9 +1422,10 @@ function RelaxPreview({
   );
 }
 
-// FRANKOF cover (slide 9): one full-bleed photo, a bottom scrim, and a large
-// uppercase headline anchored bottom-left. Mirrors `template_frankof.v2.html`'s
-// `.s9` layout and `exportCover`.
+// FRANKOF cover (full-bleed slides 2, 4, 9): one full-bleed photo, a scrim, and a
+// large uppercase headline (plus an optional subtitle) anchored to the top or
+// bottom. Geometry is resolved per template via `coverGeometry`. Mirrors
+// `template_frankof.v2.html`'s `.s2`/`.s4`/`.s9` and `exportCover`.
 function CoverPreview({
   template,
   layers,
@@ -1434,11 +1439,14 @@ function CoverPreview({
   onSelect: (id: string) => void;
   updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
 }) {
+  const geom = coverGeometry(template.id);
   const image = layers.find(
     (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image",
   );
   const header = layers.find((layer): layer is TextLayer => layer.kind === "header");
+  const description = layers.find((layer): layer is TextLayer => layer.kind === "description");
   const headerStyle = header ? resolveTextStyle(header) : null;
+  const descStyle = description ? resolveTextStyle(description) : null;
   const cqi = (value: number) => `${value * 100}cqi`;
 
   return (
@@ -1467,36 +1475,65 @@ function CoverPreview({
         />
       )}
 
-      {/* Bottom scrim so the headline stays legible over any photo. */}
+      {/* Scrim so the text stays legible over any photo. */}
       <div
         className="pointer-events-none absolute inset-0"
         style={{
-          background: `linear-gradient(180deg, rgba(${COVER_LAYOUT.scrim.color},0) ${
-            COVER_LAYOUT.scrim.start * 100
-          }%, rgba(${COVER_LAYOUT.scrim.color},${COVER_LAYOUT.scrim.opacity}) 100%)`,
+          background: `linear-gradient(180deg, rgba(${geom.scrim.color},${
+            geom.scrim.fromOpacity
+          }) ${geom.scrim.from * 100}%, rgba(${geom.scrim.color},${geom.scrim.toOpacity}) ${
+            geom.scrim.to * 100
+          }%)`,
         }}
       />
 
-      {header?.visible && headerStyle && header.text.trim() && (
+      {(header?.visible || description?.visible) && (
         <div
           className="pointer-events-none absolute"
           style={{
-            left: cqi(COVER_LAYOUT.padX),
-            right: cqi(COVER_LAYOUT.padRight),
-            bottom: `${COVER_LAYOUT.headline.bottom * 100}%`,
-            fontFamily: fontById(header.fontId).family,
-            fontWeight: headerStyle.weight,
-            fontSize: cqi(COVER_LAYOUT.headline.size * headerStyle.sizeScale),
-            lineHeight: COVER_LAYOUT.headline.lineHeight,
-            letterSpacing: `${headerStyle.letterSpacing}em`,
-            textAlign: headerStyle.align,
-            color: header.color,
-            textTransform: header.uppercase ? "uppercase" : "none",
-            whiteSpace: "pre-line",
-            textShadow: headerStyle.shadow ? TEXT_SHADOW_CSS : "none",
+            left: cqi(geom.padX),
+            right: cqi(geom.padRight),
+            [geom.anchor]: `${geom.edge * 100}%`,
           }}
         >
-          {header.text}
+          {header?.visible && headerStyle && header.text.trim() && (
+            <div
+              style={{
+                fontFamily: fontById(header.fontId).family,
+                fontWeight: headerStyle.weight,
+                fontSize: cqi(geom.headline.size * headerStyle.sizeScale),
+                lineHeight: geom.headline.lineHeight,
+                letterSpacing: `${headerStyle.letterSpacing}em`,
+                textAlign: headerStyle.align,
+                color: header.color,
+                textTransform: header.uppercase ? "uppercase" : "none",
+                whiteSpace: "pre-line",
+                textShadow: headerStyle.shadow ? TEXT_SHADOW_CSS : "none",
+              }}
+            >
+              {header.text}
+            </div>
+          )}
+          {geom.subtitle && description?.visible && descStyle && description.text.trim() && (
+            <div
+              style={{
+                marginTop: cqi(geom.subtitle.gap),
+                maxWidth: cqi(geom.subtitle.maxWidth),
+                fontFamily: fontById(description.fontId).family,
+                fontWeight: descStyle.weight,
+                fontSize: cqi(geom.subtitle.size * descStyle.sizeScale),
+                lineHeight: geom.subtitle.lineHeight,
+                letterSpacing: `${descStyle.letterSpacing}em`,
+                textAlign: descStyle.align,
+                color: description.color,
+                textTransform: description.uppercase ? "uppercase" : "none",
+                whiteSpace: "pre-line",
+                textShadow: descStyle.shadow ? TEXT_SHADOW_CSS : "none",
+              }}
+            >
+              {description.text}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1625,6 +1662,379 @@ function SplitPreview({
         </div>
       )}
     </div>
+  );
+}
+
+// The decorative arrow disc used on the editorial footer slides (1, 8). A ringed
+// circle with a right-arrow, stroked in `color`. Mirrors `.arrow` in
+// `template_frankof.v2.html` and `drawEditorialArrow` in the export.
+function ArrowDisc({ color, sizeCqi }: { color: string; sizeCqi: string }) {
+  return (
+    <div
+      className="pointer-events-none flex shrink-0 items-center justify-center rounded-full"
+      style={{
+        width: sizeCqi,
+        height: sizeCqi,
+        border: `${1.5 / 1080 * 100}cqi solid ${color}`,
+      }}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        style={{ width: "40%", height: "40%" }}
+        fill="none"
+        stroke={color}
+        strokeWidth={1.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <line x1="4" y1="12" x2="20" y2="12" />
+        <polyline points="13.5 5.5 20 12 13.5 18.5" />
+      </svg>
+    </div>
+  );
+}
+
+// FRANKOF editorial paper slides (1, 6, 8): an uppercase headline on top, a
+// flexible photo (contain or cover), and an optional footer caption + arrow disc.
+// Geometry resolved per template via `editorialGeometry`. Mirrors
+// `template_frankof.v2.html`'s `.s1`/`.s6`/`.s8` and `exportEditorial`.
+function EditorialPreview({
+  template,
+  layers,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const geom = editorialGeometry(template.id);
+  const image = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image",
+  );
+  const header = layers.find((layer): layer is TextLayer => layer.kind === "header");
+  const description = layers.find((layer): layer is TextLayer => layer.kind === "description");
+  const headerStyle = header ? resolveTextStyle(header) : null;
+  const descStyle = description ? resolveTextStyle(description) : null;
+
+  // Vertical measures are fractions of *height*; convert to width-based `cqi`
+  // (container-query units are % of width) using the poster's aspect ratio.
+  const [rw, rh] = template.aspectRatio.split("/").map((v) => parseFloat(v.trim()));
+  const hOverW = rw && rh ? rh / rw : 1.25;
+  const cqi = (value: number) => `${value * 100}cqi`;
+  const vcqi = (value: number) => `${value * hOverW * 100}cqi`;
+  const arrowInk = header?.color ?? "#1d1b19";
+  const showFooter = geom.footer && (description?.visible || geom.footer.arrow);
+  const bleed = geom.media.bleed ?? false;
+
+  return (
+    <div
+      className="relative flex w-full flex-col overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+      }}
+    >
+      {header?.visible && headerStyle && header.text.trim() && (
+        <div
+          className="pointer-events-none shrink-0"
+          style={{
+            padding: `${vcqi(geom.padTop)} ${cqi(geom.padX)} 0`,
+            marginBottom: vcqi(geom.headline.gap),
+            fontFamily: fontById(header.fontId).family,
+            fontWeight: headerStyle.weight,
+            fontSize: cqi(geom.headline.size * headerStyle.sizeScale),
+            lineHeight: geom.headline.lineHeight,
+            letterSpacing: `${headerStyle.letterSpacing}em`,
+            textAlign: headerStyle.align,
+            color: header.color,
+            textTransform: header.uppercase ? "uppercase" : "none",
+            whiteSpace: "pre-line",
+          }}
+        >
+          {header.text}
+        </div>
+      )}
+
+      {image?.visible && (
+        <div
+          className="relative min-h-0 flex-1 overflow-hidden"
+          style={{
+            marginLeft: bleed ? 0 : cqi(geom.padX),
+            marginRight: bleed ? 0 : cqi(geom.padX),
+            marginBottom: showFooter
+              ? vcqi(geom.media.gapBottom)
+              : bleed
+                ? 0
+                : vcqi(geom.padBottom),
+          }}
+        >
+          <DraggableImage
+            layer={image}
+            fit={geom.media.fit}
+            selected={selectedId === image.id}
+            onSelect={() => onSelect(image.id)}
+            onPan={(offsetX, offsetY) =>
+              updateLayer(
+                image.id,
+                { transform: { ...imageTransform(image), offsetX, offsetY } },
+                `pan-${image.id}`,
+              )
+            }
+            className="inset-0 h-full w-full"
+          />
+        </div>
+      )}
+
+      {showFooter && geom.footer && (
+        <div
+          className="flex shrink-0 items-center justify-between gap-6"
+          style={{ padding: `0 ${cqi(geom.padX)} ${vcqi(geom.padBottom)}` }}
+        >
+          {description?.visible && descStyle && description.text.trim() ? (
+            <div
+              className="pointer-events-none"
+              style={{
+                maxWidth: cqi(geom.footer.maxWidth),
+                fontFamily: fontById(description.fontId).family,
+                fontWeight: descStyle.weight,
+                fontSize: cqi(geom.footer.size * descStyle.sizeScale),
+                lineHeight: geom.footer.lineHeight,
+                letterSpacing: `${descStyle.letterSpacing}em`,
+                textAlign: descStyle.align,
+                color: description.color,
+                textTransform: description.uppercase ? "uppercase" : "none",
+                whiteSpace: "pre-line",
+              }}
+            >
+              {description.text}
+            </div>
+          ) : (
+            <span />
+          )}
+          {geom.footer.arrow && <ArrowDisc color={arrowInk} sizeCqi={cqi(EDITORIAL_ARROW)} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// FRANKOF collage paper slides (3, 5, 7): a headline (with an optional brand
+// wordmark and body/subtitle) over a multi-photo grid. Geometry from
+// `COLLAGE_LAYOUT`; the arrangement branches on `collageSlide(template.id)`.
+// Mirrors `template_frankof.v2.html`'s `.s3`/`.s5`/`.s7` and `exportCollage`.
+function CollagePreview({
+  template,
+  layers,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const slide = collageSlide(template.id);
+  const L = COLLAGE_LAYOUT;
+  const cqi = (value: number) => `${value * 100}cqi`;
+  const photos = layers.filter(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image",
+  );
+  const header = layers.find((layer): layer is TextLayer => layer.kind === "header");
+  const brand = layers.find((layer): layer is TextLayer => layer.kind === "eyebrow");
+  const description = layers.find((layer): layer is TextLayer => layer.kind === "description");
+
+  const Photo = ({
+    layer,
+    className,
+    style,
+  }: {
+    layer?: Extract<EditorLayer, { kind: "image" }>;
+    className?: string;
+    style?: React.CSSProperties;
+  }) =>
+    layer?.visible ? (
+      <div className={cn("relative overflow-hidden", className)} style={style}>
+        <DraggableImage
+          layer={layer}
+          fit="cover"
+          selected={selectedId === layer.id}
+          onSelect={() => onSelect(layer.id)}
+          onPan={(offsetX, offsetY) =>
+            updateLayer(
+              layer.id,
+              { transform: { ...imageTransform(layer), offsetX, offsetY } },
+              `pan-${layer.id}`,
+            )
+          }
+          className="inset-0 h-full w-full"
+        />
+      </div>
+    ) : (
+      <div className={className} style={style} />
+    );
+
+  const Headline = ({ size }: { size: number }) => {
+    if (!header?.visible || !header.text.trim()) return <div className="min-w-0 flex-1" />;
+    const style = resolveTextStyle(header);
+    return (
+      <div
+        className="pointer-events-none min-w-0 flex-1"
+        style={{
+          fontFamily: fontById(header.fontId).family,
+          fontWeight: style.weight,
+          fontSize: cqi(size * style.sizeScale),
+          lineHeight: 1.04,
+          letterSpacing: `${style.letterSpacing}em`,
+          textAlign: style.align,
+          color: header.color,
+          textTransform: header.uppercase ? "uppercase" : "none",
+          whiteSpace: "pre-line",
+        }}
+      >
+        {header.text}
+      </div>
+    );
+  };
+
+  const Wordmark = () => {
+    if (!brand?.visible || !brand.text.trim()) return null;
+    const style = resolveTextStyle(brand);
+    return (
+      <div
+        className="pointer-events-none shrink-0 text-right"
+        style={{
+          fontFamily: fontById(brand.fontId).family,
+          fontWeight: style.weight,
+          fontSize: cqi(L.wordmark.size * style.sizeScale),
+          lineHeight: L.wordmark.lineHeight,
+          letterSpacing: `${style.letterSpacing || L.wordmark.tracking}em`,
+          color: brand.color,
+          textTransform: brand.uppercase ? "uppercase" : "none",
+          whiteSpace: "pre-line",
+        }}
+      >
+        {brand.text}
+      </div>
+    );
+  };
+
+  const bodyText = (size: number, lineHeight: number, maxWidth?: number) => {
+    if (!description?.visible || !description.text.trim()) return null;
+    const style = resolveTextStyle(description);
+    return (
+      <div
+        className="pointer-events-none"
+        style={{
+          maxWidth: maxWidth ? cqi(maxWidth) : undefined,
+          fontFamily: fontById(description.fontId).family,
+          fontWeight: style.weight,
+          fontSize: cqi(size * style.sizeScale),
+          lineHeight,
+          letterSpacing: `${style.letterSpacing}em`,
+          textAlign: style.align,
+          color: description.color,
+          textTransform: description.uppercase ? "uppercase" : "none",
+          whiteSpace: "pre-line",
+        }}
+      >
+        {description.text}
+      </div>
+    );
+  };
+
+  const container = (children: React.ReactNode, pad: { top: number; bottom: number }) => (
+    <div
+      className="relative flex w-full flex-col overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+        padding: `${cqi(pad.top)} ${cqi(L.padX)} ${cqi(pad.bottom)}`,
+      }}
+    >
+      {children}
+    </div>
+  );
+
+  if (slide === 5) {
+    const s = L.s5;
+    return container(
+      <>
+        <div className="flex shrink-0 items-start" style={{ gap: cqi(s.headGap) }}>
+          <Headline size={s.headline} />
+          <Wordmark />
+        </div>
+        <div className="flex shrink-0 items-start" style={{ marginTop: cqi(s.midTop), gap: cqi(s.midGap) }}>
+          {bodyText(s.body.size, s.body.lineHeight, s.body.maxWidth) ?? <div className="flex-1" />}
+          <Photo
+            layer={photos[0]}
+            className="shadow-[0_26px_54px_rgba(20,18,15,0.16)]"
+            style={{ width: cqi(s.card.w), height: cqi(s.card.h), flex: "none", marginLeft: "auto" }}
+          />
+        </div>
+        <div className="flex min-h-0 flex-1" style={{ marginTop: cqi(s.pairTop), gap: cqi(L.gap) }}>
+          <Photo layer={photos[1]} style={{ flexGrow: 1, flexBasis: 0 }} />
+          <Photo layer={photos[2]} style={{ flexGrow: 1, flexBasis: 0 }} />
+        </div>
+      </>,
+      { top: s.padTop, bottom: s.padBottom },
+    );
+  }
+
+  if (slide === 7) {
+    const s = L.s7;
+    return container(
+      <>
+        <div className="flex shrink-0 items-start" style={{ gap: cqi(s.headGap) }}>
+          <Headline size={s.headline} />
+          <Wordmark />
+        </div>
+        <div className="shrink-0" style={{ marginTop: cqi(s.sub.top) }}>
+          {bodyText(s.sub.size, s.sub.lineHeight)}
+        </div>
+        <div className="flex min-h-0 flex-1" style={{ marginTop: cqi(s.pairTop), gap: cqi(L.gap) }}>
+          <Photo layer={photos[0]} style={{ flexGrow: s.cols[0], flexBasis: 0 }} />
+          <Photo
+            layer={photos[1]}
+            style={{ flexGrow: s.cols[1], flexBasis: 0, alignSelf: "flex-start", height: `${s.secondHeight * 100}%` }}
+          />
+        </div>
+      </>,
+      { top: s.padTop, bottom: s.padBottom },
+    );
+  }
+
+  // slide 3 — reviews
+  const s = L.s3;
+  return container(
+    <>
+      <div className="flex shrink-0 items-start" style={{ gap: cqi(s.headGap) }}>
+        <Headline size={s.headline} />
+        <Photo layer={photos[0]} style={{ width: cqi(s.thumbW), height: cqi(s.thumbH), flex: "none" }} />
+      </div>
+      <div
+        className="grid min-h-0 flex-1"
+        style={{
+          marginTop: cqi(s.gridTop),
+          gap: cqi(L.gap),
+          gridTemplateRows: `${s.rows[0]}fr ${s.rows[1]}fr`,
+        }}
+      >
+        <Photo layer={photos[1]} />
+        <div className="grid" style={{ gap: cqi(L.gap), gridTemplateColumns: `${s.pairCols[0]}fr ${s.pairCols[1]}fr` }}>
+          <Photo layer={photos[2]} />
+          <Photo layer={photos[3]} />
+        </div>
+      </div>
+    </>,
+    { top: s.padTop, bottom: s.padBottom },
   );
 }
 
@@ -2431,6 +2841,22 @@ function EditorScreen({
                 onSelect={setSelectedImageId}
                 updateLayer={updateLayer}
               />
+            ) : template.layout === "editorial" ? (
+              <EditorialPreview
+                template={template}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
+            ) : template.layout === "collage" ? (
+              <CollagePreview
+                template={template}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
             ) : (
               <CreativePreview
                 template={template}
@@ -2500,6 +2926,7 @@ function EditorScreen({
             {(template.layout === "moodboard" ||
               template.layout === "relax" ||
               template.layout === "cover" ||
+              template.layout === "collage" ||
               template.layout === "verticals") && (
               <>
                 {photos.map((photo) => (
@@ -2622,6 +3049,7 @@ function EditorScreen({
               template.layout !== "relax" &&
               template.layout !== "cover" &&
               template.layout !== "verticals" &&
+              template.layout !== "collage" &&
               image && (
               <EditorSection
                 title="Image"
@@ -2654,10 +3082,10 @@ function EditorScreen({
               </EditorSection>
             )}
 
-            {/* Eyebrow (porto country label) */}
-            {template.layout === "porto" && eyebrow && (
+            {/* Eyebrow (porto country label / collage brand wordmark) */}
+            {(template.layout === "porto" || template.layout === "collage") && eyebrow && (
               <EditorSection
-                title="Country"
+                title={template.layout === "collage" ? "Brand" : "Country"}
                 open={openSections.eyebrow}
                 onToggleOpen={() => toggleOpen("eyebrow")}
                 hideable={eyebrow.hideable}
@@ -2665,7 +3093,7 @@ function EditorScreen({
                 onToggleVisible={() => toggleVisible("eyebrow")}
               >
                 <TextField
-                  label="Country text"
+                  label={template.layout === "collage" ? "Brand text" : "Country text"}
                   value={eyebrow.text}
                   onChange={(value) => updateLayer("eyebrow", { text: value }, "eyebrow-text")}
                   onSuggest={() => cycleSuggestion(eyebrow)}
@@ -2692,6 +3120,7 @@ function EditorScreen({
               template.layout !== "relax" &&
               template.layout !== "cover" &&
               template.layout !== "verticals" &&
+              template.layout !== "collage" &&
               header && (
               <EditorSection
                 title={template.layout === "porto" ? "Caption" : "Header"}

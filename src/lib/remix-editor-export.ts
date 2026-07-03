@@ -2,7 +2,11 @@
 // (`LAYOUT`) the live DOM preview uses, so the download matches what's on screen.
 
 import {
-  COVER_LAYOUT,
+  coverGeometry,
+  editorialGeometry,
+  EDITORIAL_ARROW,
+  COLLAGE_LAYOUT,
+  collageSlide,
   DEFAULT_IMAGE_TRANSFORM,
   EXPORT_FORMATS,
   LAYOUT,
@@ -859,15 +863,17 @@ async function exportPorto(
   return canvasToBlob(canvas, format);
 }
 
-// Rasterize a FRANKOF cover (slide 9): one full-bleed photo, a bottom scrim, and
-// a large uppercase headline anchored bottom-left — mirrors `CoverPreview` and
-// `template_frankof.v2.html`'s `.s9`.
+// Rasterize a FRANKOF cover (full-bleed slides 2, 4, 9): one full-bleed photo, a
+// scrim, and a large uppercase headline (plus an optional subtitle) anchored to
+// the top or bottom — mirrors `CoverPreview` and `template_frankof.v2.html`'s
+// `.s2`/`.s4`/`.s9`. Geometry is resolved per template via `coverGeometry`.
 async function exportCover(
   template: RemixEditorTemplate,
   layers: EditorLayer[],
   format: ExportFormat,
   width: number,
 ): Promise<Blob> {
+  const geom = coverGeometry(template.id);
   const ratio = parseRatio(template.aspectRatio);
   const height = Math.round(width / ratio);
 
@@ -892,51 +898,515 @@ async function exportCover(
     }
   }
 
-  // Bottom scrim — transparent to dark, so the headline stays legible.
+  // Scrim — a two-stop vertical gradient so the text stays legible.
   const scrim = ctx.createLinearGradient(0, 0, 0, height);
-  scrim.addColorStop(COVER_LAYOUT.scrim.start, `rgba(${COVER_LAYOUT.scrim.color},0)`);
-  scrim.addColorStop(1, `rgba(${COVER_LAYOUT.scrim.color},${COVER_LAYOUT.scrim.opacity})`);
+  scrim.addColorStop(geom.scrim.from, `rgba(${geom.scrim.color},${geom.scrim.fromOpacity})`);
+  scrim.addColorStop(geom.scrim.to, `rgba(${geom.scrim.color},${geom.scrim.toOpacity})`);
   ctx.fillStyle = scrim;
   ctx.fillRect(0, 0, width, height);
+
+  const leftX = geom.padX * width;
+  const maxW = (1 - geom.padX - geom.padRight) * width;
 
   const header = layers.find(
     (layer): layer is TextLayer => layer.kind === "header" && layer.visible,
   );
+  const description = layers.find(
+    (layer): layer is TextLayer => layer.kind === "description" && layer.visible,
+  );
+
+  // Lay the block out top-down, then anchor it to the requested edge. Each entry
+  // carries its own font/colour/size so the headline and subtitle draw alike.
+  type Line = { text: string; size: number; lineHeight: number; style: ResolvedTextStyle; layer: TextLayer };
+  const blocks: { layer: TextLayer; size: number; lineHeight: number; maxWidth: number; gap: number }[] = [];
   if (header && header.text.trim()) {
-    const font = fontById(header.fontId);
-    const style = resolveTextStyle(header);
-    const size = COVER_LAYOUT.headline.size * style.sizeScale * width;
-    if (typeof document !== "undefined" && document.fonts) {
-      await document.fonts
-        .load(`${style.weight} ${size}px ${primaryFamily(font.family)}`)
-        .catch(() => undefined);
-    }
-    const text = header.uppercase ? header.text.toUpperCase() : header.text;
-    const leftX = COVER_LAYOUT.padX * width;
-    const maxW = (1 - COVER_LAYOUT.padX - COVER_LAYOUT.padRight) * width;
+    blocks.push({
+      layer: header,
+      size: geom.headline.size * resolveTextStyle(header).sizeScale * width,
+      lineHeight: geom.headline.lineHeight,
+      maxWidth: maxW,
+      gap: 0,
+    });
+  }
+  if (geom.subtitle && description && description.text.trim()) {
+    blocks.push({
+      layer: description,
+      size: geom.subtitle.size * resolveTextStyle(description).sizeScale * width,
+      lineHeight: geom.subtitle.lineHeight,
+      maxWidth: geom.subtitle.maxWidth * width,
+      gap: geom.subtitle.gap * width,
+    });
+  }
+  if (blocks.length === 0) {
+    return canvasToBlob(canvas, format);
+  }
+
+  // Make sure each block's face is ready before we measure/wrap it.
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      blocks.map((block) =>
+        document.fonts
+          .load(`${resolveTextStyle(block.layer).weight} ${block.size}px ${primaryFamily(fontById(block.layer.fontId).family)}`)
+          .catch(() => undefined),
+      ),
+    );
+  }
+
+  const lines: (Line & { gap: number })[] = [];
+  for (const block of blocks) {
+    const style = resolveTextStyle(block.layer);
+    const text = block.layer.uppercase ? block.layer.text.toUpperCase() : block.layer.text;
     ctx.save();
-    ctx.font = `${style.weight} ${size}px ${font.family}`;
+    ctx.font = `${style.weight} ${block.size}px ${fontById(block.layer.fontId).family}`;
     ctx.letterSpacing = `${style.letterSpacing}em`;
-    // Honour explicit line breaks (the headline uses them), wrapping each line.
+    const wrapped = text
+      .split("\n")
+      .flatMap((para) => (para.trim() === "" ? [""] : wrapLines(ctx, para, block.maxWidth)));
+    ctx.restore();
+    wrapped.forEach((line, index) => {
+      lines.push({
+        text: line,
+        size: block.size,
+        lineHeight: block.lineHeight,
+        style,
+        layer: block.layer,
+        gap: index === 0 ? block.gap : 0,
+      });
+    });
+  }
+
+  const totalH = lines.reduce((sum, line) => sum + line.gap + line.size * line.lineHeight, 0);
+  const startY =
+    geom.anchor === "bottom" ? height - geom.edge * height - totalH : geom.edge * height;
+
+  let y = startY;
+  ctx.textBaseline = "top";
+  for (const line of lines) {
+    y += line.gap;
+    ctx.save();
+    ctx.font = `${line.style.weight} ${line.size}px ${fontById(line.layer.fontId).family}`;
+    ctx.letterSpacing = `${line.style.letterSpacing}em`;
+    applyTextShadow(ctx, line.style.shadow, line.size);
+    ctx.fillStyle = line.layer.color;
+    ctx.textAlign = line.style.align;
+    const x = alignX(line.style.align, leftX, leftX + maxW);
+    ctx.fillText(line.text, x, y);
+    ctx.restore();
+    y += line.size * line.lineHeight;
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
+// The decorative arrow disc (ringed circle + right-arrow) used on the editorial
+// footer slides. Mirrors `ArrowDisc` in the preview. `size` is the diameter.
+function drawEditorialArrow(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  size: number,
+  color: string,
+  canvasWidth: number,
+) {
+  const radius = size / 2;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = (1.5 / 1080) * canvasWidth;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius - ctx.lineWidth / 2, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Arrow glyph, mapped from the 24×24 viewBox to ~40% of the disc.
+  const glyph = size * 0.4;
+  const scale = glyph / 24;
+  const px = (x: number) => cx + (x - 12) * scale;
+  const py = (y: number) => cy + (y - 12) * scale;
+  ctx.lineWidth = 1.6 * scale;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(px(4), py(12));
+  ctx.lineTo(px(20), py(12));
+  ctx.moveTo(px(13.5), py(5.5));
+  ctx.lineTo(px(20), py(12));
+  ctx.lineTo(px(13.5), py(18.5));
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Rasterize a FRANKOF editorial paper slide (1, 6, 8): an uppercase headline on
+// top, a flexible photo (contain/cover), and an optional footer caption + arrow —
+// mirrors `EditorialPreview` and `template_frankof.v2.html`'s `.s1`/`.s6`/`.s8`.
+async function exportEditorial(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const geom = editorialGeometry(template.id);
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  const contentX = geom.padX * width;
+  const contentW = width - 2 * geom.padX * width;
+  const padTopPx = geom.padTop * height;
+  const padBottomPx = geom.padBottom * height;
+
+  const header = layers.find(
+    (layer): layer is TextLayer => layer.kind === "header" && layer.visible,
+  );
+  const description = layers.find(
+    (layer): layer is TextLayer => layer.kind === "description" && layer.visible,
+  );
+
+  // Make sure the faces are ready before we measure/wrap text.
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      [header, description].map((layer) => {
+        if (!layer || !layer.text.trim()) return undefined;
+        const style = resolveTextStyle(layer);
+        const size =
+          (layer.kind === "header" ? geom.headline.size : geom.footer?.size ?? geom.headline.size) *
+          style.sizeScale *
+          width;
+        return document.fonts
+          .load(`${style.weight} ${size}px ${primaryFamily(fontById(layer.fontId).family)}`)
+          .catch(() => undefined);
+      }),
+    );
+  }
+
+  // Wrap a text layer into drawable lines at a given size/max width.
+  const layoutText = (layer: TextLayer, size: number, maxWidth: number) => {
+    const style = resolveTextStyle(layer);
+    const text = layer.uppercase ? layer.text.toUpperCase() : layer.text;
+    ctx.save();
+    ctx.font = `${style.weight} ${size}px ${fontById(layer.fontId).family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
     const lines = text
       .split("\n")
-      .flatMap((para) => (para.trim() === "" ? [""] : wrapLines(ctx, para, maxW)));
-    const lineHeight = size * COVER_LAYOUT.headline.lineHeight;
-    const totalH = lines.length * lineHeight;
-    // The block's bottom edge sits `bottom` (fraction of height) above the base.
-    const bottomY = height - COVER_LAYOUT.headline.bottom * height;
-    const startY = bottomY - totalH;
-    applyTextShadow(ctx, style.shadow, size);
+      .flatMap((para) => (para.trim() === "" ? [""] : wrapLines(ctx, para, maxWidth)));
+    ctx.restore();
+    return { style, lines };
+  };
+
+  // Headline (top).
+  let mediaTop = padTopPx;
+  if (header && header.text.trim()) {
+    const style = resolveTextStyle(header);
+    const size = geom.headline.size * style.sizeScale * width;
+    const { lines } = layoutText(header, size, contentW);
+    const lineHeight = size * geom.headline.lineHeight;
+    ctx.save();
+    ctx.font = `${style.weight} ${size}px ${fontById(header.fontId).family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
     ctx.fillStyle = header.color;
     ctx.textAlign = style.align;
     ctx.textBaseline = "top";
-    const x = alignX(style.align, leftX, leftX + maxW);
-    lines.forEach((line, index) => {
-      ctx.fillText(line, x, startY + index * lineHeight);
-    });
+    const x = alignX(style.align, contentX, contentX + contentW);
+    lines.forEach((line, index) => ctx.fillText(line, x, padTopPx + index * lineHeight));
     ctx.restore();
+    mediaTop = padTopPx + lines.length * lineHeight + geom.headline.gap * height;
   }
 
+  // Footer band (caption + arrow), measured so the media can fill the gap above.
+  const arrowSize = EDITORIAL_ARROW * width;
+  const hasFooter = Boolean(
+    geom.footer && ((description && description.text.trim()) || geom.footer.arrow),
+  );
+  let footerTop = height - padBottomPx;
+  let footerHeight = 0;
+  let captionLines: string[] = [];
+  let captionSize = 0;
+  let captionLineHeight = 0;
+  let captionStyle: ResolvedTextStyle | null = null;
+  if (hasFooter && geom.footer) {
+    if (description && description.text.trim()) {
+      captionSize = geom.footer.size * resolveTextStyle(description).sizeScale * width;
+      const laid = layoutText(description, captionSize, geom.footer.maxWidth * width);
+      captionStyle = laid.style;
+      captionLines = laid.lines;
+      captionLineHeight = captionSize * geom.footer.lineHeight;
+    }
+    const captionH = captionLines.length * captionLineHeight;
+    footerHeight = Math.max(captionH, geom.footer.arrow ? arrowSize : 0);
+    footerTop = height - padBottomPx - footerHeight;
+  }
+
+  const bleed = geom.media.bleed ?? false;
+  const mediaBottom = hasFooter
+    ? footerTop - geom.media.gapBottom * height
+    : bleed
+      ? height
+      : height - padBottomPx;
+
+  // Photo (fills the space between the headline and the footer). A `bleed` photo
+  // ignores the side padding and runs to the canvas edges (slide 6).
+  const imageLayer = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image",
+  );
+  if (imageLayer?.visible && mediaBottom > mediaTop) {
+    const box = bleed
+      ? { x: 0, y: mediaTop, w: width, h: mediaBottom - mediaTop }
+      : { x: contentX, y: mediaTop, w: contentW, h: mediaBottom - mediaTop };
+    try {
+      const img = await loadImage(imageLayer.src);
+      if (geom.media.fit === "contain") {
+        drawImageContain(ctx, img, box, 0, "center", imageTransform(imageLayer));
+      } else {
+        drawImageCover(ctx, img, box, imageTransform(imageLayer));
+      }
+    } catch {
+      throw new ExportImageError(1);
+    }
+  }
+
+  // Footer caption + arrow, vertically centred in the footer band.
+  if (hasFooter && geom.footer) {
+    if (captionLines.length && captionStyle) {
+      const captionH = captionLines.length * captionLineHeight;
+      const captionTop = footerTop + (footerHeight - captionH) / 2;
+      ctx.save();
+      ctx.font = `${captionStyle.weight} ${captionSize}px ${fontById(description!.fontId).family}`;
+      ctx.letterSpacing = `${captionStyle.letterSpacing}em`;
+      ctx.fillStyle = description!.color;
+      ctx.textAlign = captionStyle.align;
+      ctx.textBaseline = "top";
+      const capMaxW = geom.footer.maxWidth * width;
+      const x = alignX(captionStyle.align, contentX, contentX + capMaxW);
+      captionLines.forEach((line, index) =>
+        ctx.fillText(line, x, captionTop + index * captionLineHeight),
+      );
+      ctx.restore();
+    }
+    if (geom.footer.arrow) {
+      const cx = contentX + contentW - arrowSize / 2;
+      const cy = footerTop + footerHeight / 2;
+      drawEditorialArrow(ctx, cx, cy, arrowSize, header?.color ?? "#1d1b19", width);
+    }
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
+// Rasterize a FRANKOF collage paper slide (3, 5, 7): a headline (with an optional
+// brand wordmark and body/subtitle) over a multi-photo grid — mirrors
+// `CollagePreview` and `template_frankof.v2.html`'s `.s3`/`.s5`/`.s7`.
+async function exportCollage(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const slide = collageSlide(template.id);
+  const L = COLLAGE_LAYOUT;
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  const f = (v: number) => v * width;
+  const contentX = f(L.padX);
+  const contentW = width - 2 * f(L.padX);
+  const gap = f(L.gap);
+
+  const photos = layers.filter(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image",
+  );
+  const header = layers.find(
+    (layer): layer is TextLayer => layer.kind === "header" && layer.visible && layer.text.trim() !== "",
+  );
+  const brand = layers.find(
+    (layer): layer is TextLayer => layer.kind === "eyebrow" && layer.visible && layer.text.trim() !== "",
+  );
+  const description = layers.find(
+    (layer): layer is TextLayer =>
+      layer.kind === "description" && layer.visible && layer.text.trim() !== "",
+  );
+
+  // Per-slide headline / body font sizes (px).
+  const headlineSize =
+    slide === 5 ? f(L.s5.headline) : slide === 7 ? f(L.s7.headline) : f(L.s3.headline);
+  const bodySize = slide === 5 ? f(L.s5.body.size) : slide === 7 ? f(L.s7.sub.size) : 0;
+  const wordmarkSize = f(L.wordmark.size);
+
+  // Preload the faces before measuring/wrapping text.
+  if (typeof document !== "undefined" && document.fonts) {
+    const faces: [TextLayer | undefined, number][] = [
+      [header, headlineSize],
+      [brand, wordmarkSize],
+      [description, bodySize],
+    ];
+    await Promise.all(
+      faces.map(([layer, size]) => {
+        if (!layer) return undefined;
+        const style = resolveTextStyle(layer);
+        return document.fonts
+          .load(`${style.weight} ${size}px ${primaryFamily(fontById(layer.fontId).family)}`)
+          .catch(() => undefined);
+      }),
+    );
+  }
+
+  const textLines = (layer: TextLayer, sizePx: number, maxW: number) => {
+    const style = resolveTextStyle(layer);
+    const text = layer.uppercase ? layer.text.toUpperCase() : layer.text;
+    ctx.save();
+    ctx.font = `${style.weight} ${sizePx}px ${fontById(layer.fontId).family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    const lines = text
+      .split("\n")
+      .flatMap((para) => (para.trim() === "" ? [""] : wrapLines(ctx, para, maxW)));
+    ctx.restore();
+    return { style, lines };
+  };
+  const drawText = (
+    layer: TextLayer,
+    sizePx: number,
+    lineHeightMul: number,
+    x: number,
+    y: number,
+    maxW: number,
+  ) => {
+    const { style, lines } = textLines(layer, sizePx, maxW);
+    ctx.save();
+    ctx.font = `${style.weight} ${sizePx}px ${fontById(layer.fontId).family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    ctx.fillStyle = layer.color;
+    ctx.textAlign = style.align;
+    ctx.textBaseline = "top";
+    const lineHeight = sizePx * lineHeightMul;
+    const ax = alignX(style.align, x, x + maxW);
+    lines.forEach((line, index) => ctx.fillText(line, ax, y + index * lineHeight));
+    ctx.restore();
+    return lines.length * lineHeight;
+  };
+  const measureH = (layer: TextLayer, sizePx: number, lineHeightMul: number, maxW: number) =>
+    textLines(layer, sizePx, maxW).lines.length * sizePx * lineHeightMul;
+  const measureW = (layer: TextLayer, sizePx: number, maxW: number) => {
+    const { style, lines } = textLines(layer, sizePx, maxW);
+    ctx.save();
+    ctx.font = `${style.weight} ${sizePx}px ${fontById(layer.fontId).family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    const w = lines.reduce((max, line) => Math.max(max, ctx.measureText(line).width), 0);
+    ctx.restore();
+    return w;
+  };
+  const drawPhoto = async (
+    layer: Extract<EditorLayer, { kind: "image" }> | undefined,
+    box: { x: number; y: number; w: number; h: number },
+  ) => {
+    if (!layer?.visible || box.h <= 0 || box.w <= 0) return;
+    try {
+      const img = await loadImage(layer.src);
+      drawImageCover(ctx, img, box, imageTransform(layer));
+    } catch {
+      throw new ExportImageError(1);
+    }
+  };
+
+  if (slide === 5) {
+    const s = L.s5;
+    const padTop = f(s.padTop);
+    const padBottom = f(s.padBottom);
+    const wmW = brand ? measureW(brand, wordmarkSize, contentW) : 0;
+    const headMaxW = contentW - (brand ? wmW + f(s.headGap) : 0);
+    const headlineH = header ? drawText(header, headlineSize, 1.04, contentX, padTop, headMaxW) : 0;
+    if (brand) drawText(brand, wordmarkSize, L.wordmark.lineHeight, contentX, padTop, contentW);
+    const wmH = brand ? measureH(brand, wordmarkSize, L.wordmark.lineHeight, contentW) : 0;
+    const headerH = Math.max(headlineH, wmH);
+
+    const midY = padTop + headerH + f(s.midTop);
+    const cardW = f(s.card.w);
+    const cardH = f(s.card.h);
+    await drawPhoto(photos[0], { x: contentX + contentW - cardW, y: midY, w: cardW, h: cardH });
+    const bodyMaxW = Math.min(f(s.body.maxWidth), contentW - cardW - f(s.midGap));
+    const bodyH = description
+      ? drawText(description, bodySize, s.body.lineHeight, contentX, midY, bodyMaxW)
+      : 0;
+    const midH = Math.max(bodyH, cardH);
+
+    const pairY = midY + midH + f(s.pairTop);
+    const pairH = height - padBottom - pairY;
+    const colW = (contentW - gap) / 2;
+    await drawPhoto(photos[1], { x: contentX, y: pairY, w: colW, h: pairH });
+    await drawPhoto(photos[2], { x: contentX + colW + gap, y: pairY, w: colW, h: pairH });
+    return canvasToBlob(canvas, format);
+  }
+
+  if (slide === 7) {
+    const s = L.s7;
+    const padTop = f(s.padTop);
+    const padBottom = f(s.padBottom);
+    const wmW = brand ? measureW(brand, wordmarkSize, contentW) : 0;
+    const headMaxW = contentW - (brand ? wmW + f(s.headGap) : 0);
+    const headlineH = header ? drawText(header, headlineSize, 1.04, contentX, padTop, headMaxW) : 0;
+    if (brand) drawText(brand, wordmarkSize, L.wordmark.lineHeight, contentX, padTop, contentW);
+    const wmH = brand ? measureH(brand, wordmarkSize, L.wordmark.lineHeight, contentW) : 0;
+    const headerH = Math.max(headlineH, wmH);
+
+    const subY = padTop + headerH + f(s.sub.top);
+    const subH = description
+      ? drawText(description, bodySize, s.sub.lineHeight, contentX, subY, contentW)
+      : 0;
+
+    const pairY = subY + subH + f(s.pairTop);
+    const pairH = height - padBottom - pairY;
+    const colSum = s.cols[0] + s.cols[1];
+    const colW = contentW - gap;
+    const colA = (colW * s.cols[0]) / colSum;
+    const colB = (colW * s.cols[1]) / colSum;
+    await drawPhoto(photos[0], { x: contentX, y: pairY, w: colA, h: pairH });
+    await drawPhoto(photos[1], {
+      x: contentX + colA + gap,
+      y: pairY,
+      w: colB,
+      h: pairH * s.secondHeight,
+    });
+    return canvasToBlob(canvas, format);
+  }
+
+  // slide 3 — reviews
+  const s = L.s3;
+  const padTop = f(s.padTop);
+  const padBottom = f(s.padBottom);
+  const thumbW = f(s.thumbW);
+  const thumbH = f(s.thumbH);
+  const headMaxW = contentW - thumbW - f(s.headGap);
+  const headlineH = header ? drawText(header, headlineSize, 1.04, contentX, padTop, headMaxW) : 0;
+  await drawPhoto(photos[0], { x: contentX + contentW - thumbW, y: padTop, w: thumbW, h: thumbH });
+  const headerH = Math.max(headlineH, thumbH);
+
+  const gridTop = padTop + headerH + f(s.gridTop);
+  const gridH = height - padBottom - gridTop;
+  const rowSum = s.rows[0] + s.rows[1];
+  const rowTopH = ((gridH - gap) * s.rows[0]) / rowSum;
+  const rowBotH = ((gridH - gap) * s.rows[1]) / rowSum;
+  await drawPhoto(photos[1], { x: contentX, y: gridTop, w: contentW, h: rowTopH });
+
+  const pairY = gridTop + rowTopH + gap;
+  const colSum = s.pairCols[0] + s.pairCols[1];
+  const colW = contentW - gap;
+  const colA = (colW * s.pairCols[0]) / colSum;
+  const colB = (colW * s.pairCols[1]) / colSum;
+  await drawPhoto(photos[2], { x: contentX, y: pairY, w: colA, h: rowBotH });
+  await drawPhoto(photos[3], { x: contentX + colA + gap, y: pairY, w: colB, h: rowBotH });
   return canvasToBlob(canvas, format);
 }
 
@@ -963,6 +1433,12 @@ export async function exportCreative(
   }
   if (template.layout === "split") {
     return exportSplit(template, layers, format, width);
+  }
+  if (template.layout === "editorial") {
+    return exportEditorial(template, layers, format, width);
+  }
+  if (template.layout === "collage") {
+    return exportCollage(template, layers, format, width);
   }
 
   const ratio = parseRatio(template.aspectRatio);
