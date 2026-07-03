@@ -1906,6 +1906,7 @@ type LayerPatch = Partial<{
   shadow: boolean;
   posY: number;
   assetId: string;
+  assetUrl: string;
 }>;
 
 type ChatMessage = {
@@ -2186,7 +2187,12 @@ function EditorScreen({
     if (remixId) {
       try {
         const [asset] = await uploadAssetFiles([file]);
-        if (asset?.asset_id) updateLayer(id, { assetId: asset.asset_id }, `replace-${id}`);
+        if (asset?.asset_id) {
+          // `assetUrl` rides along on the layer so a local (no-backend-row)
+          // remix's autosave can rebuild its asset list purely from the saved
+          // layers — see `assetsFromLayers`.
+          updateLayer(id, { assetId: asset.asset_id, assetUrl: asset.url }, `replace-${id}`);
+        }
       } catch {
         toast.error("Couldn't save the new image — it may not persist on reload.");
       }

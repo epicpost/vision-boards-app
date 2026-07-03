@@ -138,11 +138,12 @@ export function useRemixDraft(
         // Re-render the creative and upload it so the remixes-list thumbnail
         // reflects this edit. Best-effort (resolves to undefined on failure), so
         // a thumbnail hiccup never blocks persisting the layer state.
-        const thumbnailAssetId = await uploadRemixThumbnail(template, next);
+        const thumbnail = await uploadRemixThumbnail(template, next);
         await updateRemix(remixId, {
           state: remixStateFromLayers(next),
           assetIds: assetsChanged ? assetIds : undefined,
-          thumbnailAssetId,
+          thumbnailAssetId: thumbnail?.assetId,
+          thumbnailUrl: thumbnail?.url,
         });
         lastAssetKeyRef.current = assetKey;
         setStatus("saved");

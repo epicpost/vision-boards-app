@@ -1,6 +1,21 @@
-import { expireAuthSession, getAccessToken, requestAuthDialog } from "@/lib/auth";
+import { expireAuthSession, getAccessToken, getAuthUser, requestAuthDialog } from "@/lib/auth";
 import { API_BASE_URL } from "@/lib/post-templates";
+import { getLocalTemplate } from "@/lib/local-templates";
 import type { RemixEditorAsset, RemixEditorState } from "@/lib/remix-editor";
+import {
+  createLocalRemix,
+  deleteLocalRemix,
+  fetchLocalRemix,
+  isLocalRemixId,
+  listLocalRemixes,
+  updateLocalRemix,
+} from "@/lib/local-remixes";
+
+// Per-user scope for the local remix store — mirrors `draftScopeId()` in
+// use-editor-draft.ts so a local remix's ownership follows the signed-in user.
+function remixScopeId(): string {
+  return getAuthUser()?.id ?? "anon";
+}
 
 // Client for the DB-backed remix endpoints (api `remixes` module). A remix
 // stores the editor's layer state in `custom_inputs` and its uploaded images as
@@ -62,15 +77,40 @@ async function throwApiError(response: Response, fallback: string): Promise<neve
 
 // Create a remix from the editor's initial state + the ordered uploaded assets.
 // Returns the new remix id so the caller can open `/editor/$templateId?remixId=`.
+//
+// Local templates (see lib/local-templates.ts) have no backend row to attach a
+// remix to — `POST .../post-templates/{id}/remixes` 404s for them — so those
+// are saved to our own file-backed store instead (`thumbnailUrl` in place of
+// `thumbnailAssetId`, since there's no backend asset registry to resolve an id
+// back to a URL from).
 export async function createRemix(
   templateId: string,
   {
     assetIds,
     state,
     thumbnailAssetId,
-  }: { assetIds: string[]; state: RemixEditorState; thumbnailAssetId?: string },
+    thumbnailUrl,
+  }: {
+    assetIds: string[];
+    state: RemixEditorState;
+    thumbnailAssetId?: string;
+    thumbnailUrl?: string;
+  },
 ): Promise<{ remixId: string }> {
   const token = requireToken("save your remix");
+  const localTemplate = getLocalTemplate(templateId);
+  if (localTemplate) {
+    const { remix_id } = await createLocalRemix({
+      data: {
+        scopeId: remixScopeId(),
+        templateId,
+        templateTitle: localTemplate.title,
+        state,
+        thumbnailUrl: thumbnailUrl ?? null,
+      },
+    });
+    return { remixId: remix_id };
+  }
   const response = await fetch(
     new URL(`/api/v1/post-templates/${encodeURIComponent(templateId)}/remixes`, API_BASE_URL),
     {
@@ -92,18 +132,31 @@ export async function createRemix(
 }
 
 // The user's saved remixes for the Remixes grid (each opens in the editor).
+// Merges the backend's list with local (no-backend-row) remixes, newest first.
 export async function fetchSavedRemixes(): Promise<RemixSummary[]> {
   const token = requireToken("view your remixes");
-  const response = await fetch(new URL("/api/v1/remixes", API_BASE_URL), {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!response.ok) await throwApiError(response, "Load remixes");
-  const body = (await response.json()) as { data: RemixSummary[] };
-  return body.data;
+  const scopeId = remixScopeId();
+  const [backend, local] = await Promise.all([
+    (async () => {
+      const response = await fetch(new URL("/api/v1/remixes", API_BASE_URL), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) await throwApiError(response, "Load remixes");
+      const body = (await response.json()) as { data: RemixSummary[] };
+      return body.data;
+    })(),
+    listLocalRemixes({ data: { scopeId } }),
+  ]);
+  return [...local, ...backend].sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
 export async function fetchRemix(remixId: string): Promise<RemixDetail> {
   const token = requireToken("open your remix");
+  if (isLocalRemixId(remixId)) {
+    const detail = await fetchLocalRemix({ data: { remixId, scopeId: remixScopeId() } });
+    if (!detail) throw new Error("Remix not found.");
+    return detail;
+  }
   const response = await fetch(
     new URL(`/api/v1/remixes/${encodeURIComponent(remixId)}`, API_BASE_URL),
     { headers: { Authorization: `Bearer ${token}` } },
@@ -114,6 +167,10 @@ export async function fetchRemix(remixId: string): Promise<RemixDetail> {
 
 export async function deleteSavedRemix(remixId: string): Promise<void> {
   const token = requireToken("delete this remix");
+  if (isLocalRemixId(remixId)) {
+    await deleteLocalRemix({ data: { remixId, scopeId: remixScopeId() } });
+    return;
+  }
   const response = await fetch(
     new URL(`/api/v1/remixes/${encodeURIComponent(remixId)}`, API_BASE_URL),
     {
@@ -133,9 +190,20 @@ export async function updateRemix(
     state,
     assetIds,
     thumbnailAssetId,
-  }: { state: RemixEditorState; assetIds?: string[]; thumbnailAssetId?: string },
+    thumbnailUrl,
+  }: {
+    state: RemixEditorState;
+    assetIds?: string[];
+    thumbnailAssetId?: string;
+    thumbnailUrl?: string;
+  },
 ): Promise<RemixDetail> {
   const token = requireToken("save your remix");
+  if (isLocalRemixId(remixId)) {
+    return updateLocalRemix({
+      data: { remixId, scopeId: remixScopeId(), state, thumbnailUrl: thumbnailUrl ?? null },
+    });
+  }
   const response = await fetch(
     new URL(`/api/v1/remixes/${encodeURIComponent(remixId)}`, API_BASE_URL),
     {

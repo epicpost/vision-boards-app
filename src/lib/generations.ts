@@ -182,7 +182,7 @@ export async function uploadAssetFiles(files: File[]): Promise<IngestedAsset[]> 
 export async function uploadRemixThumbnail(
   template: RemixEditorTemplate,
   layers: EditorLayer[],
-): Promise<string | undefined> {
+): Promise<{ assetId: string; url: string } | undefined> {
   if (typeof document === "undefined") return undefined;
   try {
     const cleanLayers = await Promise.all(
@@ -197,7 +197,7 @@ export async function uploadRemixThumbnail(
     const blob = await exportCreative(template, cleanLayers, format);
     const file = new File([blob], `remix-thumbnail.${meta.extension}`, { type: meta.mime });
     const [asset] = await uploadAssetFiles([file]);
-    return asset?.asset_id;
+    return asset ? { assetId: asset.asset_id, url: asset.url } : undefined;
   } catch {
     return undefined;
   }

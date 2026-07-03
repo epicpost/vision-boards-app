@@ -63,6 +63,13 @@ export interface ImageLayer extends BaseLayer {
   // (vs. the template's default photo). The remix stores this — not the bytes —
   // and the editor resolves it back to a URL on load. Absent === template default.
   assetId?: string;
+  // The hosted URL for `assetId` at the time it was attached. Backend-remix
+  // templates re-resolve this server-side from `assetId` on load; local
+  // templates (no backend row — see lib/local-templates.ts) have nowhere to
+  // resolve it, so it rides along on the layer itself and round-trips through
+  // `serializeRemixLayers`/persisted state, letting `assetsFromLayers` rebuild
+  // the remix's asset list purely from the saved layers.
+  assetUrl?: string;
 }
 
 export type TextAlign = "left" | "center" | "right";
@@ -996,6 +1003,23 @@ export function assetIdsFromLayers(layers: EditorLayer[]): string[] {
   return layers
     .filter((layer): layer is ImageLayer => layer.kind === "image" && Boolean(layer.assetId))
     .map((layer) => layer.assetId as string);
+}
+
+// The `RemixEditorAsset[]` backing the image layers, rebuilt purely from what's
+// on each layer (assetId + assetUrl). Used to reconstruct a local (no-backend-
+// row) remix's attachment list straight from its persisted state, mirroring
+// what a real backend remix's `assets` field carries.
+export function assetsFromLayers(layers: EditorLayer[]): RemixEditorAsset[] {
+  return layers
+    .filter(
+      (layer): layer is ImageLayer =>
+        layer.kind === "image" && Boolean(layer.assetId && layer.assetUrl),
+    )
+    .map((layer, order) => ({
+      asset_id: layer.assetId as string,
+      url: layer.assetUrl as string,
+      order,
+    }));
 }
 
 // Build the editor state to persist for a remix. Caption/overview default to the

@@ -334,19 +334,26 @@ export function RemixComposer({
     });
   }
 
-  // Resolve every attached image to a persisted asset id, in composer order:
-  // upload new files; brand-kit picks already carry an id.
-  async function resolveOrderedAssetIds(): Promise<string[]> {
+  // Resolve every attached image to a persisted asset id + its hosted URL, in
+  // composer order: upload new files; brand-kit picks already carry both (an
+  // id and their CDN url). The url travels alongside the id so a local (no-
+  // backend-row) template's remix can rebuild its asset list from the saved
+  // layers alone — see `assetsFromLayers`.
+  async function resolveOrderedAssets(): Promise<{ asset_id: string; url: string }[]> {
     const filesToUpload = images
       .map((image) => image.file)
       .filter((file): file is File => Boolean(file));
     const uploaded = filesToUpload.length ? await uploadAssetFiles(filesToUpload) : [];
     let cursor = 0;
-    const assetIds = images.map((image) => image.assetId ?? uploaded[cursor++]?.asset_id);
-    if (assetIds.some((id) => !id)) {
+    const assets = images.map((image) => {
+      if (image.assetId) return { asset_id: image.assetId, url: image.previewUrl };
+      const next = uploaded[cursor++];
+      return next ? { asset_id: next.asset_id, url: next.url } : null;
+    });
+    if (assets.some((asset) => !asset)) {
       throw new Error("Some images could not be prepared. Please try again.");
     }
-    return assetIds as string[];
+    return assets as { asset_id: string; url: string }[];
   }
 
   // Editor-capable templates (e.g. Porto) render entirely in the browser: save a
@@ -358,7 +365,8 @@ export function RemixComposer({
     if (!editorTemplate) return;
     try {
       setPhase("sending");
-      const assetIds = await resolveOrderedAssetIds();
+      const assets = await resolveOrderedAssets();
+      const assetIds = assets.map((asset) => asset.asset_id);
       const trimmedCaption = caption.trim();
       const trimmedCityOverview = cityOverview.trim();
 
@@ -371,17 +379,17 @@ export function RemixComposer({
       const TEXT_KINDS = new Set(["header", "description", "eyebrow", "cta"]);
 
       // Seed the editor layers from the composed inputs: fill image layers in
-      // order (assetId for persistence + previewUrl for an instant render), and
-      // drop the caption / city overview into their text layers.
+      // order (assetId + assetUrl for persistence, previewUrl for an instant
+      // render), and drop the caption / city overview into their text layers.
       let imageCursor = 0;
       const layers: EditorLayer[] = cloneLayers(editorTemplate).map((layer) => {
         if (layer.kind === "image") {
           const index = imageCursor++;
-          const assetId = assetIds[index];
+          const asset = assets[index];
           const preview = images[index]?.previewUrl;
           return {
             ...layer,
-            ...(assetId ? { assetId } : {}),
+            ...(asset ? { assetId: asset.asset_id, assetUrl: asset.url } : {}),
             ...(preview ? { src: preview } : {}),
             visible: true,
           };
@@ -417,6 +425,7 @@ export function RemixComposer({
       // Upload the rendered creative as the remix thumbnail. Best-effort: a
       // failure here must not block saving the remix.
       let thumbnailAssetId: string | undefined;
+      let thumbnailUrl: string | undefined;
       try {
         const meta = EXPORT_FORMATS[format];
         const thumbFile = new File([blob], `remix-thumbnail.${meta.extension}`, {
@@ -424,6 +433,7 @@ export function RemixComposer({
         });
         const [thumbAsset] = await uploadAssetFiles([thumbFile]);
         thumbnailAssetId = thumbAsset?.asset_id;
+        thumbnailUrl = thumbAsset?.url;
       } catch {
         // Leave the thumbnail unset — the remix still saves.
       }
@@ -435,6 +445,7 @@ export function RemixComposer({
           cityOverview: trimmedCityOverview || undefined,
         }),
         thumbnailAssetId,
+        thumbnailUrl,
       });
 
       if (clientRemixUrlRef.current?.startsWith("blob:")) {
