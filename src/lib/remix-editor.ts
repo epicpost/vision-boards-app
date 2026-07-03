@@ -1209,7 +1209,7 @@ export function verticalsTitleChars(text: string): string[] {
 // vertical anchors (`top`/`bottom`), which are fractions of height.
 export const SPLIT_LAYOUT = {
   splitX: 0.43,
-  headline: { x: 0.055, top: 0.055, width: 0.42, size: 0.19, lineHeight: 0.92 },
+  headline: { x: 0.055, top: 0.08, width: 0.46, size: 0.21, lineHeight: 1.12 },
   body: { x: 0.075, bottom: 0.06, width: 0.34, size: 0.03, lineHeight: 1.4 },
 } as const;
 
