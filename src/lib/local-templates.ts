@@ -258,8 +258,108 @@ const SUNDAY_SLICED_POSTER: PostTemplate = {
   },
 };
 
+// This or That Poll — the MA&partners split-comparison story poll. Preview art
+// lives at public/templates/shared/ma_4.jpg (1170 x 2010).
+const DUEL_THIS_OR_THAT: PostTemplate = {
+  id: "11000000-0000-0000-0000-000000000035",
+  title: "This or That Poll",
+  preview: "/templates/shared/ma_4.jpg",
+  preview_type: "image",
+  preview_width: 1170,
+  preview_height: 2010,
+  likes_count: 0,
+  is_saved: false,
+  is_liked: false,
+  is_remixed: false,
+  assets: [
+    {
+      id: "duel-cover",
+      url: "/templates/shared/ma_4.jpg",
+      type: "image",
+      order: 0,
+      width: 1170,
+      height: 2010,
+    },
+  ],
+  board_id: null,
+  board_name: null,
+  remix_id: null,
+  description:
+    "A this-or-that story poll: two vertical photos side by side, a stacked serif caption over them, and a poll card with two option rows. Bring two photos and your own caption; the Left/Right options and brand wordmark are optional and fully editable.",
+  tags: ["poll", "story", "comparison", "this or that", "split", "vertical"],
+  comments: [],
+  created_at: "2026-07-03T00:00:00.000Z",
+  updated_at: "2026-07-03T00:00:00.000Z",
+  template_type: "image",
+  aspect_ratio: "9 / 16",
+  input_image_count: 2,
+  capabilities: {
+    supports_ai_generation: false,
+    supports_remix: true,
+    supports_asset_replacement: true,
+    supports_text_rewrite: true,
+    supports_brand_adaptation: true,
+    supports_aspect_ratio_conversion: false,
+    supports_language_adaptation: false,
+    supports_batch_generation: false,
+    supports_variants: true,
+  },
+  // Two required vertical photos fill the split; a required caption drives the
+  // composer's Fonts/Colors cards (optional font family). The optional Left/Right
+  // options and the wordmark are edited in the editor, not the composer.
+  input_requirements: {
+    assets: [
+      {
+        key: "photos",
+        type: "image",
+        required: true,
+        min_count: 2,
+        max_count: 2,
+        accepted_mime_types: ["image/png", "image/jpeg", "image/webp"],
+        preferred_aspect_ratios: [],
+        min_width: null,
+        min_height: null,
+        allow_crop: true,
+        allow_background_extend: false,
+        allow_background_removal: false,
+        transparent_preferred: false,
+        description: "Two vertical photos, shown side by side (left and right).",
+      },
+    ],
+    text_requirements: [
+      {
+        key: "caption",
+        label: "Caption",
+        required: true,
+        max_chars: 24,
+        recommended_chars: 12,
+        visible_on_asset: true,
+        ai_can_generate: false,
+        ai_can_rewrite: true,
+        allowed_values: [],
+        description: 'The stacked headline, e.g. "this or that" (lowercase by default).',
+      },
+    ],
+    text_density: "low",
+    text_overflow_strategy: "shrink",
+  },
+  agent_hints: {
+    render_defaults: {
+      caption_color: "#ffffff",
+      caption_color_options: [
+        { label: "Paper", value: "#ffffff" },
+        { label: "Ink", value: "#1c1a17" },
+        { label: "Sand", value: "#e7ddd0" },
+        { label: "Olive", value: "#5c5a3a" },
+        { label: "Clay", value: "#a5714e" },
+      ],
+    },
+  },
+};
+
 // Local templates, newest first — prepended to the feed's "All" list.
 export const LOCAL_TEMPLATES: PostTemplate[] = [
+  DUEL_THIS_OR_THAT,
   SUNDAY_SLICED_POSTER,
   SOULKIN_SPLIT_PIN,
   TRAVEL_INSPIRATION_PIN,

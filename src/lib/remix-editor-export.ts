@@ -16,8 +16,14 @@ import {
   SLICED_LAYOUT,
   slicedChars,
   slicedGeometry,
+  slicedGlyphMetrics,
   VERTICALS_LAYOUT,
   verticalsTitleChars,
+  DUEL_LAYOUT,
+  duelCaptionWords,
+  duelDisplayCase,
+  duelVisibleOptions,
+  duelPollGeometry,
   PORTO_CAPTION_TRACKING,
   PORTO_CARD,
   PORTO_LAYOUT,
@@ -346,6 +352,151 @@ async function exportVerticals(
     chars.forEach((char, index) => {
       if (char.trim()) ctx.fillText(char, (index + 0.5) * stripWidth, y);
     });
+    ctx.letterSpacing = "0px";
+    ctx.restore();
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
+// Rasterize a This-or-That poll: two full-height photos butted along the split,
+// a stacked serif caption over them, an optional white poll card (one rounded row
+// per visible option) and an optional brand wordmark footer — mirroring
+// `DuelPreview`.
+async function exportDuel(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  // Two photos side by side. Panel order = layer order (photo-1 left, photo-2 right).
+  const photoLayers = layers
+    .filter((layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image")
+    .slice(0, 2);
+  const splitX = DUEL_LAYOUT.splitX * width;
+  const boxes = [
+    { x: 0, y: 0, w: splitX, h: height },
+    { x: splitX, y: 0, w: width - splitX, h: height },
+  ];
+  let failed = 0;
+  for (let index = 0; index < photoLayers.length; index++) {
+    const layer = photoLayers[index];
+    if (!layer.visible) continue;
+    try {
+      const img = await loadImage(layer.src);
+      drawImageCover(ctx, img, boxes[index], imageTransform(layer));
+    } catch {
+      failed += 1;
+    }
+  }
+  if (failed > 0) throw new ExportImageError(failed);
+
+  // Preload the webfonts used by the text layers.
+  const header = layers.find((layer): layer is TextLayer => layer.id === "header");
+  const wordmark = layers.find((layer): layer is TextLayer => layer.id === "description");
+  const options = duelVisibleOptions(layers);
+  const textLayers = [header, wordmark, ...options].filter((layer): layer is TextLayer =>
+    Boolean(layer && layer.visible && layer.text.trim()),
+  );
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      textLayers.map((layer) => {
+        const font = fontById(layer.fontId);
+        return document.fonts
+          .load(`${resolveTextStyle(layer).weight} 100px ${primaryFamily(font.family)}`)
+          .catch(() => undefined);
+      }),
+    ).catch(() => undefined);
+  }
+
+  // Stacked serif caption: one word per line, connectors smaller, block centred
+  // vertically on the header's posY.
+  if (header?.visible && header.text.trim()) {
+    const font = fontById(header.fontId);
+    const style = resolveTextStyle(header);
+    const baseSize = DUEL_LAYOUT.headline.size * style.sizeScale * width;
+    const words = duelCaptionWords(duelDisplayCase(header.text, header.uppercase));
+    const lines = words.map((entry) => ({
+      text: entry.word,
+      size: entry.connector ? baseSize * DUEL_LAYOUT.headline.connectorScale : baseSize,
+    }));
+    const boxHeights = lines.map((line) => line.size * DUEL_LAYOUT.headline.lineHeight);
+    const totalH = boxHeights.reduce((sum, value) => sum + value, 0);
+    ctx.save();
+    ctx.fillStyle = header.color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    let y = style.posY * height - totalH / 2;
+    lines.forEach((line, index) => {
+      ctx.font = `${style.weight} ${line.size}px ${font.family}`;
+      applyTextShadow(ctx, style.shadow, line.size);
+      ctx.fillText(line.text, width / 2, y + boxHeights[index] / 2);
+      y += boxHeights[index];
+    });
+    ctx.letterSpacing = "0px";
+    ctx.restore();
+  }
+
+  // Poll card + option rows.
+  const geo = duelPollGeometry(options.length, width, height);
+  if (geo) {
+    const padX = DUEL_LAYOUT.poll.padX * width;
+    ctx.save();
+    ctx.fillStyle = DUEL_LAYOUT.poll.cardColor;
+    ctx.beginPath();
+    ctx.roundRect(geo.x, geo.y, geo.w, geo.h, DUEL_LAYOUT.poll.radius * width);
+    ctx.fill();
+    options.forEach((option, index) => {
+      const row = geo.rows[index];
+      const rowX = geo.x + padX;
+      const rowW = geo.w - 2 * padX;
+      ctx.fillStyle = DUEL_LAYOUT.poll.rowColor;
+      ctx.beginPath();
+      ctx.roundRect(rowX, row.y, rowW, row.h, DUEL_LAYOUT.poll.rowRadius * width);
+      ctx.fill();
+
+      const font = fontById(option.fontId);
+      const style = resolveTextStyle(option);
+      const size = DUEL_LAYOUT.poll.labelSize * style.sizeScale * width;
+      ctx.font = `${style.weight} ${size}px ${font.family}`;
+      ctx.letterSpacing = `${style.letterSpacing}em`;
+      ctx.fillStyle = option.color;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      const label = option.uppercase ? option.text.toUpperCase() : option.text;
+      ctx.fillText(label, rowX + DUEL_LAYOUT.poll.rowPadX * width, row.y + row.h / 2);
+      ctx.letterSpacing = "0px";
+    });
+    ctx.restore();
+  }
+
+  // Brand wordmark footer (bottom-centred).
+  if (wordmark?.visible && wordmark.text.trim()) {
+    const font = fontById(wordmark.fontId);
+    const style = resolveTextStyle(wordmark);
+    const size = DUEL_LAYOUT.wordmark.size * style.sizeScale * width;
+    ctx.save();
+    ctx.font = `${style.weight} ${size}px ${font.family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    applyTextShadow(ctx, style.shadow, size);
+    ctx.fillStyle = wordmark.color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    const label = wordmark.uppercase ? wordmark.text.toUpperCase() : wordmark.text;
+    ctx.fillText(label, width / 2, height - DUEL_LAYOUT.wordmark.bottom * height);
     ctx.letterSpacing = "0px";
     ctx.restore();
   }
@@ -779,21 +930,32 @@ async function exportSliced(
       const fontSize = geo.bandH / SLICED_LAYOUT.capRatio;
 
       const paintGlyphs = (target: CanvasRenderingContext2D) => {
-        target.font = `${style.weight} ${fontSize}px ${font.family}`;
         target.textAlign = "left";
         target.textBaseline = "alphabetic";
         chars.forEach((ch, index) => {
           const band = geo.bands[index];
-          const natural = target.measureText(ch).width || 1;
-          const scaleX = geo.w / natural;
-          const baseline = band.y + (band.h + fontSize * SLICED_LAYOUT.capRatio) / 2;
           target.save();
           target.beginPath();
           target.rect(geo.x, band.y, geo.w, band.h);
           target.clip();
-          target.translate(geo.x, baseline);
-          target.scale(scaleX, 1);
-          target.fillText(ch, 0, 0);
+          // Stretch the glyph's measured ink box to exactly fill its band —
+          // full slice width AND height, as in the reference — so the sliced
+          // photo dominates each band no matter which font family is applied.
+          const met = slicedGlyphMetrics(ch, caption.fontId, style.weight);
+          if (met) {
+            target.translate(geo.x, band.y);
+            target.scale(geo.w / met.inkW, band.h / met.inkH);
+            target.font = `${style.weight} ${met.refSize}px ${font.family}`;
+            target.fillText(ch, met.left, met.ascent);
+          } else {
+            // Approximate cap-height fit when ink metrics are unavailable.
+            target.font = `${style.weight} ${fontSize}px ${font.family}`;
+            const natural = target.measureText(ch).width || 1;
+            const baseline = band.y + (band.h + fontSize * SLICED_LAYOUT.capRatio) / 2;
+            target.translate(geo.x, baseline);
+            target.scale(geo.w / natural, 1);
+            target.fillText(ch, 0, 0);
+          }
           target.restore();
         });
       };
@@ -1661,6 +1823,9 @@ export async function exportCreative(
   }
   if (template.layout === "collage") {
     return exportCollage(template, layers, format, width);
+  }
+  if (template.layout === "duel") {
+    return exportDuel(template, layers, format, width);
   }
 
   const ratio = parseRatio(template.aspectRatio);

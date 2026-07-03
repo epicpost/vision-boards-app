@@ -140,7 +140,8 @@ export type TemplateLayout =
   | "split"
   | "editorial"
   | "collage"
-  | "sliced";
+  | "sliced"
+  | "duel";
 
 export interface RemixEditorTemplate {
   id: string;
@@ -1480,6 +1481,102 @@ const SUNDAY_POSTER: RemixEditorTemplate = {
   ],
 };
 
+// MA&partners "this or that" — an Instagram-story comparison poll: two vertical
+// photos butted side by side, a stacked serif caption ("this / or / that") over
+// them, an optional white poll card with two option rows ("Left" / "Right") and
+// an optional brand wordmark footer. Both photos are required user inputs; the
+// caption is the required text; the two poll options and the wordmark are
+// optional (editable, toggleable). Mirrors public/templates/shared/ma_*.jpg.
+const DUEL_THIS_OR_THAT: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000035",
+  title: "This or That Poll",
+  layout: "duel",
+  aspectRatio: "9 / 16",
+  background: "#e7ddd0",
+  palette: [
+    { label: "Paper", value: "#ffffff" },
+    { label: "Ink", value: "#1c1a17" },
+    { label: "Sand", value: "#e7ddd0" },
+    { label: "Olive", value: "#5c5a3a" },
+    { label: "Clay", value: "#a5714e" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "photo-1",
+      kind: "image",
+      label: "Left photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/barcelona-park.jpg",
+    },
+    {
+      id: "photo-2",
+      kind: "image",
+      label: "Right photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/Bali photo.jpg",
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Caption",
+      visible: true,
+      hideable: false,
+      text: "this or that",
+      color: "#ffffff",
+      fontId: "playfair",
+      // Lowercase by default (the "this or that" look); the uppercase toggle
+      // still flips it to caps when the user wants.
+      uppercase: false,
+      weight: 600,
+      shadow: false,
+      posY: 0.22,
+      suggestions: ["this or that", "left or right", "yes or no", "hot or cold"],
+    },
+    {
+      id: "option-left",
+      kind: "eyebrow",
+      label: "Left option",
+      visible: true,
+      hideable: true,
+      text: "Left",
+      color: "#1a1a1a",
+      fontId: "montserrat",
+      uppercase: false,
+      weight: 700,
+      suggestions: ["Left", "This", "Option A", "Yes"],
+    },
+    {
+      id: "option-right",
+      kind: "cta",
+      label: "Right option",
+      visible: true,
+      hideable: true,
+      text: "Right",
+      color: "#1a1a1a",
+      fontId: "montserrat",
+      uppercase: false,
+      weight: 700,
+      suggestions: ["Right", "That", "Option B", "No"],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Wordmark",
+      visible: true,
+      hideable: true,
+      text: "MA&partners",
+      color: "#ffffff",
+      fontId: "playfair",
+      uppercase: false,
+      weight: 500,
+      suggestions: ["MA&partners", "@yourbrand", "Studio Name", "Vote now"],
+    },
+  ],
+};
+
 const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [TEMPLATE_28.id]: TEMPLATE_28,
   [TEMPLATE_205.id]: TEMPLATE_205,
@@ -1497,6 +1594,7 @@ const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [TRAVEL_PIN.id]: TRAVEL_PIN,
   [SOULKIN_SPLIT.id]: SOULKIN_SPLIT,
   [SUNDAY_POSTER.id]: SUNDAY_POSTER,
+  [DUEL_THIS_OR_THAT.id]: DUEL_THIS_OR_THAT,
 };
 
 export function getRemixEditorTemplate(id: string): RemixEditorTemplate | null {
@@ -2125,6 +2223,46 @@ export interface SlicedGeometry {
   bands: SlicedBand[];
 }
 
+// The measured ink box of a single glyph at a 100px reference size — used to
+// stretch each sliced letter so its ink exactly fills its band (full slice
+// width AND height, as in the reference), regardless of the chosen font family.
+// `left`/`ascent` are offsets from the draw origin (alphabetic baseline, x=0)
+// to the ink box's left/top edge. Returns null when it can't measure (no DOM,
+// a whitespace glyph, or a browser without actualBoundingBox metrics) — the
+// caller falls back to an approximate cap-height fit.
+export interface SlicedGlyphMetrics {
+  refSize: number;
+  inkW: number;
+  inkH: number;
+  left: number;
+  ascent: number;
+}
+
+export function slicedGlyphMetrics(
+  char: string,
+  fontId: string,
+  weight: number,
+): SlicedGlyphMetrics | null {
+  const ctx = getMeasureCtx();
+  if (!ctx || !char.trim()) return null;
+  const font = fontById(fontId);
+  const refSize = 100;
+  ctx.font = `${weight} ${refSize}px ${font.family}`;
+  const m = ctx.measureText(char);
+  if (
+    m.actualBoundingBoxLeft === undefined ||
+    m.actualBoundingBoxRight === undefined ||
+    m.actualBoundingBoxAscent === undefined ||
+    m.actualBoundingBoxDescent === undefined
+  ) {
+    return null;
+  }
+  const inkW = m.actualBoundingBoxLeft + m.actualBoundingBoxRight;
+  const inkH = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent;
+  if (inkW <= 0 || inkH <= 0) return null;
+  return { refSize, inkW, inkH, left: m.actualBoundingBoxLeft, ascent: m.actualBoundingBoxAscent };
+}
+
 // The letter-box and per-band rectangles for `count` characters, in the target
 // canvas units (`width`/`height` in px, or 100/`100/ratio` for a cqi/viewBox
 // preview). Shared by the SVG preview and the canvas export so both slice the
@@ -2139,4 +2277,101 @@ export function slicedGeometry(count: number, width: number, height: number): Sl
   const bandH = (boxH - gap * (n - 1)) / n;
   const bands = Array.from({ length: n }, (_, i) => ({ y: top + i * (bandH + gap), h: bandH }));
   return { x, top, w, boxH, gap, bandH, bands };
+}
+
+// ── This-or-That (duel) geometry ─────────────────────────────────────────────
+// Two full-height vertical photos butted along `splitX` (fraction of width). A
+// stacked serif caption sits at the header's `posY`; each word is its own line
+// and short connector words (≤2 chars, e.g. "or") render smaller — reproducing
+// the "this / or / that" rhythm. A white poll card (one rounded row per visible
+// option) floats over the photos, and an optional brand wordmark hugs the
+// bottom. Horizontal measures and font sizes are fractions of the canvas
+// *width*; vertical anchors are fractions of *height*. Shared by the DOM preview
+// (DuelPreview) and the canvas export (exportDuel) so both position identically.
+export const DUEL_LAYOUT = {
+  splitX: 0.5,
+  headline: { size: 0.17, lineHeight: 0.98, connectorScale: 0.52, padX: 0.06 },
+  poll: {
+    centerY: 0.7, // vertical center of the card (fraction of height)
+    width: 0.82, // card width (fraction of width)
+    padX: 0.03, // card inner horizontal padding
+    padY: 0.028, // card inner vertical padding
+    radius: 0.055, // card corner radius
+    rowHeight: 0.11, // each option row height
+    rowGap: 0.02, // gap between rows
+    rowRadius: 0.032, // row corner radius
+    rowPadX: 0.038, // label inset within a row
+    labelSize: 0.04, // option label font size
+    cardColor: "#ffffff",
+    rowColor: "#efefef",
+  },
+  wordmark: { bottom: 0.05, size: 0.05, lineHeight: 1 },
+} as const;
+
+// A caption word is a "connector" (rendered smaller on its own line, like "or"
+// between "this" and "that") when it's very short. Punctuation is ignored.
+export function duelIsConnector(word: string): boolean {
+  return word.replace(/[^\p{L}]/gu, "").length <= 2;
+}
+
+// The caption split into words (whitespace collapsed), each flagged as a
+// connector. One word per line in both the preview and the export.
+export function duelCaptionWords(text: string): { word: string; connector: boolean }[] {
+  return text
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => ({ word, connector: duelIsConnector(word) }));
+}
+
+// The caption's display case. Lowercase by default (the signature look); the
+// header's uppercase toggle flips it to caps.
+export function duelDisplayCase(text: string, uppercase: boolean): string {
+  return uppercase ? text.toUpperCase() : text.toLowerCase();
+}
+
+// The visible poll option layers (left then right), in row order. An empty list
+// means the poll card is hidden entirely.
+export function duelVisibleOptions(layers: EditorLayer[]): TextLayer[] {
+  return (["option-left", "option-right"] as const)
+    .map((id) => layers.find((layer) => layer.id === id))
+    .filter((layer): layer is TextLayer =>
+      Boolean(layer && layer.visible && layer.kind !== "image" && layer.kind !== "logo"),
+    );
+}
+
+export interface DuelPollGeometry {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rows: { y: number; h: number }[];
+}
+
+// The poll card rectangle and its per-row rectangles for `count` visible
+// options, in target canvas units (px, or 100 / 100·ratio for a cqi/viewBox
+// preview). Returns null when there are no visible options. Shared by the
+// preview and export so the card lands identically in both.
+export function duelPollGeometry(
+  count: number,
+  width: number,
+  height: number,
+): DuelPollGeometry | null {
+  if (count <= 0) return null;
+  const p = DUEL_LAYOUT.poll;
+  const w = p.width * width;
+  const rowH = p.rowHeight * width;
+  const gap = p.rowGap * width;
+  const padX = p.padX * width;
+  const padY = p.padY * width;
+  const innerH = count * rowH + (count - 1) * gap;
+  const h = innerH + 2 * padY;
+  const x = (width - w) / 2;
+  const y = p.centerY * height - h / 2;
+  const rows = Array.from({ length: count }, (_, i) => ({
+    y: y + padY + i * (rowH + gap),
+    h: rowH,
+  }));
+  return { x, y, w, h, rows };
 }

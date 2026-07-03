@@ -85,8 +85,14 @@ import {
   SLICED_LAYOUT,
   slicedChars,
   slicedGeometry,
+  slicedGlyphMetrics,
   VERTICALS_LAYOUT,
   verticalsTitleChars,
+  DUEL_LAYOUT,
+  duelCaptionWords,
+  duelDisplayCase,
+  duelVisibleOptions,
+  duelPollGeometry,
   PORTO_CAPTION_TRACKING,
   PORTO_CARD,
   PORTO_LAYOUT,
@@ -1720,10 +1726,46 @@ function SlicedPreview({
   const fontSize = geo.bandH / SLICED_LAYOUT.capRatio;
   const letterFont = caption ? fontById(caption.fontId).family : "sans-serif";
 
+  // Glyph ink metrics only measure truthfully once the caption's face is
+  // loaded; bump a tick when it lands so the letters re-measure and settle.
+  const [, setFontTick] = useState(0);
+  const captionFace = caption
+    ? `${captionStyle?.weight ?? 400} 100px ${fontById(caption.fontId).family.split(",")[0].trim()}`
+    : null;
+  useEffect(() => {
+    if (!captionFace || typeof document === "undefined" || !document.fonts) return;
+    let live = true;
+    document.fonts
+      .load(captionFace)
+      .then(() => {
+        if (live) setFontTick((tick) => tick + 1);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [captionFace]);
+
+  // Each glyph's ink box is stretched to exactly fill its band — full slice
+  // width AND height, as in the reference — via a per-glyph transform. When ink
+  // metrics are unavailable, fall back to a width-only `textLength` stretch at
+  // an approximate cap-height fit (`transform: null`).
   const glyphs = chars.map((ch, index) => {
     const band = geo.bands[index];
+    const met =
+      caption && captionStyle ? slicedGlyphMetrics(ch, caption.fontId, captionStyle.weight) : null;
+    if (met) {
+      return {
+        ch,
+        index,
+        transform: `translate(${geo.x} ${band.y}) scale(${geo.w / met.inkW} ${band.h / met.inkH})`,
+        x: met.left,
+        y: met.ascent,
+        size: met.refSize,
+      };
+    }
     const baseline = band.y + (band.h + fontSize * SLICED_LAYOUT.capRatio) / 2;
-    return { ch, index, baseline };
+    return { ch, index, transform: null, x: geo.x, y: baseline, size: fontSize };
   });
 
   // Stacked single-character block (date / year), rendered as pre-line text.
@@ -1764,15 +1806,16 @@ function SlicedPreview({
                   {glyphs.map((glyph) => (
                     <text
                       key={glyph.index}
-                      x={geo.x}
-                      y={glyph.baseline}
-                      textLength={geo.w}
-                      lengthAdjust="spacingAndGlyphs"
+                      x={glyph.x}
+                      y={glyph.y}
+                      transform={glyph.transform ?? undefined}
+                      textLength={glyph.transform ? undefined : geo.w}
+                      lengthAdjust={glyph.transform ? undefined : "spacingAndGlyphs"}
                       textAnchor="start"
                       style={{
                         fontFamily: letterFont,
                         fontWeight: captionStyle.weight,
-                        fontSize: `${fontSize}px`,
+                        fontSize: `${glyph.size}px`,
                       }}
                     >
                       {glyph.ch}
@@ -1794,16 +1837,17 @@ function SlicedPreview({
             glyphs.map((glyph) => (
               <text
                 key={glyph.index}
-                x={geo.x}
-                y={glyph.baseline}
-                textLength={geo.w}
-                lengthAdjust="spacingAndGlyphs"
+                x={glyph.x}
+                y={glyph.y}
+                transform={glyph.transform ?? undefined}
+                textLength={glyph.transform ? undefined : geo.w}
+                lengthAdjust={glyph.transform ? undefined : "spacingAndGlyphs"}
                 textAnchor="start"
                 fill={caption!.color}
                 style={{
                   fontFamily: letterFont,
                   fontWeight: captionStyle.weight,
-                  fontSize: `${fontSize}px`,
+                  fontSize: `${glyph.size}px`,
                 }}
               >
                 {glyph.ch}
@@ -1900,6 +1944,174 @@ function ArrowDisc({ color, sizeCqi }: { color: string; sizeCqi: string }) {
         <line x1="4" y1="12" x2="20" y2="12" />
         <polyline points="13.5 5.5 20 12 13.5 18.5" />
       </svg>
+    </div>
+  );
+}
+
+// This-or-That poll (the MA&partners template): two full-height vertical photos
+// butted along the split, a stacked serif caption over them ("this / or / that",
+// one word per line with short connectors smaller), an optional white poll card
+// with a rounded row per visible option, and an optional brand wordmark footer.
+// Mirrors `exportDuel`.
+function DuelPreview({
+  template,
+  layers,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const duelPhotos = layers
+    .filter((layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image")
+    .slice(0, 2);
+  const header = layers.find((layer): layer is TextLayer => layer.id === "header");
+  const wordmark = layers.find((layer): layer is TextLayer => layer.id === "description");
+  const headerStyle = header ? resolveTextStyle(header) : null;
+  const wordmarkStyle = wordmark ? resolveTextStyle(wordmark) : null;
+  const options = duelVisibleOptions(layers);
+  const cqi = (value: number) => `${value * 100}cqi`;
+  const splitPct = DUEL_LAYOUT.splitX * 100;
+  const words = header ? duelCaptionWords(duelDisplayCase(header.text, header.uppercase)) : [];
+  const headSize = headerStyle ? DUEL_LAYOUT.headline.size * headerStyle.sizeScale : 0;
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+      }}
+    >
+      {duelPhotos.map((photo, index) =>
+        photo.visible ? (
+          <DraggableImage
+            key={photo.id}
+            layer={photo}
+            fit="cover"
+            selected={selectedId === photo.id}
+            onSelect={() => onSelect(photo.id)}
+            onPan={(offsetX, offsetY) =>
+              updateLayer(
+                photo.id,
+                { transform: { ...imageTransform(photo), offsetX, offsetY } },
+                `pan-${photo.id}`,
+              )
+            }
+            className="top-0 h-full"
+            style={
+              index === 0
+                ? { left: 0, width: `${splitPct}%` }
+                : { left: `${splitPct}%`, width: `${100 - splitPct}%` }
+            }
+          />
+        ) : null,
+      )}
+
+      {/* Stacked serif caption. */}
+      {header?.visible && headerStyle && header.text.trim() && (
+        <div
+          className="pointer-events-none absolute -translate-y-1/2 text-center"
+          style={{
+            left: 0,
+            right: 0,
+            top: `${headerStyle.posY * 100}%`,
+            fontFamily: fontById(header.fontId).family,
+            fontWeight: headerStyle.weight,
+            lineHeight: DUEL_LAYOUT.headline.lineHeight,
+            letterSpacing: `${headerStyle.letterSpacing}em`,
+            color: header.color,
+            textShadow: headerStyle.shadow ? TEXT_SHADOW_CSS : "none",
+          }}
+        >
+          {words.map((entry, index) => (
+            <div
+              key={index}
+              style={{
+                fontSize: cqi(
+                  entry.connector ? headSize * DUEL_LAYOUT.headline.connectorScale : headSize,
+                ),
+              }}
+            >
+              {entry.word}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Poll card — one rounded row per visible option. */}
+      {options.length > 0 && (
+        <div
+          className="absolute -translate-x-1/2 -translate-y-1/2"
+          style={{
+            left: "50%",
+            top: `${DUEL_LAYOUT.poll.centerY * 100}%`,
+            width: cqi(DUEL_LAYOUT.poll.width),
+            background: DUEL_LAYOUT.poll.cardColor,
+            borderRadius: cqi(DUEL_LAYOUT.poll.radius),
+            padding: `${cqi(DUEL_LAYOUT.poll.padY)} ${cqi(DUEL_LAYOUT.poll.padX)}`,
+            display: "flex",
+            flexDirection: "column",
+            gap: cqi(DUEL_LAYOUT.poll.rowGap),
+          }}
+        >
+          {options.map((option) => {
+            const style = resolveTextStyle(option);
+            return (
+              <div
+                key={option.id}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  onSelect(option.id);
+                }}
+                className="flex items-center"
+                style={{
+                  height: cqi(DUEL_LAYOUT.poll.rowHeight),
+                  paddingLeft: cqi(DUEL_LAYOUT.poll.rowPadX),
+                  background: DUEL_LAYOUT.poll.rowColor,
+                  borderRadius: cqi(DUEL_LAYOUT.poll.rowRadius),
+                  fontFamily: fontById(option.fontId).family,
+                  fontWeight: style.weight,
+                  fontSize: cqi(DUEL_LAYOUT.poll.labelSize * style.sizeScale),
+                  letterSpacing: `${style.letterSpacing}em`,
+                  color: option.color,
+                  outline:
+                    selectedId === option.id ? "2px solid var(--destructive, #ef4444)" : "none",
+                  outlineOffset: "1px",
+                }}
+              >
+                {option.uppercase ? option.text.toUpperCase() : option.text}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Brand wordmark footer. */}
+      {wordmark?.visible && wordmarkStyle && wordmark.text.trim() && (
+        <div
+          className="pointer-events-none absolute text-center"
+          style={{
+            left: 0,
+            right: 0,
+            bottom: `${DUEL_LAYOUT.wordmark.bottom * 100}%`,
+            fontFamily: fontById(wordmark.fontId).family,
+            fontWeight: wordmarkStyle.weight,
+            fontSize: cqi(DUEL_LAYOUT.wordmark.size * wordmarkStyle.sizeScale),
+            lineHeight: DUEL_LAYOUT.wordmark.lineHeight,
+            letterSpacing: `${wordmarkStyle.letterSpacing}em`,
+            color: wordmark.color,
+            textShadow: wordmarkStyle.shadow ? TEXT_SHADOW_CSS : "none",
+          }}
+        >
+          {wordmark.uppercase ? wordmark.text.toUpperCase() : wordmark.text}
+        </div>
+      )}
     </div>
   );
 }
@@ -2572,6 +2784,16 @@ function defaultOpenSections(template: RemixEditorTemplate): Record<string, bool
   if (template.layout === "sliced") {
     return { image: true, background: false, header: true, eyebrow: false, description: false, cta: false };
   }
+  if (template.layout === "duel") {
+    return {
+      "photo-1": true,
+      "photo-2": false,
+      header: true,
+      "option-left": false,
+      "option-right": false,
+      description: false,
+    };
+  }
   return { image: true, header: true, description: false, cta: false, logo: false };
 }
 
@@ -2885,6 +3107,13 @@ function EditorScreen({
     (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.id === "background",
   );
   const eyebrow = findByKind<TextLayer>("eyebrow");
+  // Duel poll options are looked up by id (they share the eyebrow/cta kinds).
+  const duelOptionLeft = layers.find(
+    (layer): layer is TextLayer => layer.id === "option-left" && layer.kind !== "image" && layer.kind !== "logo",
+  );
+  const duelOptionRight = layers.find(
+    (layer): layer is TextLayer => layer.id === "option-right" && layer.kind !== "image" && layer.kind !== "logo",
+  );
   const header = findByKind<TextLayer>("header");
   const description = findByKind<TextLayer>("description");
   const cta = findByKind<TextLayer>("cta");
@@ -3012,7 +3241,8 @@ function EditorScreen({
               template.layout === "moodboard" ||
                 template.layout === "porto" ||
                 template.layout === "relax" ||
-                template.layout === "cover"
+                template.layout === "cover" ||
+                template.layout === "duel"
                 ? "max-w-[300px]"
                 : "max-w-[360px]",
               template.layout === "verticals" && "max-w-[420px]",
@@ -3091,6 +3321,14 @@ function EditorScreen({
               />
             ) : template.layout === "collage" ? (
               <CollagePreview
+                template={template}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
+            ) : template.layout === "duel" ? (
+              <DuelPreview
                 template={template}
                 layers={layers}
                 selectedId={selectedImageId}
@@ -3375,6 +3613,141 @@ function EditorScreen({
               </>
             )}
 
+            {/* This-or-That poll: two photos, the caption, the optional Left/Right
+                options and the optional wordmark. */}
+            {template.layout === "duel" && (
+              <>
+                {photos.slice(0, 2).map((photo) => (
+                  <EditorSection
+                    key={photo.id}
+                    title={photo.label}
+                    open={openSections[photo.id] ?? false}
+                    onToggleOpen={() => toggleOpen(photo.id)}
+                    hideable={photo.hideable}
+                    visible={photo.visible}
+                    onToggleVisible={() => toggleVisible(photo.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+                        <img src={photo.src} alt="" className="h-full w-full object-cover" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openReplace(photo.id)}
+                        className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                      >
+                        <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                        Replace photo
+                      </button>
+                    </div>
+                    <ImageControls
+                      layer={photo}
+                      onChange={(transform, key) => updateLayer(photo.id, { transform }, key)}
+                      onReset={() =>
+                        updateLayer(photo.id, { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                      }
+                    />
+                  </EditorSection>
+                ))}
+
+                {header && (
+                  <EditorSection
+                    title="Caption"
+                    open={openSections.header ?? true}
+                    onToggleOpen={() => toggleOpen("header")}
+                    hideable={header.hideable}
+                    visible={header.visible}
+                    onToggleVisible={() => toggleVisible("header")}
+                  >
+                    <TextField
+                      label="Caption text"
+                      value={header.text}
+                      onChange={(value) => updateLayer("header", { text: value }, "header-text")}
+                      onSuggest={() => cycleSuggestion(header)}
+                    />
+                    <div className="mt-4">
+                      <FontDropdown
+                        value={header.fontId}
+                        color={header.color}
+                        onChange={(fontId) => changeFont("header", fontId)}
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <ColorSwatches
+                        palette={template.palette}
+                        value={header.color}
+                        onChange={(hex) => updateLayer("header", { color: hex })}
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <div className="mb-2 flex items-center justify-between text-[13px] font-medium text-muted-foreground">
+                        <span>Vertical position</span>
+                        <span className="tabular-nums">
+                          {Math.round(resolveTextStyle(header).posY * 100)}%
+                        </span>
+                      </div>
+                      <Slider
+                        value={[resolveTextStyle(header).posY]}
+                        min={0.05}
+                        max={0.95}
+                        step={0.01}
+                        onValueChange={([value]) =>
+                          updateLayer("header", { posY: value }, "posy-header")
+                        }
+                      />
+                    </div>
+                    <TextStyleControls
+                      layer={header}
+                      onChange={(patch, key) => updateLayer("header", patch, key)}
+                    />
+                  </EditorSection>
+                )}
+
+                {[
+                  { layer: duelOptionLeft, title: "Left option", label: "Left option text" },
+                  { layer: duelOptionRight, title: "Right option", label: "Right option text" },
+                  { layer: description, title: "Wordmark", label: "Wordmark text" },
+                ].map(({ layer, title, label }) =>
+                  layer ? (
+                    <EditorSection
+                      key={layer.id}
+                      title={title}
+                      open={openSections[layer.id] ?? false}
+                      onToggleOpen={() => toggleOpen(layer.id)}
+                      hideable={layer.hideable}
+                      visible={layer.visible}
+                      onToggleVisible={() => toggleVisible(layer.id)}
+                    >
+                      <TextField
+                        label={label}
+                        value={layer.text}
+                        onChange={(value) => updateLayer(layer.id, { text: value }, `${layer.id}-text`)}
+                        onSuggest={() => cycleSuggestion(layer)}
+                      />
+                      <div className="mt-4">
+                        <FontDropdown
+                          value={layer.fontId}
+                          color={layer.color}
+                          onChange={(fontId) => changeFont(layer.id, fontId)}
+                        />
+                      </div>
+                      <div className="mt-4">
+                        <ColorSwatches
+                          palette={template.palette}
+                          value={layer.color}
+                          onChange={(hex) => updateLayer(layer.id, { color: hex })}
+                        />
+                      </div>
+                      <TextStyleControls
+                        layer={layer}
+                        onChange={(patch, key) => updateLayer(layer.id, patch, key)}
+                      />
+                    </EditorSection>
+                  ) : null,
+                )}
+              </>
+            )}
+
             {/* Image */}
             {template.layout !== "moodboard" &&
               template.layout !== "relax" &&
@@ -3382,6 +3755,7 @@ function EditorScreen({
               template.layout !== "verticals" &&
               template.layout !== "collage" &&
               template.layout !== "sliced" &&
+              template.layout !== "duel" &&
               image && (
               <EditorSection
                 title="Image"
@@ -3454,6 +3828,7 @@ function EditorScreen({
               template.layout !== "verticals" &&
               template.layout !== "collage" &&
               template.layout !== "sliced" &&
+              template.layout !== "duel" &&
               header && (
               <EditorSection
                 title={template.layout === "porto" ? "Caption" : "Header"}
@@ -3491,7 +3866,7 @@ function EditorScreen({
             )}
 
             {/* Description */}
-            {template.layout !== "sliced" && description && (
+            {template.layout !== "sliced" && template.layout !== "duel" && description && (
               <EditorSection
                 title={
                   template.layout === "porto"
@@ -3543,7 +3918,7 @@ function EditorScreen({
             )}
 
             {/* Call to action */}
-            {template.layout !== "sliced" && cta && (
+            {template.layout !== "sliced" && template.layout !== "duel" && cta && (
               <EditorSection
                 title="Call to action"
                 open={openSections.cta}
