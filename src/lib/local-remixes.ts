@@ -14,6 +14,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { serverDataDir } from "@/lib/server-data-dir";
 import { assetsFromLayers, type RemixEditorAsset, type RemixEditorState } from "@/lib/remix-editor";
 
 export const LOCAL_REMIX_ID_PREFIX = "local-";
@@ -50,7 +51,7 @@ export interface LocalRemixSummary {
   caption: string | null;
 }
 
-const STORE_DIR = join(process.cwd(), ".data", "local-remixes");
+const STORE_DIR = serverDataDir("local-remixes");
 
 // One subdirectory per user scope (hashed, so an arbitrary scope id can't
 // escape the store dir) — lets `list` enumerate a user's remixes with a single

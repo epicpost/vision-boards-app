@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { serverDataDir } from "@/lib/server-data-dir";
 import type { EditorLayer } from "@/lib/remix-editor";
 
 // File-backed draft store for the creative editor. Every canvas change the
@@ -24,7 +25,7 @@ interface DraftKey {
   templateId: string;
 }
 
-const DRAFT_DIR = join(process.cwd(), ".data", "editor-drafts");
+const DRAFT_DIR = serverDataDir("editor-drafts");
 
 // Hash the key into a flat, filesystem-safe filename so arbitrary template/user
 // ids can't escape the draft directory.
