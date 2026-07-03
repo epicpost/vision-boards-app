@@ -56,8 +56,56 @@ const TRAVEL_INSPIRATION_PIN: PostTemplate = {
   },
 };
 
+// Soulkin Split Pin — the split-editorial editor template. Preview art lives at
+// public/templates/shared/Soulkin Split Pin.jpg (736 x 920).
+const SOULKIN_SPLIT_PIN: PostTemplate = {
+  id: "11000000-0000-0000-0000-000000000033",
+  title: "Soulkin Split Pin",
+  preview: "/templates/shared/Soulkin%20Split%20Pin.jpg",
+  preview_type: "image",
+  preview_width: 736,
+  preview_height: 920,
+  likes_count: 0,
+  is_saved: false,
+  is_liked: false,
+  is_remixed: false,
+  assets: [
+    {
+      id: "soulkin-split-cover",
+      url: "/templates/shared/Soulkin%20Split%20Pin.jpg",
+      type: "image",
+      order: 0,
+      width: 736,
+      height: 920,
+    },
+  ],
+  board_id: null,
+  board_name: null,
+  remix_id: null,
+  description:
+    "A split editorial pin: a paper panel beside a full-height photo, with a giant headline knocked out of the paper to reveal the photo behind it, plus a small body block. The headline and body are your own text.",
+  tags: ["editorial", "split", "typography", "pin", "minimal"],
+  comments: [],
+  created_at: "2026-07-03T00:00:00.000Z",
+  updated_at: "2026-07-03T00:00:00.000Z",
+  template_type: "image",
+  aspect_ratio: "4 / 5",
+  input_image_count: 1,
+  capabilities: {
+    supports_ai_generation: false,
+    supports_remix: true,
+    supports_asset_replacement: true,
+    supports_text_rewrite: true,
+    supports_brand_adaptation: true,
+    supports_aspect_ratio_conversion: false,
+    supports_language_adaptation: false,
+    supports_batch_generation: false,
+    supports_variants: true,
+  },
+};
+
 // Local templates, newest first — prepended to the feed's "All" list.
-export const LOCAL_TEMPLATES: PostTemplate[] = [TRAVEL_INSPIRATION_PIN];
+export const LOCAL_TEMPLATES: PostTemplate[] = [SOULKIN_SPLIT_PIN, TRAVEL_INSPIRATION_PIN];
 
 const LOCAL_TEMPLATES_BY_ID = new Map(LOCAL_TEMPLATES.map((template) => [template.id, template]));
 

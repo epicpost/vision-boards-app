@@ -123,7 +123,14 @@ export const EXPORT_FORMATS: Record<ExportFormat, ExportFormatMeta> = {
 // reproduces the measured Porto travel poster reference; "relax" is a stack of
 // rounded photo panels (with gaps) and a caption + subcaption over the middle
 // panel, mirroring the `template_relax.v2.html` render engine template.
-export type TemplateLayout = "poster" | "moodboard" | "porto" | "relax" | "cover" | "verticals";
+export type TemplateLayout =
+  | "poster"
+  | "moodboard"
+  | "porto"
+  | "relax"
+  | "cover"
+  | "verticals"
+  | "split";
 
 export interface RemixEditorTemplate {
   id: string;
@@ -843,6 +850,68 @@ const TRAVEL_PIN: RemixEditorTemplate = {
   ],
 };
 
+// SOULKIN "split editorial" pin — a paper panel on the left and a full-height
+// photo on the right, with a giant uppercase headline whose letters are knocked
+// out of the paper to reveal the same photo behind them (so letters spanning
+// into the photo area read continuous with it), plus a small dark body block
+// bottom-left. Both texts are user inputs. Mirrors the reference pin.
+const SOULKIN_SPLIT: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000033",
+  title: "Soulkin Split Pin",
+  layout: "split",
+  aspectRatio: "4 / 5",
+  background: "#ece4d6",
+  palette: [
+    { label: "Paper", value: "#ece4d6" },
+    { label: "Ink", value: "#1c1a17" },
+    { label: "Sand", value: "#d8cbb3" },
+    { label: "Olive", value: "#5c5a3a" },
+    { label: "Clay", value: "#a5714e" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/barcelona-park.jpg",
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Headline",
+      visible: true,
+      hideable: true,
+      text: "Soulkin",
+      // Colour is the fallback used when the photo can't fill the letters.
+      color: "#1c1a17",
+      fontId: "archivo",
+      uppercase: true,
+      suggestions: ["Soulkin", "Retreat", "Wander", "Escape", "Haven"],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Body",
+      visible: true,
+      hideable: true,
+      text: "Aravali Hills, Gurugram\nThe Third Place,\nReimagined For\nModern Souls.",
+      color: "#1c1a17",
+      fontId: "montserrat",
+      uppercase: false,
+      weight: 500,
+      align: "left",
+      suggestions: [
+        "Aravali Hills, Gurugram\nThe Third Place,\nReimagined For\nModern Souls.",
+        "A quiet retreat\nwhere the city\nfinally exhales.",
+        "Designed for slow\nmornings and\nlong horizons.",
+      ],
+    },
+  ],
+};
+
 const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [TEMPLATE_28.id]: TEMPLATE_28,
   [TEMPLATE_205.id]: TEMPLATE_205,
@@ -850,6 +919,7 @@ const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [RELAX_TRIO.id]: RELAX_TRIO,
   [FRANKOF_TIMELESS.id]: FRANKOF_TIMELESS,
   [TRAVEL_PIN.id]: TRAVEL_PIN,
+  [SOULKIN_SPLIT.id]: SOULKIN_SPLIT,
 };
 
 export function getRemixEditorTemplate(id: string): RemixEditorTemplate | null {
@@ -1105,6 +1175,19 @@ export const VERTICALS_LAYOUT = {
 export function verticalsTitleChars(text: string): string[] {
   return Array.from(text.replace(/\s+/g, " ").trim());
 }
+
+// ── Split editorial geometry ─────────────────────────────────────────────────
+// A paper panel on the left and a full-height photo on the right (boundary at
+// `splitX`, fraction of width). The giant headline is knocked out of the paper
+// to reveal the photo behind it; its box is wide enough that big letters wrap a
+// few per line (like the reference SOULKIN → SO / UL / KIN). The body block sits
+// bottom-left over the paper. All fractions are of the canvas *width* except the
+// vertical anchors (`top`/`bottom`), which are fractions of height.
+export const SPLIT_LAYOUT = {
+  splitX: 0.43,
+  headline: { x: 0.055, top: 0.055, width: 0.36, size: 0.19, lineHeight: 0.92 },
+  body: { x: 0.075, bottom: 0.06, width: 0.34, size: 0.03, lineHeight: 1.4 },
+} as const;
 
 // Measured from public/templates/shared/porto-poster.jpg (736 x 1308) and
 // expressed as canvas fractions so the DOM preview and export share the same

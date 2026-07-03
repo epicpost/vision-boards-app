@@ -75,6 +75,7 @@ import {
   LAYOUT,
   MOODBOARD_LAYOUT,
   RELAX_LAYOUT,
+  SPLIT_LAYOUT,
   VERTICALS_LAYOUT,
   verticalsTitleChars,
   PORTO_CAPTION_TRACKING,
@@ -1495,6 +1496,130 @@ function CoverPreview({
           }}
         >
           {header.text}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Split editorial: a paper panel on the left over a full-canvas photo, with the
+// headline knocked out of the paper to reveal that photo (letters filled via
+// background-clip:text) and a small dark body block bottom-left. Mirrors
+// `exportSplit`.
+function SplitPreview({
+  template,
+  layers,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const image = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image",
+  );
+  const header = layers.find((layer): layer is TextLayer => layer.kind === "header");
+  const description = layers.find((layer): layer is TextLayer => layer.kind === "description");
+  const headerStyle = header ? resolveTextStyle(header) : null;
+  const descStyle = description ? resolveTextStyle(description) : null;
+  const pct = (value: number) => `${value * 100}%`;
+  const cqi = (value: number) => `${value * 100}cqi`;
+  const showPhotoFill = Boolean(image?.visible && image.src);
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+      }}
+    >
+      {image?.visible && (
+        <DraggableImage
+          layer={image}
+          fit="cover"
+          selected={selectedId === image.id}
+          onSelect={() => onSelect(image.id)}
+          onPan={(offsetX, offsetY) =>
+            updateLayer(
+              image.id,
+              { transform: { ...imageTransform(image), offsetX, offsetY } },
+              `pan-${image.id}`,
+            )
+          }
+          className="inset-0 h-full w-full"
+        />
+      )}
+
+      {/* Paper panel over the left, covering that part of the photo. */}
+      <div
+        className="pointer-events-none absolute inset-y-0 left-0"
+        style={{ width: pct(SPLIT_LAYOUT.splitX), background: template.background }}
+      />
+
+      {header?.visible && headerStyle && header.text.trim() && (
+        <div
+          className="pointer-events-none absolute"
+          style={{
+            left: pct(SPLIT_LAYOUT.headline.x),
+            top: pct(SPLIT_LAYOUT.headline.top),
+            width: pct(SPLIT_LAYOUT.headline.width),
+            fontFamily: fontById(header.fontId).family,
+            fontWeight: headerStyle.weight,
+            fontSize: cqi(SPLIT_LAYOUT.headline.size * headerStyle.sizeScale),
+            lineHeight: SPLIT_LAYOUT.headline.lineHeight,
+            letterSpacing: `${headerStyle.letterSpacing}em`,
+            textTransform: header.uppercase ? "uppercase" : "none",
+            overflowWrap: "anywhere",
+            wordBreak: "break-word",
+            // Fill the letters with the photo (positioned to cover the full
+            // canvas) so they read continuous with the right-hand photo.
+            ...(showPhotoFill
+              ? {
+                  backgroundImage: `url("${image!.src}")`,
+                  // The letters preview as a cover-fit crop of the photo; the PNG
+                  // export fills them from the full-canvas photo so they line up
+                  // seamlessly with the right-hand photo across the boundary.
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  backgroundRepeat: "no-repeat",
+                  backgroundClip: "text",
+                  WebkitBackgroundClip: "text",
+                  color: "transparent",
+                  WebkitTextFillColor: "transparent",
+                }
+              : { color: header.color }),
+          }}
+        >
+          {header.text}
+        </div>
+      )}
+
+      {description?.visible && descStyle && description.text.trim() && (
+        <div
+          className="pointer-events-none absolute"
+          style={{
+            left: pct(SPLIT_LAYOUT.body.x),
+            bottom: pct(SPLIT_LAYOUT.body.bottom),
+            width: pct(SPLIT_LAYOUT.body.width),
+            fontFamily: fontById(description.fontId).family,
+            fontWeight: descStyle.weight,
+            fontSize: cqi(SPLIT_LAYOUT.body.size * descStyle.sizeScale),
+            lineHeight: SPLIT_LAYOUT.body.lineHeight,
+            letterSpacing: `${descStyle.letterSpacing}em`,
+            textAlign: descStyle.align,
+            color: description.color,
+            textTransform: description.uppercase ? "uppercase" : "none",
+            whiteSpace: "pre-line",
+            textShadow: descStyle.shadow ? TEXT_SHADOW_CSS : "none",
+          }}
+        >
+          {description.text}
         </div>
       )}
     </div>

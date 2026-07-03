@@ -8,6 +8,7 @@ import {
   LAYOUT,
   MOODBOARD_LAYOUT,
   RELAX_LAYOUT,
+  SPLIT_LAYOUT,
   VERTICALS_LAYOUT,
   verticalsTitleChars,
   PORTO_CAPTION_TRACKING,
@@ -534,6 +535,161 @@ function drawTextImageFill(
   ctx.drawImage(mask, 0, 0);
 }
 
+// Break text to fit `maxWidth` character-by-character (honouring explicit
+// newlines) — used for the split headline, which is often a single long word
+// (e.g. "SOULKIN") that must stack a few big letters per line.
+function wrapChars(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const out: string[] = [];
+  for (const para of text.split("\n")) {
+    const chars = Array.from(para);
+    let line = "";
+    for (const ch of chars) {
+      const candidate = line + ch;
+      if (line && ctx.measureText(candidate).width > maxWidth) {
+        out.push(line);
+        line = ch;
+      } else {
+        line = candidate;
+      }
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+// Rasterize a split editorial pin: a paper panel on the left, a full-height photo
+// on the right, a giant headline knocked out of the paper to reveal the photo,
+// and a small dark body block bottom-left — mirroring `SplitPreview`.
+async function exportSplit(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+
+  const imageLayer = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const header = byId<TextLayer>("header");
+  const description = byId<TextLayer>("description");
+
+  let image: HTMLImageElement | null = null;
+  if (imageLayer?.visible) {
+    try {
+      image = await loadImage(imageLayer.src);
+    } catch {
+      throw new ExportImageError(1);
+    }
+  }
+  const transform = imageLayer ? imageTransform(imageLayer) : DEFAULT_IMAGE_TRANSFORM;
+  const fullBox = { x: 0, y: 0, w: width, h: height };
+
+  // Photo cover-fit to the *full* canvas, then paper painted over the left panel
+  // — so the right side shows the photo and the headline letters (also filled
+  // with the full-canvas photo) read continuous with it across the boundary.
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+  if (image) {
+    drawImageCover(ctx, image, fullBox, transform);
+  }
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, SPLIT_LAYOUT.splitX * width, height);
+
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      [header, description].map((layer) => {
+        if (!layer?.visible || !layer.text.trim()) return Promise.resolve();
+        const font = fontById(layer.fontId);
+        return document.fonts
+          .load(`${resolveTextStyle(layer).weight} 100px ${primaryFamily(font.family)}`)
+          .catch(() => undefined);
+      }),
+    ).catch(() => undefined);
+  }
+
+  // Headline — knocked out of the paper to reveal the same photo, cover-fit to
+  // the *full* canvas so letters spanning into the photo area read continuous.
+  if (header?.visible && header.text.trim()) {
+    const font = fontById(header.fontId);
+    const style = resolveTextStyle(header);
+    const size = SPLIT_LAYOUT.headline.size * style.sizeScale * width;
+    const lineHeight = size * SPLIT_LAYOUT.headline.lineHeight;
+    const x = SPLIT_LAYOUT.headline.x * width;
+    const top = SPLIT_LAYOUT.headline.top * height;
+    const raw = header.uppercase ? header.text.toUpperCase() : header.text;
+
+    ctx.save();
+    ctx.font = `${style.weight} ${size}px ${font.family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    const lines = wrapChars(ctx, raw, SPLIT_LAYOUT.headline.width * width);
+    ctx.restore();
+
+    const paint = (target: CanvasRenderingContext2D) => {
+      target.font = `${style.weight} ${size}px ${font.family}`;
+      target.letterSpacing = `${style.letterSpacing}em`;
+      target.textAlign = "left";
+      target.textBaseline = "top";
+      lines.forEach((line, index) => target.fillText(line, x, top + index * lineHeight));
+    };
+
+    if (image) {
+      const mask = document.createElement("canvas");
+      mask.width = width;
+      mask.height = height;
+      const maskCtx = mask.getContext("2d");
+      if (maskCtx) {
+        maskCtx.fillStyle = header.color;
+        paint(maskCtx);
+        maskCtx.globalCompositeOperation = "source-in";
+        drawImageCover(maskCtx, image, fullBox, transform);
+        ctx.drawImage(mask, 0, 0);
+      }
+    } else {
+      ctx.save();
+      ctx.fillStyle = header.color;
+      paint(ctx);
+      ctx.restore();
+    }
+    ctx.letterSpacing = "0px";
+  }
+
+  // Body — small dark block anchored bottom-left over the paper.
+  if (description?.visible && description.text.trim()) {
+    const font = fontById(description.fontId);
+    const style = resolveTextStyle(description);
+    const size = SPLIT_LAYOUT.body.size * style.sizeScale * width;
+    const lineHeight = size * SPLIT_LAYOUT.body.lineHeight;
+    const x = SPLIT_LAYOUT.body.x * width;
+    const raw = description.uppercase ? description.text.toUpperCase() : description.text;
+    ctx.save();
+    ctx.font = `${style.weight} ${size}px ${font.family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    const lines = raw
+      .split("\n")
+      .flatMap((para) => (para.trim() === "" ? [""] : wrapLines(ctx, para, SPLIT_LAYOUT.body.width * width)));
+    applyTextShadow(ctx, style.shadow, size);
+    ctx.fillStyle = description.color;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "bottom";
+    const bottomY = height - SPLIT_LAYOUT.body.bottom * height;
+    const startY = bottomY - (lines.length - 1) * lineHeight;
+    lines.forEach((line, index) => ctx.fillText(line, x, startY + index * lineHeight));
+    ctx.letterSpacing = "0px";
+    ctx.restore();
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
 async function exportPorto(
   template: RemixEditorTemplate,
   layers: EditorLayer[],
@@ -801,6 +957,9 @@ export async function exportCreative(
   }
   if (template.layout === "verticals") {
     return exportVerticals(template, layers, format, width);
+  }
+  if (template.layout === "split") {
+    return exportSplit(template, layers, format, width);
   }
 
   const ratio = parseRatio(template.aspectRatio);
