@@ -121,7 +121,7 @@ import {
   type TextAlign,
   type TextLayer,
 } from "@/lib/remix-editor";
-import { exportCreative } from "@/lib/remix-editor-export";
+import { drawSlicedLetters, exportCreative } from "@/lib/remix-editor-export";
 import { useEditorDraft, useRemixDraft } from "@/lib/use-editor-draft";
 import { fetchRemix } from "@/lib/remixes";
 import { uploadAssetFiles } from "@/lib/generations";
@@ -1683,13 +1683,12 @@ function SplitPreview({
   );
 }
 
-// Sliced-type poster (the SUNDAY template): a giant caption set one big letter
-// per horizontal band, each letter stretched to the letter-box width and filled
-// with its own horizontal slice of a single photo (so the picture reads
-// continuous down the word), plus an optional right-hand date / quote / year.
-// The stretched, photo-filled letters are drawn with an inline SVG (a clip-path
-// of the letters over one cover-fit image); the paper, optional background image
-// and right column are DOM layers. Mirrors `exportSliced`.
+// Sliced-type poster (the SUNDAY template): a solid photo block on the left that
+// transitions into a giant caption (one big letter per horizontal band, filled
+// with its own slice of the photo), plus an optional right-hand date / quote /
+// year. The photo-filled letters are drawn on a canvas via the shared
+// `drawSlicedLetters` routine so the preview matches the export exactly; the
+// optional background image and right column are DOM layers over/under it.
 function SlicedPreview({
   template,
   layers,
@@ -1703,7 +1702,6 @@ function SlicedPreview({
   onSelect: (id: string) => void;
   updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
 }) {
-  const clipId = useId();
   const photo = layers.find(
     (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.id === "image",
   );
@@ -1717,7 +1715,8 @@ function SlicedPreview({
 
   const [rw, rh] = template.aspectRatio.split("/").map((part) => Number(part.trim()));
   const ratio = rw && rh ? rw / rh : 0.75;
-  // SVG user-space canvas (viewBox) — same aspect as the container so it fills 1:1.
+  // The letters render on a canvas (same routine as the export), scaled to fill
+  // the container. Fixed pixel size at the box aspect so CSS scaling stays crisp.
   const Wv = 1000;
   const Hv = Math.round(Wv / ratio);
 
@@ -1730,57 +1729,70 @@ function SlicedPreview({
   const showLetters = Boolean(caption?.visible && chars.length);
   const showPhotoFill = Boolean(photo?.visible && photo.src);
 
-  const geo = slicedGeometry(chars.length || 1, Wv, Hv);
-  const fontSize = geo.bandH / SLICED_LAYOUT.capRatio;
-  const letterFont = caption ? fontById(caption.fontId).family : "sans-serif";
-
-  // Glyph ink metrics only measure truthfully once the caption's face is
-  // loaded; bump a tick when it lands so the letters re-measure and settle.
-  const [, setFontTick] = useState(0);
+  // Draw the sliced photo-filled caption onto the canvas with the same
+  // `drawSlicedLetters` routine the export uses — so the preview matches the
+  // download exactly (including the left photo block that follows each glyph's
+  // contour). Re-runs when the caption, font, photo or its transform changes;
+  // waits for the caption face to load so glyph ink metrics are truthful.
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const transform = photo ? imageTransform(photo) : DEFAULT_IMAGE_TRANSFORM;
   const captionFace = caption
     ? `${captionStyle?.weight ?? 400} 100px ${fontById(caption.fontId).family.split(",")[0].trim()}`
     : null;
   useEffect(() => {
-    if (!captionFace || typeof document === "undefined" || !document.fonts) return;
-    let live = true;
-    document.fonts
-      .load(captionFace)
-      .then(() => {
-        if (live) setFontTick((tick) => tick + 1);
-      })
-      .catch(() => undefined);
-    return () => {
-      live = false;
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
+    let cancelled = false;
+    const paint = (img: HTMLImageElement | null) => {
+      if (cancelled) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (!showLetters || !caption || !captionStyle) return;
+      drawSlicedLetters(ctx, {
+        chars,
+        geo: slicedGeometry(chars.length, canvas.width, canvas.height),
+        fontId: caption.fontId,
+        weight: captionStyle.weight,
+        photo: img,
+        photoTransform: transform,
+        color: caption.color,
+      });
     };
-  }, [captionFace]);
-
-  // Each glyph is sized to fill its band height at a near-natural aspect and
-  // right-aligned to the box edge; `blockW` is the photo block filling the space
-  // to its left, so the picture runs continuous into the letter (as in the
-  // reference). When ink metrics are unavailable, fall back to a width-only
-  // `textLength` stretch at an approximate cap-height fit (`transform: null`).
-  const glyphs = chars.map((ch, index) => {
-    const band = geo.bands[index];
-    const met =
-      caption && captionStyle ? slicedGlyphMetrics(ch, caption.fontId, captionStyle.weight) : null;
-    if (met) {
-      const scaleY = band.h / met.inkH;
-      const glyphW = Math.min(band.h * SLICED_LAYOUT.letterAspect, geo.w);
-      const scaleX = glyphW / met.inkW;
-      const originX = geo.x + geo.w - glyphW;
-      return {
-        ch,
-        index,
-        transform: `translate(${originX} ${band.y}) scale(${scaleX} ${scaleY})`,
-        x: met.left,
-        y: met.ascent,
-        size: met.refSize,
-        block: originX > geo.x ? { x: geo.x, y: band.y, w: originX - geo.x, h: band.h } : null,
-      };
-    }
-    const baseline = band.y + (band.h + fontSize * SLICED_LAYOUT.capRatio) / 2;
-    return { ch, index, transform: null, x: geo.x, y: baseline, size: fontSize, block: null };
-  });
+    const run = async () => {
+      if (captionFace && typeof document !== "undefined" && document.fonts) {
+        await document.fonts.load(captionFace).catch(() => undefined);
+      }
+      if (cancelled) return;
+      if (showPhotoFill && photo?.src) {
+        const img = new Image();
+        img.onload = () => paint(img);
+        img.onerror = () => paint(null);
+        img.src = photo.src;
+      } else {
+        paint(null);
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    chars.join(""),
+    caption?.fontId,
+    caption?.color,
+    captionStyle?.weight,
+    captionFace,
+    showLetters,
+    showPhotoFill,
+    photo?.src,
+    transform.offsetX,
+    transform.offsetY,
+    transform.scale,
+    transform.rotation,
+    Wv,
+    Hv,
+  ]);
 
   // Stacked single-character block (date / year), rendered as pre-line text.
   const stackedText = (layer: TextLayer | undefined) =>
@@ -1803,83 +1815,17 @@ function SlicedPreview({
         <img src={background.src} alt="" className="absolute inset-0 h-full w-full object-cover" />
       )}
 
-      {showLetters && captionStyle && (
-        <svg
+      {showLetters && (
+        <canvas
+          ref={canvasRef}
+          width={Wv}
+          height={Hv}
           className="absolute inset-0 h-full w-full"
-          viewBox={`0 0 ${Wv} ${Hv}`}
-          preserveAspectRatio="none"
           onPointerDown={(event) => {
             event.stopPropagation();
             if (photo) onSelect(photo.id);
           }}
-        >
-          {showPhotoFill ? (
-            <>
-              <defs>
-                <clipPath id={clipId}>
-                  {glyphs.map((glyph) =>
-                    glyph.block ? (
-                      <rect
-                        key={`block-${glyph.index}`}
-                        x={glyph.block.x}
-                        y={glyph.block.y}
-                        width={glyph.block.w}
-                        height={glyph.block.h}
-                      />
-                    ) : null,
-                  )}
-                  {glyphs.map((glyph) => (
-                    <text
-                      key={glyph.index}
-                      x={glyph.x}
-                      y={glyph.y}
-                      transform={glyph.transform ?? undefined}
-                      textLength={glyph.transform ? undefined : geo.w}
-                      lengthAdjust={glyph.transform ? undefined : "spacingAndGlyphs"}
-                      textAnchor="start"
-                      style={{
-                        fontFamily: letterFont,
-                        fontWeight: captionStyle.weight,
-                        fontSize: `${glyph.size}px`,
-                      }}
-                    >
-                      {glyph.ch}
-                    </text>
-                  ))}
-                </clipPath>
-              </defs>
-              <image
-                href={photo!.src}
-                x={geo.x}
-                y={geo.top}
-                width={geo.w}
-                height={geo.boxH}
-                preserveAspectRatio="xMidYMid slice"
-                clipPath={`url(#${clipId})`}
-              />
-            </>
-          ) : (
-            glyphs.map((glyph) => (
-              <text
-                key={glyph.index}
-                x={glyph.x}
-                y={glyph.y}
-                transform={glyph.transform ?? undefined}
-                textLength={glyph.transform ? undefined : geo.w}
-                lengthAdjust={glyph.transform ? undefined : "spacingAndGlyphs"}
-                textAnchor="start"
-                fill={caption!.color}
-                style={{
-                  fontFamily: letterFont,
-                  fontWeight: captionStyle.weight,
-                  fontSize: `${glyph.size}px`,
-                }}
-              >
-                {glyph.ch}
-              </text>
-            ))
-          )}
-        </svg>
+        />
       )}
 
       {/* Date — stacked characters, top-right. */}
@@ -4575,6 +4521,37 @@ function EditorScreen({
                         onChange={(fontId) => changeFont("header", fontId)}
                       />
                     </div>
+                    {/* Letters are stretched to fill a fixed-width cell, so only
+                        weight (the glyph's stroke thickness) reads visually —
+                        size/spacing/alignment from TextStyleControls wouldn't
+                        change anything here. */}
+                    {fontById(header.fontId).weights.length > 1 && (
+                      <div className="mt-4">
+                        <p className="mb-2 text-[13px] font-medium text-muted-foreground">Weight</p>
+                        <div className="flex flex-wrap gap-2">
+                          {fontById(header.fontId).weights.map((w) => {
+                            const active = resolveTextStyle(header).weight === w;
+                            return (
+                              <button
+                                key={w}
+                                type="button"
+                                aria-pressed={active}
+                                onClick={() => updateLayer("header", { weight: w })}
+                                style={{ fontWeight: w }}
+                                className={cn(
+                                  "rounded-full border px-3 py-1.5 text-[13px] transition",
+                                  active
+                                    ? "border-foreground bg-foreground text-background"
+                                    : "border-border text-foreground hover:bg-secondary",
+                                )}
+                              >
+                                {WEIGHT_LABELS[w] ?? w}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </EditorSection>
                 )}
               </>

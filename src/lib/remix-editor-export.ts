@@ -17,6 +17,7 @@ import {
   slicedChars,
   slicedGeometry,
   slicedGlyphMetrics,
+  type SlicedGeometry,
   VERTICALS_LAYOUT,
   verticalsTitleChars,
   DUEL_LAYOUT,
@@ -1271,11 +1272,123 @@ async function exportSplit(
   return canvasToBlob(canvas, format);
 }
 
-// Rasterize the SUNDAY "sliced type" poster: a giant caption set one big letter
-// per horizontal band, each letter stretched to the letter-box width and filled
-// with its own horizontal slice of a single photo (hairline paper gaps between
-// bands), plus an optional right-hand date / quote / year — mirroring
-// `SlicedPreview`.
+// Extend the mask leftward from each glyph, following the glyph's left contour
+// per row (fill from the box's left margin up to the leftmost ink of each row),
+// so the photo block runs continuous into the letter with no paper notch on
+// slanted letters (A, V, Y). Reads the already-painted glyph alpha, so it must
+// run before the photo is composited in. Counters stay paper (they sit to the
+// right of the leftmost ink, so they're never filled).
+function slicedLeftContourFill(ctx: CanvasRenderingContext2D, geo: SlicedGeometry) {
+  const { width: cw, height: ch } = ctx.canvas;
+  const x0 = Math.max(0, Math.floor(geo.x));
+  const x1 = Math.min(cw, Math.ceil(geo.x + geo.w));
+  const w = x1 - x0;
+  if (w <= 0) return;
+  for (const band of geo.bands) {
+    const y0 = Math.max(0, Math.floor(band.y));
+    const y1 = Math.min(ch, Math.ceil(band.y + band.h));
+    if (y1 <= y0) continue;
+    const img = ctx.getImageData(x0, y0, w, y1 - y0);
+    const data = img.data;
+    for (let ry = 0; ry < y1 - y0; ry++) {
+      const rowOff = ry * w;
+      let leftInk = -1;
+      for (let rx = 0; rx < w; rx++) {
+        if (data[(rowOff + rx) * 4 + 3] > 10) {
+          leftInk = rx;
+          break;
+        }
+      }
+      for (let rx = 0; rx < leftInk; rx++) {
+        const idx = (rowOff + rx) * 4;
+        data[idx] = 0;
+        data[idx + 1] = 0;
+        data[idx + 2] = 0;
+        data[idx + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, x0, y0);
+  }
+}
+
+// Draw the sliced photo-filled caption onto `ctx` (sized to `geo`'s canvas): a
+// solid photo block on the left that transitions, along each glyph's contour,
+// into one big letter per band. Shared by the canvas export and the editor
+// preview so both render identically. With no photo, paints solid-colour letters
+// (no block).
+export function drawSlicedLetters(
+  ctx: CanvasRenderingContext2D,
+  opts: {
+    chars: string[];
+    geo: SlicedGeometry;
+    fontId: string;
+    weight: number;
+    photo: HTMLImageElement | null;
+    photoTransform: ImageTransform;
+    color: string;
+  },
+) {
+  const { chars, geo, fontId, weight, photo, photoTransform, color } = opts;
+  if (chars.length === 0) return;
+  const font = fontById(fontId);
+  const cw = ctx.canvas.width;
+  const chh = ctx.canvas.height;
+  const fontSize = geo.bandH / SLICED_LAYOUT.capRatio;
+
+  const mask = document.createElement("canvas");
+  mask.width = cw;
+  mask.height = chh;
+  const m = mask.getContext("2d");
+  if (!m) return;
+
+  m.fillStyle = "#000";
+  m.textAlign = "left";
+  m.textBaseline = "alphabetic";
+  chars.forEach((ch, index) => {
+    const band = geo.bands[index];
+    m.save();
+    m.beginPath();
+    m.rect(geo.x, band.y, geo.w, band.h);
+    m.clip();
+    const met = slicedGlyphMetrics(ch, fontId, weight);
+    if (met) {
+      // Letter sized to fill the band height, near its natural aspect, and
+      // right-aligned to the box edge; the photo block fills the space to its left.
+      const scaleY = band.h / met.inkH;
+      const glyphW = Math.min(band.h * SLICED_LAYOUT.letterAspect, geo.w);
+      const scaleX = glyphW / met.inkW;
+      const originX = geo.x + geo.w - glyphW;
+      m.translate(originX, band.y);
+      m.scale(scaleX, scaleY);
+      m.font = `${weight} ${met.refSize}px ${font.family}`;
+      m.fillText(ch, met.left, met.ascent);
+    } else {
+      // Approximate cap-height fit when ink metrics are unavailable.
+      m.font = `${weight} ${fontSize}px ${font.family}`;
+      const natural = m.measureText(ch).width || 1;
+      const baseline = band.y + (band.h + fontSize * SLICED_LAYOUT.capRatio) / 2;
+      m.translate(geo.x, baseline);
+      m.scale(geo.w / natural, 1);
+      m.fillText(ch, 0, 0);
+    }
+    m.restore();
+  });
+
+  if (photo) {
+    slicedLeftContourFill(m, geo);
+    m.globalCompositeOperation = "source-in";
+    drawImageCover(m, photo, { x: geo.x, y: geo.top, w: geo.w, h: geo.boxH }, photoTransform);
+  } else {
+    m.globalCompositeOperation = "source-in";
+    m.fillStyle = color;
+    m.fillRect(0, 0, cw, chh);
+  }
+  ctx.drawImage(mask, 0, 0);
+}
+
+// Rasterize the SUNDAY "sliced type" poster: a solid photo block on the left that
+// transitions into a giant caption (one big letter per band), plus an optional
+// right-hand date / quote / year — mirroring `SlicedPreview`.
 async function exportSliced(
   template: RemixEditorTemplate,
   layers: EditorLayer[],
@@ -1341,78 +1454,20 @@ async function exportSliced(
   // Sliced caption. Each character is a band; the photo cover-fits the whole
   // letter box so the bands read as one continuous, sliced picture.
   if (caption?.visible && caption.text.trim()) {
-    const font = fontById(caption.fontId);
     const style = resolveTextStyle(caption);
     const label = caption.uppercase ? caption.text.toUpperCase() : caption.text;
     const chars = slicedChars(label);
     if (chars.length) {
       const geo = slicedGeometry(chars.length, width, height);
-      const fontSize = geo.bandH / SLICED_LAYOUT.capRatio;
-
-      // `withBlock` fills the left photo block (leftMargin → each letter) so the
-      // picture runs continuous into the letter, as in the reference. Off for the
-      // no-photo fallback (which paints solid-colour letters only).
-      const paintGlyphs = (target: CanvasRenderingContext2D, withBlock: boolean) => {
-        target.textAlign = "left";
-        target.textBaseline = "alphabetic";
-        chars.forEach((ch, index) => {
-          const band = geo.bands[index];
-          target.save();
-          target.beginPath();
-          target.rect(geo.x, band.y, geo.w, band.h);
-          target.clip();
-          const met = slicedGlyphMetrics(ch, caption.fontId, style.weight);
-          if (met) {
-            // Letter sized to fill the band height, kept near its natural aspect
-            // and right-aligned to the box's right edge; the photo block fills
-            // the space to its left so the image transitions into the letter.
-            const scaleY = band.h / met.inkH;
-            const glyphW = Math.min(band.h * SLICED_LAYOUT.letterAspect, geo.w);
-            const scaleX = glyphW / met.inkW;
-            const originX = geo.x + geo.w - glyphW;
-            if (withBlock && originX > geo.x) {
-              target.fillRect(geo.x, band.y, originX - geo.x, band.h);
-            }
-            target.translate(originX, band.y);
-            target.scale(scaleX, scaleY);
-            target.font = `${style.weight} ${met.refSize}px ${font.family}`;
-            target.fillText(ch, met.left, met.ascent);
-          } else {
-            // Approximate cap-height fit when ink metrics are unavailable.
-            target.font = `${style.weight} ${fontSize}px ${font.family}`;
-            const natural = target.measureText(ch).width || 1;
-            const baseline = band.y + (band.h + fontSize * SLICED_LAYOUT.capRatio) / 2;
-            target.translate(geo.x, baseline);
-            target.scale(geo.w / natural, 1);
-            target.fillText(ch, 0, 0);
-          }
-          target.restore();
-        });
-      };
-
-      if (photo) {
-        const mask = document.createElement("canvas");
-        mask.width = width;
-        mask.height = height;
-        const maskCtx = mask.getContext("2d");
-        if (maskCtx) {
-          maskCtx.fillStyle = "#000";
-          paintGlyphs(maskCtx, true);
-          maskCtx.globalCompositeOperation = "source-in";
-          drawImageCover(
-            maskCtx,
-            photo,
-            { x: geo.x, y: geo.top, w: geo.w, h: geo.boxH },
-            photoTransform,
-          );
-          ctx.drawImage(mask, 0, 0);
-        }
-      } else {
-        ctx.save();
-        ctx.fillStyle = caption.color;
-        paintGlyphs(ctx, false);
-        ctx.restore();
-      }
+      drawSlicedLetters(ctx, {
+        chars,
+        geo,
+        fontId: caption.fontId,
+        weight: style.weight,
+        photo,
+        photoTransform,
+        color: caption.color,
+      });
     }
   }
 
