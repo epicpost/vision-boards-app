@@ -33,6 +33,10 @@ import {
   cityMaskLabelLines,
   selfChars,
   selfGeometry,
+  GRID_LAYOUT,
+  gridVariant,
+  gridCellRect,
+  gridTextLines,
   PORTO_CAPTION_TRACKING,
   PORTO_CARD,
   PORTO_LAYOUT,
@@ -2276,6 +2280,185 @@ async function exportCollage(
   return canvasToBlob(canvas, format);
 }
 
+// Rasterize a Mono Grid creative: a full-bleed background photo split into a
+// 3×3 grid by thin lines in the canvas background colour, up to 3 cell photos,
+// a caption block, a rotated side text block and an optional bottom-centred
+// logo — mirroring `GridPreview`.
+async function exportGrid(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+  const variant = gridVariant(template.id);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  // Background photo, then each visible cell photo into its variant cell.
+  const background = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.id === "background",
+  );
+  let failed = 0;
+  if (background?.visible && background.src) {
+    try {
+      const img = await loadImage(background.src);
+      drawImageCover(ctx, img, { x: 0, y: 0, w: width, h: height }, imageTransform(background));
+    } catch {
+      failed += 1;
+    }
+  }
+  for (let index = 0; index < variant.photos.length; index++) {
+    const layer = layers.find(
+      (candidate): candidate is Extract<EditorLayer, { kind: "image" }> =>
+        candidate.id === `cell-${index + 1}` && candidate.kind === "image",
+    );
+    if (!layer?.visible || !layer.src) continue;
+    try {
+      const img = await loadImage(layer.src);
+      drawImageCover(ctx, img, gridCellRect(variant.photos[index], width, height), imageTransform(layer));
+    } catch {
+      failed += 1;
+    }
+  }
+  if (failed > 0) throw new ExportImageError(failed);
+
+  // Grid hairlines (2 vertical + 2 horizontal), centred on the cell edges.
+  const line = Math.max(1, GRID_LAYOUT.line * width);
+  ctx.fillStyle = template.background;
+  for (const i of [1, 2]) {
+    ctx.fillRect((i * width) / 3 - line / 2, 0, line, height);
+    ctx.fillRect(0, (i * height) / 3 - line / 2, width, line);
+  }
+
+  // Preload the webfonts used by the visible text layers.
+  const header = layers.find((layer): layer is TextLayer => layer.id === "header");
+  const tag = layers.find((layer): layer is TextLayer => layer.id === "eyebrow");
+  const sideTitle = layers.find((layer): layer is TextLayer => layer.id === "description");
+  const sideTag = layers.find((layer): layer is TextLayer => layer.id === "cta");
+  const textLayers = [header, tag, sideTitle, sideTag].filter((layer): layer is TextLayer =>
+    Boolean(layer && layer.visible && layer.text.trim()),
+  );
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      textLayers.map((layer) => {
+        const font = fontById(layer.fontId);
+        return document.fonts
+          .load(`${resolveTextStyle(layer).weight} 100px ${primaryFamily(font.family)}`)
+          .catch(() => undefined);
+      }),
+    ).catch(() => undefined);
+  }
+
+  // A caption-style block (headline lines + smaller hashtag) centred at (cx, cy).
+  const drawBlock = (
+    title: TextLayer | undefined,
+    tagLayer: TextLayer | undefined,
+    cx: number,
+    cy: number,
+    sizes: { size: number; tagSize: number; lineHeight: number; gap: number },
+  ) => {
+    const titleLines =
+      title?.visible && title.text.trim() ? gridTextLines(title.text, title.uppercase) : [];
+    const tagText =
+      tagLayer?.visible && tagLayer.text.trim()
+        ? (tagLayer.uppercase ? tagLayer.text.toUpperCase() : tagLayer.text)
+        : "";
+    if (!titleLines.length && !tagText) return;
+    const titleStyle = title ? resolveTextStyle(title) : null;
+    const tagStyle = tagLayer ? resolveTextStyle(tagLayer) : null;
+    const titleSize = sizes.size * (titleStyle?.sizeScale ?? 1) * width;
+    const tagSize = sizes.tagSize * (tagStyle?.sizeScale ?? 1) * width;
+    const titleH = titleLines.length * titleSize * sizes.lineHeight;
+    const tagH = tagText ? tagSize * sizes.lineHeight : 0;
+    const gap = titleLines.length && tagText ? sizes.gap * width : 0;
+    let y = cy - (titleH + gap + tagH) / 2;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    if (title && titleStyle && titleLines.length) {
+      const font = fontById(title.fontId);
+      ctx.save();
+      ctx.font = `${titleStyle.weight} ${titleSize}px ${font.family}`;
+      ctx.letterSpacing = `${titleStyle.letterSpacing}em`;
+      applyTextShadow(ctx, titleStyle.shadow, titleSize);
+      ctx.fillStyle = title.color;
+      for (const lineText of titleLines) {
+        ctx.fillText(lineText, cx, y + (titleSize * sizes.lineHeight) / 2);
+        y += titleSize * sizes.lineHeight;
+      }
+      ctx.restore();
+    } else {
+      y += titleH;
+    }
+    y += gap;
+    if (tagLayer && tagStyle && tagText) {
+      const font = fontById(tagLayer.fontId);
+      ctx.save();
+      ctx.font = `${tagStyle.weight} ${tagSize}px ${font.family}`;
+      ctx.letterSpacing = `${tagStyle.letterSpacing}em`;
+      applyTextShadow(ctx, tagStyle.shadow, tagSize);
+      ctx.fillStyle = tagLayer.color;
+      ctx.fillText(tagText, cx, y + tagH / 2);
+      ctx.restore();
+    }
+  };
+
+  // Caption block, centred in its cell.
+  const captionRect = gridCellRect(variant.caption, width, height);
+  drawBlock(
+    header,
+    tag,
+    captionRect.x + captionRect.w / 2,
+    captionRect.y + captionRect.h / 2,
+    GRID_LAYOUT.caption,
+  );
+
+  // Side block — same stack, rotated -90° around its cell centre so it reads
+  // bottom-to-top with the hashtag to the right of the title.
+  const sideRect = gridCellRect(variant.side, width, height);
+  ctx.save();
+  ctx.translate(sideRect.x + sideRect.w / 2, sideRect.y + sideRect.h / 2);
+  ctx.rotate(-Math.PI / 2);
+  drawBlock(sideTitle, sideTag, 0, 0, GRID_LAYOUT.side);
+  ctx.restore();
+
+  // Bottom-centred brand logo.
+  const logo = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "logo" }> =>
+      layer.kind === "logo" && layer.visible && Boolean(layer.src),
+  );
+  if (logo) {
+    try {
+      const img = await loadImage(logo.src);
+      const maxH = GRID_LAYOUT.logo.height * width;
+      const maxW = GRID_LAYOUT.logo.maxWidth * width;
+      const scale = Math.min(maxH / img.height, maxW / img.width);
+      const dw = img.width * scale;
+      const dh = img.height * scale;
+      ctx.drawImage(
+        img,
+        (width - dw) / 2,
+        height - GRID_LAYOUT.logo.bottom * height - dh,
+        dw,
+        dh,
+      );
+    } catch {
+      // A missing logo shouldn't block the export — the creative is complete
+      // without it.
+    }
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
 export async function exportCreative(
   template: RemixEditorTemplate,
   layers: EditorLayer[],
@@ -2320,6 +2503,9 @@ export async function exportCreative(
   }
   if (template.layout === "self") {
     return exportSelf(template, layers, format, width);
+  }
+  if (template.layout === "grid") {
+    return exportGrid(template, layers, format, width);
   }
 
   const ratio = parseRatio(template.aspectRatio);

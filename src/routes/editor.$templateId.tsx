@@ -101,6 +101,10 @@ import {
   cityMaskLabelLines,
   selfChars,
   selfGeometry,
+  GRID_LAYOUT,
+  gridVariant,
+  gridCellRect,
+  gridTextLines,
   PORTO_CAPTION_TRACKING,
   PORTO_CARD,
   PORTO_LAYOUT,
@@ -2634,6 +2638,226 @@ function SelfPreview({
   );
 }
 
+// Mono Grid (the 3×3 collage series): a full-bleed background photo split into
+// a 3×3 grid by thin lines in the canvas background colour, up to 3 small cell
+// photos on fixed cells, a caption block (headline + hashtag) centred in one
+// cell, a rotated side text block reading bottom-to-top in another, and an
+// optional bottom-centred brand logo. Cell assignments come from
+// `gridVariant(template.id)`. Mirrors `exportGrid`.
+function GridPreview({
+  template,
+  layers,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const variant = gridVariant(template.id);
+  const background = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.id === "background",
+  );
+  const header = layers.find((layer): layer is TextLayer => layer.id === "header");
+  const tag = layers.find((layer): layer is TextLayer => layer.id === "eyebrow");
+  const sideTitle = layers.find((layer): layer is TextLayer => layer.id === "description");
+  const sideTag = layers.find((layer): layer is TextLayer => layer.id === "cta");
+  const logo = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "logo" }> => layer.kind === "logo",
+  );
+  const cqi = (value: number) => `${value * 100}cqi`;
+  const pct = (value: number) => `${value * 100}%`;
+
+  // A caption-style text block: headline lines + a smaller hashtag underneath.
+  const textBlock = (
+    title: TextLayer | undefined,
+    tagLayer: TextLayer | undefined,
+    sizes: { size: number; tagSize: number; lineHeight: number; gap: number },
+  ) => {
+    const titleLines =
+      title?.visible && title.text.trim() ? gridTextLines(title.text, title.uppercase) : [];
+    const tagText =
+      tagLayer?.visible && tagLayer.text.trim()
+        ? (tagLayer.uppercase ? tagLayer.text.toUpperCase() : tagLayer.text)
+        : "";
+    if (!titleLines.length && !tagText) return null;
+    const titleStyle = title ? resolveTextStyle(title) : null;
+    const tagStyle = tagLayer ? resolveTextStyle(tagLayer) : null;
+    return (
+      <div
+        className="flex flex-col items-center text-center"
+        style={{ gap: titleLines.length && tagText ? cqi(sizes.gap) : 0 }}
+      >
+        {title && titleStyle && titleLines.length > 0 && (
+          <div
+            style={{
+              fontFamily: fontById(title.fontId).family,
+              fontWeight: titleStyle.weight,
+              fontSize: cqi(sizes.size * titleStyle.sizeScale),
+              lineHeight: sizes.lineHeight,
+              letterSpacing: `${titleStyle.letterSpacing}em`,
+              color: title.color,
+              textShadow: titleStyle.shadow ? TEXT_SHADOW_CSS : "none",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {titleLines.map((lineText, index) => (
+              <div key={index}>{lineText}</div>
+            ))}
+          </div>
+        )}
+        {tagLayer && tagStyle && tagText && (
+          <div
+            style={{
+              fontFamily: fontById(tagLayer.fontId).family,
+              fontWeight: tagStyle.weight,
+              fontSize: cqi(sizes.tagSize * tagStyle.sizeScale),
+              lineHeight: sizes.lineHeight,
+              letterSpacing: `${tagStyle.letterSpacing}em`,
+              color: tagLayer.color,
+              textShadow: tagStyle.shadow ? TEXT_SHADOW_CSS : "none",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {tagText}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const captionRect = gridCellRect(variant.caption, 1, 1);
+  const sideRect = gridCellRect(variant.side, 1, 1);
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+      }}
+    >
+      {/* Full-bleed background photo. */}
+      {background?.visible && background.src && (
+        <DraggableImage
+          layer={background}
+          fit="cover"
+          selected={selectedId === background.id}
+          onSelect={() => onSelect(background.id)}
+          onPan={(offsetX, offsetY) =>
+            updateLayer(
+              background.id,
+              { transform: { ...imageTransform(background), offsetX, offsetY } },
+              `pan-${background.id}`,
+            )
+          }
+          className="inset-0 h-full w-full"
+        />
+      )}
+
+      {/* Small photos, one per variant cell. */}
+      {variant.photos.map((cell, index) => {
+        const layer = layers.find(
+          (candidate): candidate is Extract<EditorLayer, { kind: "image" }> =>
+            candidate.id === `cell-${index + 1}` && candidate.kind === "image",
+        );
+        if (!layer?.visible || !layer.src) return null;
+        const rect = gridCellRect(cell, 1, 1);
+        return (
+          <DraggableImage
+            key={layer.id}
+            layer={layer}
+            fit="cover"
+            selected={selectedId === layer.id}
+            onSelect={() => onSelect(layer.id)}
+            onPan={(offsetX, offsetY) =>
+              updateLayer(
+                layer.id,
+                { transform: { ...imageTransform(layer), offsetX, offsetY } },
+                `pan-${layer.id}`,
+              )
+            }
+            style={{
+              left: pct(rect.x),
+              top: pct(rect.y),
+              width: pct(rect.w),
+              height: pct(rect.h),
+            }}
+          />
+        );
+      })}
+
+      {/* Grid hairlines, centred on the cell edges, over the photos. */}
+      {[1, 2].map((i) => (
+        <div key={`v-${i}`} className="pointer-events-none absolute inset-0">
+          <div
+            className="absolute top-0 h-full -translate-x-1/2"
+            style={{
+              left: pct(i / 3),
+              width: `max(1px, ${cqi(GRID_LAYOUT.line)})`,
+              background: template.background,
+            }}
+          />
+          <div
+            className="absolute left-0 w-full -translate-y-1/2"
+            style={{
+              top: pct(i / 3),
+              height: `max(1px, ${cqi(GRID_LAYOUT.line)})`,
+              background: template.background,
+            }}
+          />
+        </div>
+      ))}
+
+      {/* Caption block, centred in its cell. */}
+      <div
+        className="pointer-events-none absolute flex items-center justify-center"
+        style={{
+          left: pct(captionRect.x),
+          top: pct(captionRect.y),
+          width: pct(captionRect.w),
+          height: pct(captionRect.h),
+        }}
+      >
+        {textBlock(header, tag, GRID_LAYOUT.caption)}
+      </div>
+
+      {/* Side block — rotated -90° so it reads bottom-to-top. */}
+      <div
+        className="pointer-events-none absolute flex items-center justify-center"
+        style={{
+          left: pct(sideRect.x),
+          top: pct(sideRect.y),
+          width: pct(sideRect.w),
+          height: pct(sideRect.h),
+        }}
+      >
+        <div style={{ transform: "rotate(-90deg)" }}>
+          {textBlock(sideTitle, sideTag, GRID_LAYOUT.side)}
+        </div>
+      </div>
+
+      {/* Bottom-centred brand logo. */}
+      {logo?.visible && logo.src && (
+        <img
+          src={logo.src}
+          alt=""
+          className="pointer-events-none absolute left-1/2 -translate-x-1/2 object-contain"
+          style={{
+            bottom: pct(GRID_LAYOUT.logo.bottom),
+            height: cqi(GRID_LAYOUT.logo.height),
+            maxWidth: cqi(GRID_LAYOUT.logo.maxWidth),
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 // FRANKOF editorial paper slides (1, 6, 8): an uppercase headline on top, a
 // flexible photo (contain or cover), and an optional footer caption + arrow disc.
 // Geometry resolved per template via `editorialGeometry`. Mirrors
@@ -3321,6 +3545,19 @@ function defaultOpenSections(template: RemixEditorTemplate): Record<string, bool
   if (template.layout === "self") {
     return { image: true, header: true };
   }
+  if (template.layout === "grid") {
+    return {
+      background: true,
+      "cell-1": false,
+      "cell-2": false,
+      "cell-3": false,
+      header: true,
+      eyebrow: false,
+      description: false,
+      cta: false,
+      logo: false,
+    };
+  }
   return { image: true, header: true, description: false, cta: false, logo: false };
 }
 
@@ -3886,6 +4123,14 @@ function EditorScreen({
                 layers={layers}
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
+              />
+            ) : template.layout === "grid" ? (
+              <GridPreview
+                template={template}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
               />
             ) : (
               <CreativePreview
@@ -4557,6 +4802,105 @@ function EditorScreen({
               </>
             )}
 
+            {/* Mono Grid: the background photo, up to 3 cell photos, the caption
+                (headline + hashtag) and the rotated side text (title + hashtag).
+                The logo uses the shared Logo section below. */}
+            {template.layout === "grid" && (
+              <>
+                {photos.map((photo) => (
+                  <EditorSection
+                    key={photo.id}
+                    title={photo.label}
+                    open={openSections[photo.id] ?? false}
+                    onToggleOpen={() => toggleOpen(photo.id)}
+                    hideable={photo.hideable}
+                    visible={photo.visible}
+                    onToggleVisible={() => toggleVisible(photo.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-border bg-secondary">
+                        {photo.src ? (
+                          <img src={photo.src} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openReplace(photo.id)}
+                        className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                      >
+                        <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                        {photo.src ? "Replace photo" : "Add photo"}
+                      </button>
+                    </div>
+                    {photo.id !== "background" && (
+                      <p className="mt-3 text-[13px] text-muted-foreground">
+                        Optional — toggle the eye to show the background through this cell.
+                      </p>
+                    )}
+                    <ImageControls
+                      layer={photo}
+                      onChange={(transform, key) => updateLayer(photo.id, { transform }, key)}
+                      onReset={() =>
+                        updateLayer(photo.id, { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                      }
+                    />
+                  </EditorSection>
+                ))}
+
+                {[
+                  {
+                    layer: header,
+                    title: "Caption",
+                    label: "Caption text",
+                    multiline: true,
+                  },
+                  { layer: eyebrow, title: "Caption tag", label: "Caption tag text", multiline: false },
+                  { layer: description, title: "Side title", label: "Side title text", multiline: false },
+                  { layer: cta, title: "Side tag", label: "Side tag text", multiline: false },
+                ].map(({ layer, title, label, multiline }) =>
+                  layer ? (
+                    <EditorSection
+                      key={layer.id}
+                      title={title}
+                      open={openSections[layer.id] ?? false}
+                      onToggleOpen={() => toggleOpen(layer.id)}
+                      hideable={layer.hideable}
+                      visible={layer.visible}
+                      onToggleVisible={() => toggleVisible(layer.id)}
+                    >
+                      <TextField
+                        label={label}
+                        value={layer.text}
+                        multiline={multiline}
+                        onChange={(value) => updateLayer(layer.id, { text: value }, `${layer.id}-text`)}
+                        onSuggest={() => cycleSuggestion(layer)}
+                      />
+                      <div className="mt-4">
+                        <FontDropdown
+                          value={layer.fontId}
+                          color={layer.color}
+                          onChange={(fontId) => changeFont(layer.id, fontId)}
+                        />
+                      </div>
+                      <div className="mt-4">
+                        <ColorSwatches
+                          palette={template.palette}
+                          value={layer.color}
+                          onChange={(hex) => updateLayer(layer.id, { color: hex })}
+                        />
+                      </div>
+                      <TextStyleControls
+                        layer={layer}
+                        onChange={(patch, key) => updateLayer(layer.id, patch, key)}
+                      />
+                    </EditorSection>
+                  ) : null,
+                )}
+              </>
+            )}
+
             {/* Image */}
             {template.layout !== "moodboard" &&
               template.layout !== "relax" &&
@@ -4568,6 +4912,7 @@ function EditorScreen({
               template.layout !== "postcard" &&
               template.layout !== "citymask" &&
               template.layout !== "self" &&
+              template.layout !== "grid" &&
               image && (
               <EditorSection
                 title="Image"
@@ -4644,6 +4989,7 @@ function EditorScreen({
               template.layout !== "postcard" &&
               template.layout !== "citymask" &&
               template.layout !== "self" &&
+              template.layout !== "grid" &&
               header && (
               <EditorSection
                 title={template.layout === "porto" ? "Caption" : "Header"}
@@ -4686,6 +5032,7 @@ function EditorScreen({
               template.layout !== "postcard" &&
               template.layout !== "citymask" &&
               template.layout !== "self" &&
+              template.layout !== "grid" &&
               description && (
               <EditorSection
                 title={
@@ -4743,6 +5090,7 @@ function EditorScreen({
               template.layout !== "postcard" &&
               template.layout !== "citymask" &&
               template.layout !== "self" &&
+              template.layout !== "grid" &&
               cta && (
               <EditorSection
                 title="Call to action"

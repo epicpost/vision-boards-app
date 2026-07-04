@@ -144,7 +144,8 @@ export type TemplateLayout =
   | "duel"
   | "postcard"
   | "citymask"
-  | "self";
+  | "self"
+  | "grid";
 
 export interface RemixEditorTemplate {
   id: string;
@@ -1775,6 +1776,213 @@ const SELF_PORTRAIT: RemixEditorTemplate = {
   ],
 };
 
+// Mono Grid series — a full-bleed background photo split into a 3×3 grid by
+// thin lines (2 vertical + 2 horizontal, drawn in the canvas background
+// colour), with up to 3 small cell photos placed on fixed cells, an optional
+// caption block (headline + hashtag), an optional rotated side text block
+// (title + hashtag reading bottom-to-top) and an optional brand logo. Which
+// cells the photos/texts occupy varies per template via `GRID_VARIANTS`.
+// Mirrors public/templates/shared/{bcf6…, 04fb…, 9f37…}.jpg (1200 × 1500).
+const GRID_PALETTE: EditorColor[] = [
+  { label: "White", value: "#ffffff" },
+  { label: "Black", value: "#000000" },
+  { label: "Ink", value: "#1c1a17" },
+  { label: "Stone", value: "#8a8577" },
+  { label: "Sand", value: "#e7ddd0" },
+];
+
+// Shared non-image layers for a grid template (per-template text defaults).
+function gridTextLayers(defaults: {
+  caption: string;
+  captionVisible?: boolean;
+  captionColor: string;
+  tag: string;
+  sideTitle: string;
+  sideColor: string;
+  sideTag: string;
+}): EditorLayer[] {
+  return [
+    {
+      id: "header",
+      kind: "header",
+      label: "Caption",
+      visible: defaults.captionVisible ?? true,
+      hideable: true,
+      text: defaults.caption,
+      color: defaults.captionColor,
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 800,
+      suggestions: [
+        "Bold patterns,\ntimeless vibes.",
+        "Statement hat",
+        "Less, but better.",
+        "Made to be seen.",
+      ],
+    },
+    {
+      id: "eyebrow",
+      kind: "eyebrow",
+      label: "Caption tag",
+      visible: defaults.captionVisible ?? true,
+      hideable: true,
+      text: defaults.tag,
+      color: defaults.captionColor,
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 500,
+      letterSpacing: 0.06,
+      suggestions: ["#blackandwhitemood", "#timelessfashion", "#monochromemagic", "#chicandbold"],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Side title",
+      visible: true,
+      hideable: true,
+      text: defaults.sideTitle,
+      color: defaults.sideColor,
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 800,
+      suggestions: ["Elegance in every", "Soft & strong", "Black & white", "Quiet luxury"],
+    },
+    {
+      id: "cta",
+      kind: "cta",
+      label: "Side tag",
+      visible: true,
+      hideable: true,
+      text: defaults.sideTag,
+      color: defaults.sideColor,
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 500,
+      letterSpacing: 0.06,
+      suggestions: ["#monochromemagic", "#chicandbold", "contrast", "#editorialmood"],
+    },
+    {
+      id: "logo",
+      kind: "logo",
+      label: "Logo",
+      visible: false,
+      hideable: true,
+      src: "/transparent-logo.png",
+    },
+  ];
+}
+
+function gridCellLayer(index: number, src: string): EditorLayer {
+  return {
+    id: `cell-${index + 1}`,
+    kind: "image",
+    label: `Cell photo ${index + 1}`,
+    visible: true,
+    hideable: true,
+    src,
+  };
+}
+
+const GRID_MONO: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000039",
+  title: "Mono Grid",
+  layout: "grid",
+  aspectRatio: "4 / 5",
+  background: "#ffffff",
+  palette: GRID_PALETTE,
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "background",
+      kind: "image",
+      label: "Background photo",
+      visible: true,
+      hideable: false,
+      // A clean stock photo (not the composed reference, whose baked-in
+      // captions and cells would double up under the live layers).
+      src: "/templates/shared/barcelona-park.jpg",
+    },
+    gridCellLayer(0, "/templates/shared/Bali photo.jpg"),
+    gridCellLayer(1, "/templates/shared/Beach Quotes.jpg"),
+    ...gridTextLayers({
+      caption: "Bold patterns,\ntimeless vibes.",
+      captionColor: "#ffffff",
+      tag: "#blackandwhitemood",
+      sideTitle: "Elegance in every",
+      sideColor: "#ffffff",
+      sideTag: "#monochromemagic",
+    }),
+  ],
+};
+
+const GRID_STATEMENT: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000040",
+  title: "Statement Grid",
+  layout: "grid",
+  aspectRatio: "4 / 5",
+  background: "#ffffff",
+  palette: GRID_PALETTE,
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "background",
+      kind: "image",
+      label: "Background photo",
+      visible: true,
+      hideable: false,
+      // Clean photo — the composed reference has baked-in captions.
+      src: "/templates/shared/Bali photo.jpg",
+    },
+    gridCellLayer(0, "/templates/shared/Beach Quotes.jpg"),
+    gridCellLayer(1, "/templates/shared/Sunflower.jpg"),
+    gridCellLayer(2, "/templates/shared/barcelona-skyline.jpg"),
+    ...gridTextLayers({
+      caption: "Statement hat",
+      captionColor: "#ffffff",
+      tag: "#timelessfashion",
+      sideTitle: "Soft & strong",
+      sideColor: "#1c1a17",
+      sideTag: "#chicandbold",
+    }),
+  ],
+};
+
+const GRID_CONTRAST: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000041",
+  title: "Contrast Grid",
+  layout: "grid",
+  aspectRatio: "4 / 5",
+  background: "#ffffff",
+  palette: GRID_PALETTE,
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "background",
+      kind: "image",
+      label: "Background photo",
+      visible: true,
+      hideable: false,
+      // Clean photo — the composed reference has baked-in captions.
+      src: "/templates/shared/barcelona-skyline.jpg",
+    },
+    gridCellLayer(0, "/templates/shared/barcelona-park.jpg"),
+    gridCellLayer(1, "/templates/shared/Bali photo.jpg"),
+    gridCellLayer(2, "/templates/shared/Beach Quotes.jpg"),
+    ...gridTextLayers({
+      // The reference has no centre caption — hidden by default, one tap away.
+      caption: "Knit season",
+      captionVisible: false,
+      captionColor: "#1c1a17",
+      tag: "#cozyknits",
+      sideTitle: "Black & white",
+      // White for legibility over the default photo; the reference's ink is
+      // one palette tap away.
+      sideColor: "#ffffff",
+      sideTag: "contrast",
+    }),
+  ],
+};
+
 const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [TEMPLATE_28.id]: TEMPLATE_28,
   [TEMPLATE_205.id]: TEMPLATE_205,
@@ -1796,6 +2004,9 @@ const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [POSTCARD_LONDON.id]: POSTCARD_LONDON,
   [CITYMASK_SAN_FRANCISCO.id]: CITYMASK_SAN_FRANCISCO,
   [SELF_PORTRAIT.id]: SELF_PORTRAIT,
+  [GRID_MONO.id]: GRID_MONO,
+  [GRID_STATEMENT.id]: GRID_STATEMENT,
+  [GRID_CONTRAST.id]: GRID_CONTRAST,
 };
 
 export function getRemixEditorTemplate(id: string): RemixEditorTemplate | null {
@@ -2667,8 +2878,82 @@ export const CITYMASK_LAYOUT = {
   flag: { width: 0.12, aspect: 1.9 },
 } as const;
 
-// Greedy word wrap that also breaks a single word too wide for the column across
-// lines (char by char), so a long city like FRANCISCO becomes FRAN / CISCO.
+// Splits a single word that's too wide for the column across the fewest
+// possible lines (char by char), choosing whichever cut points make those
+// lines the most even width — not just the greedy max-fill per line. Greedy
+// max-fill always crams in as many characters as fit, which for a name like
+// FRANCISCO can land on a lopsided FRANC / ISCO (FRANC noticeably wider than
+// ISCO) purely because FRANC still fits, when the evenly-split FRAN / CISCO
+// reads better and is just as valid. Cut-point combinations for a city name
+// are few enough to brute-force; `cap` bounds the search for pathological
+// inputs (falls back to the greedy split if exceeded).
+function splitWordBalanced(
+  word: string,
+  measure: (s: string) => number,
+  maxW: number,
+  cap = 20000,
+): string[] {
+  const chars = Array.from(word);
+  const n = chars.length;
+
+  const greedyChunks: string[] = [];
+  {
+    let chunk = "";
+    for (const ch of chars) {
+      const next = chunk + ch;
+      if (chunk && measure(next) > maxW) {
+        greedyChunks.push(chunk);
+        chunk = ch;
+      } else {
+        chunk = next;
+      }
+    }
+    if (chunk) greedyChunks.push(chunk);
+  }
+  const k = greedyChunks.length;
+  if (k <= 1) return greedyChunks;
+
+  let best: string[] = greedyChunks;
+  let bestRatio = -Infinity;
+  let tries = 0;
+  const cuts: number[] = [];
+  const consider = () => {
+    const points = [0, ...cuts, n];
+    const chunks: string[] = [];
+    for (let i = 0; i < points.length - 1; i++) {
+      chunks.push(chars.slice(points[i], points[i + 1]).join(""));
+    }
+    const widths = chunks.map((c) => measure(c));
+    if (widths.some((w) => w > maxW)) return;
+    const widest = Math.max(...widths);
+    const ratio = Math.min(...widths) / widest;
+    if (ratio > bestRatio) {
+      bestRatio = ratio;
+      best = chunks;
+    }
+  };
+  const recurse = (start: number, remaining: number): boolean => {
+    if (++tries > cap) return false;
+    if (remaining === 0) {
+      consider();
+      return true;
+    }
+    for (let i = start; i <= n - 1 - remaining; i++) {
+      cuts.push(i + 1);
+      if (!recurse(i + 1, remaining - 1)) {
+        cuts.pop();
+        return false;
+      }
+      cuts.pop();
+    }
+    return true;
+  };
+  recurse(0, k - 1);
+  return best;
+}
+
+// Greedy word wrap that also breaks a single word too wide for the column
+// across lines, so a long city like FRANCISCO becomes FRAN / CISCO.
 // `measure` returns a string's width at font-size 1 (resolution independent);
 // `maxW` is the column width in the same units as the caller's font size.
 function wrapMaskedWord(
@@ -2697,17 +2982,9 @@ function wrapMaskedWord(
       continue;
     }
     // The word alone is wider than the column — split it across lines.
-    let chunk = "";
-    for (const ch of Array.from(word)) {
-      const next = chunk + ch;
-      if (chunk && measure(next) > maxW) {
-        lines.push(chunk);
-        chunk = ch;
-      } else {
-        chunk = next;
-      }
-    }
-    cur = chunk;
+    const chunks = splitWordBalanced(word, measure, maxW);
+    lines.push(...chunks.slice(0, -1));
+    cur = chunks[chunks.length - 1] ?? "";
   }
   flush();
   return lines.length ? lines : [text];
@@ -2771,8 +3048,12 @@ export function cityMaskGeometry(
   // pick the highest-scoring feasible layout: score favours a bigger font, but
   // penalises breaking a word into more pieces than necessary and orphan lines
   // far shorter than the rest. So SAN FRANCISCO settles on SAN / FRAN / CISCO
-  // (one break in FRANCISCO) rather than a slightly bigger SAN / FRA / NCIS / CO
-  // (two breaks) or SAN / FRAN / CISC / O (a lonely trailing letter).
+  // (one break in FRANCISCO, and `splitWordBalanced` picks that even break
+  // over a lopsided SAN / FRANC / ISCO) rather than a slightly bigger SAN /
+  // FRA / NCIS / CO (two breaks) or SAN / FRAN / CISC / O (a lonely trailing
+  // letter). Balance is a hard threshold rather than a continuous reward,
+  // because a continuous term over-values a perfectly even but more heavily
+  // split layout (e.g. SAN / FRA / NCI / SCO) over a less-split, near-even one.
   const wordCount = clean.split(/\s+/).filter(Boolean).length;
   let bestSize = 8;
   let bestLines = [clean];
@@ -2918,4 +3199,97 @@ export function selfGeometry(
   const blockTop = boxTop + Math.max(0, (boxH - blockH) / 2);
   const cells = chars.map((char, i) => ({ char, top: blockTop + i * pitch }));
   return { left, cellW, cap, fontSize: cap / L.capRatio, photoRight, cells };
+}
+
+// ── Mono Grid geometry ───────────────────────────────────────────────────────
+// A full-bleed background photo split into a 3×3 grid by thin lines drawn in
+// the canvas background colour, up to 3 small photos each filling one cell, a
+// caption block (headline + hashtag) centred in one cell, a rotated side text
+// block (title + hashtag, reading bottom-to-top) centred in another, and an
+// optional bottom-centred brand logo. Font sizes and the line thickness are
+// fractions of the canvas *width*. Shared by the DOM preview (GridPreview) and
+// the canvas export (exportGrid). Measured from the 1200 × 1500 references.
+export const GRID_LAYOUT = {
+  // Grid line thickness — the 2px hairlines of the 1200px references.
+  line: 2 / 1200,
+  caption: { size: 0.03, tagSize: 0.018, lineHeight: 1.35, gap: 0.02 },
+  side: { size: 0.03, tagSize: 0.018, lineHeight: 1.35, gap: 0.02 },
+  logo: { height: 0.05, maxWidth: 0.24, bottom: 0.025 },
+} as const;
+
+// A 3×3 grid cell address (column / row, 0-based, top-left origin).
+export interface GridCell {
+  c: 0 | 1 | 2;
+  r: 0 | 1 | 2;
+}
+
+// Which cells a grid template fills: `photos[i]` hosts the `cell-{i+1}` image
+// layer, `caption` hosts the headline + hashtag block and `side` the rotated
+// title + hashtag block.
+export interface GridVariant {
+  photos: GridCell[];
+  caption: GridCell;
+  side: GridCell;
+}
+
+export const GRID_VARIANTS: Record<string, GridVariant> = {
+  // Mono Grid (bcf6…): photos down the right, caption dead centre, side text
+  // in the top-left cell.
+  "11000000-0000-0000-0000-000000000039": {
+    photos: [
+      { c: 2, r: 0 },
+      { c: 2, r: 2 },
+    ],
+    caption: { c: 1, r: 1 },
+    side: { c: 0, r: 0 },
+  },
+  // Statement Grid (04fb…): photos in three corners, caption bottom-right,
+  // side text mid-left.
+  "11000000-0000-0000-0000-000000000040": {
+    photos: [
+      { c: 0, r: 0 },
+      { c: 2, r: 0 },
+      { c: 0, r: 2 },
+    ],
+    caption: { c: 2, r: 2 },
+    side: { c: 0, r: 1 },
+  },
+  // Contrast Grid (9f37…): photos staggered right/left, caption centre
+  // (hidden by default), side text bottom-left.
+  "11000000-0000-0000-0000-000000000041": {
+    photos: [
+      { c: 2, r: 0 },
+      { c: 0, r: 1 },
+      { c: 2, r: 2 },
+    ],
+    caption: { c: 1, r: 1 },
+    side: { c: 0, r: 2 },
+  },
+};
+
+const GRID_DEFAULT_VARIANT: GridVariant = GRID_VARIANTS["11000000-0000-0000-0000-000000000039"];
+
+export function gridVariant(templateId: string): GridVariant {
+  return GRID_VARIANTS[templateId] ?? GRID_DEFAULT_VARIANT;
+}
+
+// The rectangle of a grid cell in target canvas units (px, or 100 / 100·ratio
+// for a cqi/percent preview). Exact thirds — the hairlines are drawn centred on
+// the cell edges, over the photos.
+export function gridCellRect(
+  cell: GridCell,
+  width: number,
+  height: number,
+): { x: number; y: number; w: number; h: number } {
+  const w = width / 3;
+  const h = height / 3;
+  return { x: cell.c * w, y: cell.r * h, w, h };
+}
+
+// The caption/side-title text split into display lines (manual line breaks).
+export function gridTextLines(text: string, uppercase: boolean): string[] {
+  return (uppercase ? text.toUpperCase() : text)
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 }

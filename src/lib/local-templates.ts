@@ -554,8 +554,151 @@ const SELF_PORTRAIT: PostTemplate = {
   },
 };
 
+// Mono Grid series — three 3×3 grid collage templates sharing the "grid"
+// layout, with different cell assignments per variant (see GRID_VARIANTS in
+// remix-editor.ts). Preview art lives at public/templates/shared/*.jpg
+// (1200 × 1500 each).
+function gridPostTemplate(options: {
+  id: string;
+  title: string;
+  preview: string;
+  coverId: string;
+  description: string;
+  maxPhotos: number;
+}): PostTemplate {
+  return {
+    id: options.id,
+    title: options.title,
+    preview: options.preview,
+    preview_type: "image",
+    preview_width: 1200,
+    preview_height: 1500,
+    likes_count: 0,
+    is_saved: false,
+    is_liked: false,
+    is_remixed: false,
+    assets: [
+      {
+        id: options.coverId,
+        url: options.preview,
+        type: "image",
+        order: 0,
+        width: 1200,
+        height: 1500,
+      },
+    ],
+    board_id: null,
+    board_name: null,
+    remix_id: null,
+    description: options.description,
+    tags: ["grid", "collage", "moodboard", "monochrome", "fashion", "editorial"],
+    comments: [],
+    created_at: "2026-07-04T00:00:00.000Z",
+    updated_at: "2026-07-04T00:00:00.000Z",
+    template_type: "image",
+    aspect_ratio: "4 / 5",
+    input_image_count: 1,
+    capabilities: {
+      supports_ai_generation: false,
+      supports_remix: true,
+      supports_asset_replacement: true,
+      supports_text_rewrite: true,
+      supports_brand_adaptation: true,
+      supports_aspect_ratio_conversion: false,
+      supports_language_adaptation: false,
+      supports_batch_generation: false,
+      supports_variants: true,
+    },
+    // A required background photo plus optional cell photos (mapped to image
+    // layers in order); the optional caption drives the composer's
+    // Fonts/Colors cards for brand font + colour.
+    input_requirements: {
+      assets: [
+        {
+          key: "photos",
+          type: "image",
+          required: true,
+          min_count: 1,
+          max_count: options.maxPhotos,
+          accepted_mime_types: ["image/png", "image/jpeg", "image/webp"],
+          preferred_aspect_ratios: [],
+          min_width: null,
+          min_height: null,
+          allow_crop: true,
+          allow_background_extend: false,
+          allow_background_removal: false,
+          transparent_preferred: false,
+          description:
+            "The first photo fills the whole background; up to 3 more fill small grid cells.",
+        },
+      ],
+      text_requirements: [
+        {
+          key: "caption",
+          label: "Caption",
+          required: false,
+          max_chars: 60,
+          recommended_chars: 30,
+          visible_on_asset: true,
+          ai_can_generate: false,
+          ai_can_rewrite: true,
+          allowed_values: [],
+          description: "The caption block over the grid (line breaks kept).",
+        },
+      ],
+      text_density: "low",
+      text_overflow_strategy: "shrink",
+    },
+    agent_hints: {
+      render_defaults: {
+        caption_color: "#ffffff",
+        caption_color_options: [
+          { label: "White", value: "#ffffff" },
+          { label: "Black", value: "#000000" },
+          { label: "Ink", value: "#1c1a17" },
+          { label: "Stone", value: "#8a8577" },
+          { label: "Sand", value: "#e7ddd0" },
+        ],
+      },
+    },
+  };
+}
+
+const GRID_MONO = gridPostTemplate({
+  id: "11000000-0000-0000-0000-000000000039",
+  title: "Mono Grid",
+  preview: "/templates/shared/bcf6e7a2c8a44fa240cf74c7e7b67c1b.jpg",
+  coverId: "grid-mono-cover",
+  description:
+    "A 3×3 grid collage: one background photo split by thin grid lines, two small photos down the right column, a caption dead centre and a rotated side title top-left. Photos, texts, brand font, colours and logo are all swappable.",
+  maxPhotos: 3,
+});
+
+const GRID_STATEMENT = gridPostTemplate({
+  id: "11000000-0000-0000-0000-000000000040",
+  title: "Statement Grid",
+  preview: "/templates/shared/04fb829beb067b56fa590f0e7f181405.jpg",
+  coverId: "grid-statement-cover",
+  description:
+    "A 3×3 grid collage: one background photo split by thin grid lines, three corner photos, a caption bottom-right and a rotated side title mid-left. Photos, texts, brand font, colours and logo are all swappable.",
+  maxPhotos: 4,
+});
+
+const GRID_CONTRAST = gridPostTemplate({
+  id: "11000000-0000-0000-0000-000000000041",
+  title: "Contrast Grid",
+  preview: "/templates/shared/9f37f293fe1570b4525396063be0a34e.jpg",
+  coverId: "grid-contrast-cover",
+  description:
+    "A 3×3 grid collage: one background photo split by thin grid lines, three staggered cell photos and a rotated side title bottom-left (plus an optional centre caption). Photos, texts, brand font, colours and logo are all swappable.",
+  maxPhotos: 4,
+});
+
 // Local templates, newest first — prepended to the feed's "All" list.
 export const LOCAL_TEMPLATES: PostTemplate[] = [
+  GRID_MONO,
+  GRID_STATEMENT,
+  GRID_CONTRAST,
   SELF_PORTRAIT,
   CITYMASK_SAN_FRANCISCO,
   DUEL_THIS_OR_THAT,
