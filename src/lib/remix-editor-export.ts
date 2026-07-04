@@ -30,6 +30,8 @@ import {
   CITYMASK_LAYOUT,
   cityMaskGeometry,
   cityMaskLabelLines,
+  selfChars,
+  selfGeometry,
   PORTO_CAPTION_TRACKING,
   PORTO_CARD,
   PORTO_LAYOUT,
@@ -809,6 +811,114 @@ async function exportCityMask(
     const flagH = flagW / CITYMASK_LAYOUT.flag.aspect;
     const flagY = topY + lines.length * slot + CITYMASK_LAYOUT.label.gap * height;
     drawUsFlag(ctx, { x: rightX - flagW, y: flagY, w: flagW, h: flagH });
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
+// Rasterize a self split-portrait poster: a full-bleed photo on the left half
+// and the caption set as one giant letter per row on the right, each letter a
+// window revealing the same full-frame photo (everything else white). Mirrors
+// `SelfPreview`.
+async function exportSelf(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+
+  const photoLayer = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const header = byId<TextLayer>("header");
+
+  // White canvas — the photo shows through the left panel and the letters.
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  let photo: HTMLImageElement | null = null;
+  if (photoLayer?.visible && photoLayer.src) {
+    try {
+      photo = await loadImage(photoLayer.src);
+    } catch {
+      throw new ExportImageError(1);
+    }
+  }
+  const photoTransform = photoLayer ? imageTransform(photoLayer) : DEFAULT_IMAGE_TRANSFORM;
+
+  if (typeof document !== "undefined" && document.fonts && header?.visible && header.text.trim()) {
+    const font = fontById(header.fontId);
+    await document.fonts
+      .load(`${resolveTextStyle(header).weight} 100px ${primaryFamily(font.family)}`)
+      .catch(() => undefined);
+  }
+
+  const chars = header?.visible
+    ? selfChars(header.uppercase ? header.text.toUpperCase() : header.text)
+    : [];
+  const style = header ? resolveTextStyle(header) : null;
+  const geo =
+    header && style ? selfGeometry(chars, header.fontId, style.weight, width, height) : null;
+
+  // Paint the left photo panel plus the stacked letters onto `target`. Each
+  // glyph's ink box is stretched (scaleX/scaleY) to fill its fixed-width cell,
+  // so every letter reads the same width as in the reference.
+  const paintRegions = (target: CanvasRenderingContext2D) => {
+    target.fillRect(0, 0, geo ? geo.photoRight : width * 0.5, height);
+    if (geo && header && style && geo.cap > 0) {
+      const font = fontById(header.fontId);
+      target.textAlign = "left";
+      target.textBaseline = "alphabetic";
+      geo.cells.forEach((cell) => {
+        target.save();
+        const met = slicedGlyphMetrics(cell.char, header.fontId, style.weight);
+        if (met) {
+          target.translate(geo.left, cell.top);
+          target.scale(geo.cellW / met.inkW, geo.cap / met.inkH);
+          target.font = `${style.weight} ${met.refSize}px ${font.family}`;
+          target.fillText(cell.char, met.left, met.ascent);
+        } else {
+          // Approximate cap-height fit when ink metrics are unavailable.
+          target.font = `${style.weight} ${geo.fontSize}px ${font.family}`;
+          const natural = target.measureText(cell.char).width || 1;
+          target.translate(geo.left, cell.top + geo.cap);
+          target.scale(geo.cellW / natural, 1);
+          target.fillText(cell.char, 0, 0);
+        }
+        target.restore();
+      });
+    }
+  };
+
+  if (photo) {
+    // Paint the panel + letters into a mask, keep the (grayscale) photo only
+    // where they are, then composite that over the white canvas.
+    const mask = document.createElement("canvas");
+    mask.width = width;
+    mask.height = height;
+    const maskCtx = mask.getContext("2d");
+    if (maskCtx) {
+      maskCtx.fillStyle = "#000";
+      paintRegions(maskCtx);
+      maskCtx.globalCompositeOperation = "source-in";
+      maskCtx.filter = "grayscale(1)";
+      drawImageCover(maskCtx, photo, { x: 0, y: 0, w: width, h: height }, photoTransform);
+      ctx.drawImage(mask, 0, 0);
+    }
+  } else if (header) {
+    ctx.save();
+    ctx.fillStyle = header.color;
+    paintRegions(ctx);
+    ctx.restore();
   }
 
   return canvasToBlob(canvas, format);
@@ -2152,6 +2262,9 @@ export async function exportCreative(
   }
   if (template.layout === "citymask") {
     return exportCityMask(template, layers, format, width);
+  }
+  if (template.layout === "self") {
+    return exportSelf(template, layers, format, width);
   }
 
   const ratio = parseRatio(template.aspectRatio);

@@ -143,7 +143,8 @@ export type TemplateLayout =
   | "sliced"
   | "duel"
   | "postcard"
-  | "citymask";
+  | "citymask"
+  | "self";
 
 export interface RemixEditorTemplate {
   id: string;
@@ -1728,6 +1729,52 @@ const CITYMASK_SAN_FRANCISCO: RemixEditorTemplate = {
   ],
 };
 
+// Self split-portrait poster. Preview art lives at
+// public/templates/shared/6be50eaad3f63ade68ede1c1bb8a2781.jpg (736 x 1062). The
+// default photo is that same reference so the untouched editor reproduces it.
+const SELF_PORTRAIT: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000038",
+  title: "Self Portrait",
+  layout: "self",
+  aspectRatio: "736 / 1062",
+  background: "#ffffff",
+  palette: [
+    { label: "Black", value: "#000000" },
+    { label: "White", value: "#ffffff" },
+    { label: "Ink", value: "#14161a" },
+    { label: "Slate", value: "#3a3f45" },
+    { label: "Stone", value: "#8a8577" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Photo",
+      visible: true,
+      hideable: false,
+      // A clean portrait (the composed reference healed so the letters reveal
+      // continuous photo rather than the baked-in white margins).
+      src: "/templates/shared/self-portrait-source.jpg",
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Caption",
+      visible: true,
+      hideable: false,
+      text: "SELF",
+      // Colour is unused when a photo is present (it shows through the letters),
+      // but a value is kept so the no-photo fallback still paints legible letters.
+      color: "#000000",
+      fontId: "archivo",
+      uppercase: true,
+      weight: 400,
+      suggestions: ["SELF", "SOLO", "MUSE", "MOOD", "RAW"],
+    },
+  ],
+};
+
 const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [TEMPLATE_28.id]: TEMPLATE_28,
   [TEMPLATE_205.id]: TEMPLATE_205,
@@ -1748,6 +1795,7 @@ const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [DUEL_THIS_OR_THAT.id]: DUEL_THIS_OR_THAT,
   [POSTCARD_LONDON.id]: POSTCARD_LONDON,
   [CITYMASK_SAN_FRANCISCO.id]: CITYMASK_SAN_FRANCISCO,
+  [SELF_PORTRAIT.id]: SELF_PORTRAIT,
 };
 
 export function getRemixEditorTemplate(id: string): RemixEditorTemplate | null {
@@ -2790,4 +2838,84 @@ export function cityMaskLabelLines(text: string, fontId: string, weight: number,
   }
   if (cur) lines.push(cur);
   return lines.length ? lines : [clean];
+}
+
+// Shared geometry for the "self" split-portrait poster: a full-bleed photo on
+// the left half, and the caption set as one giant letter per row on the right —
+// each letter a fixed-width cell (stretched to fill it) that acts as a window
+// revealing the same full-frame photo. Fractions of width/height so the DOM
+// preview (SelfPreview) and the canvas export (exportSelf) agree at any
+// resolution. Measured from the 736 × 1062 reference: letters occupy a fixed
+// column x≈371..503 (all letters the same width), cap-height ≈ 202px, baseline
+// pitch ≈ 237px, block vertically centred, with a thin white divider before the
+// photo panel (≈368px).
+export const SELF_LAYOUT = {
+  // Right edge of the left photo panel — a hair left of the letters, leaving the
+  // thin white divider seen in the reference.
+  photoRight: 368 / 736,
+  letters: {
+    left: 371 / 736, // left edge of the fixed-width letter column
+    right: 503 / 736, // right edge of the column (every letter stretched to fill)
+    top: 74 / 1062, // vertical box the centred stack fits into
+    bottom: 988 / 1062,
+    lineHeight: 237 / 202, // baseline pitch ÷ cap height
+    capRatio: 0.72, // fallback cap-height ÷ em when ink metrics are unavailable
+    maxCap: 0.24, // clamp so a 1–2 letter caption doesn't grow absurdly tall
+  },
+} as const;
+
+// The caption characters that become stacked letters (whitespace dropped). The
+// row count equals the character count.
+export function selfChars(text: string): string[] {
+  return Array.from((text ?? "").replace(/\s+/g, "").trim());
+}
+
+export interface SelfCell {
+  char: string;
+  // Top of the letter's cap box (px, in target units); its ink is stretched to
+  // fill [left .. left+cellW] × [top .. top+cap].
+  top: number;
+}
+
+export interface SelfGeometry {
+  left: number;
+  cellW: number;
+  cap: number;
+  fontSize: number; // fallback size when a glyph can't be ink-measured
+  photoRight: number;
+  cells: SelfCell[];
+}
+
+// The fixed letter column and per-letter cap boxes for the stacked caption, in
+// the target canvas units (px, or 100 / 100·ratio for a viewBox preview). Cap
+// height is chosen so the N letters fill the vertical box (centred). Each glyph
+// is later stretched (via ink metrics) to fill its full cell width and height,
+// so every letter reads the same width — as in the reference. Shared by the
+// preview and export so both stack the letters identically.
+export function selfGeometry(
+  chars: string[],
+  _fontId: string,
+  _weight: number,
+  width: number,
+  height: number,
+): SelfGeometry {
+  const L = SELF_LAYOUT.letters;
+  const left = L.left * width;
+  const cellW = (L.right - L.left) * width;
+  const photoRight = SELF_LAYOUT.photoRight * width;
+  const n = chars.length;
+  if (!n) return { left, cellW, cap: 0, fontSize: 0, photoRight, cells: [] };
+
+  const boxTop = L.top * height;
+  const boxH = (L.bottom - L.top) * height;
+
+  // Cap height from the vertical fit: N letters at pitch = cap · lineHeight fill
+  // the box; the last baseline lands at the box bottom. Clamped so a very short
+  // caption doesn't stretch a single letter across the whole frame.
+  const cap = Math.min(boxH / ((n - 1) * L.lineHeight + 1), L.maxCap * height);
+  const pitch = cap * L.lineHeight;
+  const blockH = (n - 1) * pitch + cap;
+  const blockTop = boxTop + Math.max(0, (boxH - blockH) / 2);
+  const cells = chars.map((char, i) => ({ char, top: blockTop + i * pitch }));
+  return { left, cellW, cap, fontSize: cap / L.capRatio, photoRight, cells };
 }

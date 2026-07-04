@@ -456,8 +456,107 @@ const CITYMASK_SAN_FRANCISCO: PostTemplate = {
   },
 };
 
+// Self Portrait — the SELF split-portrait poster. Preview art lives at
+// public/templates/shared/6be50eaad3f63ade68ede1c1bb8a2781.jpg (736 x 1062).
+const SELF_PORTRAIT: PostTemplate = {
+  id: "11000000-0000-0000-0000-000000000038",
+  title: "Self Portrait",
+  preview: "/templates/shared/6be50eaad3f63ade68ede1c1bb8a2781.jpg",
+  preview_type: "image",
+  preview_width: 736,
+  preview_height: 1062,
+  likes_count: 0,
+  is_saved: false,
+  is_liked: false,
+  is_remixed: false,
+  assets: [
+    {
+      id: "self-cover",
+      url: "/templates/shared/6be50eaad3f63ade68ede1c1bb8a2781.jpg",
+      type: "image",
+      order: 0,
+      width: 736,
+      height: 1062,
+    },
+  ],
+  board_id: null,
+  board_name: null,
+  remix_id: null,
+  description:
+    "A split-portrait poster: your photo fills the left half, and your caption is set as one giant letter per row on the right — each letter a window revealing the same photo. Bring your own photo, caption and font.",
+  tags: ["typography", "editorial", "poster", "portrait", "minimal"],
+  comments: [],
+  created_at: "2026-07-04T00:00:00.000Z",
+  updated_at: "2026-07-04T00:00:00.000Z",
+  template_type: "image",
+  aspect_ratio: "736 / 1062",
+  input_image_count: 1,
+  capabilities: {
+    supports_ai_generation: false,
+    supports_remix: true,
+    supports_asset_replacement: true,
+    supports_text_rewrite: true,
+    supports_brand_adaptation: true,
+    supports_aspect_ratio_conversion: false,
+    supports_language_adaptation: false,
+    supports_batch_generation: false,
+    supports_variants: true,
+  },
+  // A required caption drives the composer's Fonts card (optional brand font
+  // family); one required photo shows through the left panel and the letters.
+  input_requirements: {
+    assets: [
+      {
+        key: "photo",
+        type: "image",
+        required: true,
+        min_count: 1,
+        max_count: 1,
+        accepted_mime_types: ["image/png", "image/jpeg", "image/webp"],
+        preferred_aspect_ratios: [],
+        min_width: null,
+        min_height: null,
+        allow_crop: true,
+        allow_background_extend: false,
+        allow_background_removal: false,
+        transparent_preferred: false,
+        description: "The photo revealed through the left panel and the caption's letters.",
+      },
+    ],
+    text_requirements: [
+      {
+        key: "caption",
+        label: "Caption",
+        required: true,
+        max_chars: 10,
+        recommended_chars: 4,
+        visible_on_asset: true,
+        ai_can_generate: false,
+        ai_can_rewrite: true,
+        allowed_values: [],
+        description: "The word set as giant stacked letters, one per row (uppercased).",
+      },
+    ],
+    text_density: "low",
+    text_overflow_strategy: "shrink",
+  },
+  agent_hints: {
+    render_defaults: {
+      caption_color: "#000000",
+      caption_color_options: [
+        { label: "Black", value: "#000000" },
+        { label: "White", value: "#ffffff" },
+        { label: "Ink", value: "#14161a" },
+        { label: "Slate", value: "#3a3f45" },
+        { label: "Stone", value: "#8a8577" },
+      ],
+    },
+  },
+};
+
 // Local templates, newest first — prepended to the feed's "All" list.
 export const LOCAL_TEMPLATES: PostTemplate[] = [
+  SELF_PORTRAIT,
   CITYMASK_SAN_FRANCISCO,
   DUEL_THIS_OR_THAT,
   SUNDAY_SLICED_POSTER,

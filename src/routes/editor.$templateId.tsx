@@ -99,6 +99,8 @@ import {
   CITYMASK_LAYOUT,
   cityMaskGeometry,
   cityMaskLabelLines,
+  selfChars,
+  selfGeometry,
   PORTO_CAPTION_TRACKING,
   PORTO_CARD,
   PORTO_LAYOUT,
@@ -2537,6 +2539,155 @@ function CityMaskPreview({
   );
 }
 
+// The DOM preview for the "self" split-portrait poster: a full-bleed photo on
+// the left half and the caption set as one giant letter per row on the right,
+// each letter a window revealing the same full-frame photo. Mirrors
+// `exportSelf`.
+function SelfPreview({
+  template,
+  layers,
+  selectedId,
+  onSelect,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const clipId = useId();
+  const grayId = useId();
+  const photo = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.id === "image",
+  );
+  const header = layers.find((layer): layer is TextLayer => layer.id === "header");
+
+  const [rw, rh] = template.aspectRatio.split("/").map((part) => Number(part.trim()));
+  const ratio = rw && rh ? rw / rh : 736 / 1062;
+  const Wv = 1000;
+  const Hv = Math.round(Wv / ratio);
+
+  const style = header ? resolveTextStyle(header) : null;
+  const chars = header ? selfChars(header.uppercase ? header.text.toUpperCase() : header.text) : [];
+  const showPhotoFill = Boolean(photo?.visible && photo.src);
+  const font = header ? fontById(header.fontId).family : "sans-serif";
+
+  // Glyph metrics settle once the caption's face is loaded; bump a tick when it
+  // lands so the letters re-fit.
+  const [, setFontTick] = useState(0);
+  const face = header
+    ? `${style?.weight ?? 400} 100px ${fontById(header.fontId).family.split(",")[0].trim()}`
+    : null;
+  useEffect(() => {
+    if (typeof document === "undefined" || !document.fonts || !face) return;
+    let live = true;
+    document.fonts
+      .load(face)
+      .then(() => {
+        if (live) setFontTick((tick) => tick + 1);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [face]);
+
+  const geo =
+    header && style ? selfGeometry(chars, header.fontId, style.weight, Wv, Hv) : null;
+  const show = Boolean(header?.visible && geo && (geo.cells.length || geo.photoRight > 0));
+
+  // Each glyph's ink box is stretched to fill its fixed-width cell, so every
+  // letter reads the same width — mirroring `exportSelf`. Falls back to a
+  // width-only stretch when ink metrics aren't available.
+  const letters = geo
+    ? geo.cells.map((cell, index) => {
+        const met = header && style ? slicedGlyphMetrics(cell.char, header.fontId, style.weight) : null;
+        if (met) {
+          return (
+            <text
+              key={index}
+              x={met.left}
+              y={met.ascent}
+              transform={`translate(${geo.left} ${cell.top}) scale(${geo.cellW / met.inkW} ${geo.cap / met.inkH})`}
+              textAnchor="start"
+              style={{ fontFamily: font, fontWeight: style?.weight, fontSize: `${met.refSize}px` }}
+            >
+              {cell.char}
+            </text>
+          );
+        }
+        return (
+          <text
+            key={index}
+            x={geo.left}
+            y={cell.top + geo.cap}
+            textLength={geo.cellW}
+            lengthAdjust="spacingAndGlyphs"
+            textAnchor="start"
+            style={{ fontFamily: font, fontWeight: style?.weight, fontSize: `${geo.fontSize}px` }}
+          >
+            {cell.char}
+          </text>
+        );
+      })
+    : null;
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+        isolation: "isolate",
+      }}
+    >
+      {show && geo && (
+        <svg
+          className="absolute inset-0 h-full w-full"
+          viewBox={`0 0 ${Wv} ${Hv}`}
+          preserveAspectRatio="none"
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            if (photo) onSelect(photo.id);
+          }}
+        >
+          {showPhotoFill ? (
+            <>
+              <defs>
+                <clipPath id={clipId}>
+                  <rect x={0} y={0} width={geo.photoRight} height={Hv} />
+                  {letters}
+                </clipPath>
+                <filter id={grayId} colorInterpolationFilters="sRGB">
+                  <feColorMatrix
+                    type="matrix"
+                    values="0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0 0 0 1 0"
+                  />
+                </filter>
+              </defs>
+              <image
+                href={photo!.src}
+                x={0}
+                y={0}
+                width={Wv}
+                height={Hv}
+                preserveAspectRatio="xMidYMid slice"
+                clipPath={`url(#${clipId})`}
+                filter={`url(#${grayId})`}
+              />
+            </>
+          ) : (
+            <g fill={header!.color}>
+              <rect x={0} y={0} width={geo.photoRight} height={Hv} />
+              {letters}
+            </g>
+          )}
+        </svg>
+      )}
+    </div>
+  );
+}
+
 // FRANKOF editorial paper slides (1, 6, 8): an uppercase headline on top, a
 // flexible photo (contain or cover), and an optional footer caption + arrow disc.
 // Geometry resolved per template via `editorialGeometry`. Mirrors
@@ -3221,6 +3372,9 @@ function defaultOpenSections(template: RemixEditorTemplate): Record<string, bool
   if (template.layout === "citymask") {
     return { image: true, header: true, cta: false };
   }
+  if (template.layout === "self") {
+    return { image: true, header: true };
+  }
   return { image: true, header: true, description: false, cta: false, logo: false };
 }
 
@@ -3671,7 +3825,8 @@ function EditorScreen({
                 template.layout === "cover" ||
                 template.layout === "duel" ||
                 template.layout === "postcard" ||
-                template.layout === "citymask"
+                template.layout === "citymask" ||
+                template.layout === "self"
                 ? "max-w-[300px]"
                 : "max-w-[360px]",
               template.layout === "verticals" && "max-w-[420px]",
@@ -3774,6 +3929,13 @@ function EditorScreen({
               />
             ) : template.layout === "citymask" ? (
               <CityMaskPreview
+                template={template}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+              />
+            ) : template.layout === "self" ? (
+              <SelfPreview
                 template={template}
                 layers={layers}
                 selectedId={selectedImageId}
@@ -4355,6 +4517,69 @@ function EditorScreen({
               </>
             )}
 
+            {/* Self split portrait: the photo (revealed through the left panel
+                and the stacked letters) and the giant caption. */}
+            {template.layout === "self" && (
+              <>
+                {image && (
+                  <EditorSection
+                    title={image.label}
+                    open={openSections.image ?? true}
+                    onToggleOpen={() => toggleOpen("image")}
+                    hideable={image.hideable}
+                    visible={image.visible}
+                    onToggleVisible={() => toggleVisible("image")}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+                        <img src={image.src} alt="" className="h-full w-full object-cover" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openReplace("image")}
+                        className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                      >
+                        <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                        Replace photo
+                      </button>
+                    </div>
+                    <ImageControls
+                      layer={image}
+                      onChange={(transform, key) => updateLayer("image", { transform }, key)}
+                      onReset={() =>
+                        updateLayer("image", { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                      }
+                    />
+                  </EditorSection>
+                )}
+
+                {header && (
+                  <EditorSection
+                    title="Caption"
+                    open={openSections.header ?? true}
+                    onToggleOpen={() => toggleOpen("header")}
+                    hideable={header.hideable}
+                    visible={header.visible}
+                    onToggleVisible={() => toggleVisible("header")}
+                  >
+                    <TextField
+                      label="Caption text"
+                      value={header.text}
+                      onChange={(value) => updateLayer("header", { text: value }, "header-text")}
+                      onSuggest={() => cycleSuggestion(header)}
+                    />
+                    <div className="mt-4">
+                      <FontDropdown
+                        value={header.fontId}
+                        color={header.color}
+                        onChange={(fontId) => changeFont("header", fontId)}
+                      />
+                    </div>
+                  </EditorSection>
+                )}
+              </>
+            )}
+
             {/* Image */}
             {template.layout !== "moodboard" &&
               template.layout !== "relax" &&
@@ -4365,6 +4590,7 @@ function EditorScreen({
               template.layout !== "duel" &&
               template.layout !== "postcard" &&
               template.layout !== "citymask" &&
+              template.layout !== "self" &&
               image && (
               <EditorSection
                 title="Image"
@@ -4440,6 +4666,7 @@ function EditorScreen({
               template.layout !== "duel" &&
               template.layout !== "postcard" &&
               template.layout !== "citymask" &&
+              template.layout !== "self" &&
               header && (
               <EditorSection
                 title={template.layout === "porto" ? "Caption" : "Header"}
@@ -4481,6 +4708,7 @@ function EditorScreen({
               template.layout !== "duel" &&
               template.layout !== "postcard" &&
               template.layout !== "citymask" &&
+              template.layout !== "self" &&
               description && (
               <EditorSection
                 title={
@@ -4537,6 +4765,7 @@ function EditorScreen({
               template.layout !== "duel" &&
               template.layout !== "postcard" &&
               template.layout !== "citymask" &&
+              template.layout !== "self" &&
               cta && (
               <EditorSection
                 title="Call to action"
