@@ -144,6 +144,8 @@ export type TemplateLayout =
   | "collage"
   | "sliced"
   | "duel"
+  | "business-choice"
+  | "testimonial"
   | "postcard"
   | "citymask"
   | "self"
@@ -160,6 +162,7 @@ export interface RemixEditorTemplate {
   layout: TemplateLayout;
   // CSS aspect-ratio string, e.g. "4 / 5".
   aspectRatio: string;
+  aspectRatioOptions?: EditorAspectRatioOption[];
   // Canvas background fill (solid colour for the MVP).
   background: string;
   palette: EditorColor[];
@@ -167,6 +170,12 @@ export interface RemixEditorTemplate {
   formats: ExportFormat[];
   // Layers in the order the edit panel lists them.
   layers: EditorLayer[];
+}
+
+export interface EditorAspectRatioOption {
+  id: string;
+  label: string;
+  aspectRatio: string;
 }
 
 // One shared typeface catalog backs every template's font picker. Each family
@@ -1651,6 +1660,195 @@ const DUEL_THIS_OR_THAT: RemixEditorTemplate = {
   ],
 };
 
+// Business Edition — a Pinterest-style "This or that?" comparison pin. Two
+// overlapping rounded photos sit under a fixed mixed-type headline, with
+// optional handle, BUSINESS / EDITION pill labels and a bottom caption. The
+// default preview is measured from
+// public/templates/shared/71244d4475e68bda4dc6ebed33162ec7.jpg.
+const BUSINESS_CHOICE_THIS_OR_THAT: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000049",
+  title: "Business Edition",
+  layout: "business-choice",
+  aspectRatio: "4 / 5",
+  aspectRatioOptions: [
+    { id: "portrait", label: "4:5", aspectRatio: "4 / 5" },
+    { id: "square", label: "1:1", aspectRatio: "1 / 1" },
+    { id: "story", label: "Story", aspectRatio: "9 / 16" },
+  ],
+  background: "#f0f0e6",
+  palette: [
+    { label: "Ink", value: "#444444" },
+    { label: "Charcoal", value: "#2f2f2f" },
+    { label: "Black", value: "#141414" },
+    { label: "Olive", value: "#5c5a3a" },
+    { label: "Clay", value: "#a5714e" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "photo-1",
+      kind: "image",
+      label: "Left photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/this-or-that-business-source.jpg",
+    },
+    {
+      id: "photo-2",
+      kind: "image",
+      label: "Right photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/this-or-that-edition-source.jpg",
+    },
+    {
+      id: "eyebrow",
+      kind: "eyebrow",
+      label: "Handle",
+      visible: true,
+      hideable: true,
+      text: "@ITSKIARAWEBB",
+      color: "#333333",
+      fontId: "poppins",
+      uppercase: true,
+      weight: 500,
+      suggestions: ["@ITSKIARAWEBB", "@YOURBRAND", "@FOUNDERLIFE", "@CEOCLUB"],
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Business label",
+      visible: true,
+      hideable: true,
+      text: "BUSINESS",
+      color: "#444444",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 800,
+      letterSpacing: 0.04,
+      suggestions: ["BUSINESS", "FOUNDER", "CEO", "BRAND"],
+    },
+    {
+      id: "cta",
+      kind: "cta",
+      label: "Edition label",
+      visible: true,
+      hideable: true,
+      text: "EDITION",
+      color: "#444444",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 800,
+      letterSpacing: 0.04,
+      suggestions: ["EDITION", "MOOD", "VIBE", "LIFE"],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Bottom caption",
+      visible: true,
+      hideable: true,
+      text: "Because every CEO has their own vibe.",
+      color: "#333333",
+      fontId: "poppins",
+      uppercase: false,
+      weight: 400,
+      align: "center",
+      suggestions: [
+        "Because every CEO has their own vibe.",
+        "Because every founder has their own flow.",
+        "Pick the CEO vibe that feels like you.",
+      ],
+    },
+  ],
+};
+
+// Olivia Testimonial — a square customer quote card with one avatar image, an
+// optional testimonial paragraph, a required author line and an optional CEO
+// vibe line kept available for brand/copy variants. Preview art lives at
+// public/templates/shared/e79728152d6c58ad0ef70e013df666ac.jpg.
+const OLIVIA_TESTIMONIAL: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000050",
+  title: "Olivia Testimonial",
+  layout: "testimonial",
+  aspectRatio: "1 / 1",
+  aspectRatioOptions: [
+    { id: "square", label: "1:1", aspectRatio: "1 / 1" },
+    { id: "portrait", label: "4:5", aspectRatio: "4 / 5" },
+    { id: "story", label: "Story", aspectRatio: "9 / 16" },
+  ],
+  background: "#d4aa82",
+  palette: [
+    { label: "Coffee", value: "#665748" },
+    { label: "Taupe", value: "#b08b68" },
+    { label: "Mocha", value: "#4f4439" },
+    { label: "Cream", value: "#fffdf8" },
+    { label: "Ink", value: "#1c1a17" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Avatar",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/testimonial-avatar-olivia-source.jpg",
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "CEO line",
+      visible: false,
+      hideable: true,
+      text: "Because every CEO has their own vibe.",
+      color: "#665748",
+      fontId: "quicksand",
+      uppercase: false,
+      weight: 600,
+      align: "center",
+      suggestions: [
+        "Because every CEO has their own vibe.",
+        "Because every founder has their own rhythm.",
+        "Because every leader brings a different energy.",
+      ],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Testimonial",
+      visible: true,
+      hideable: true,
+      text: "Everything was very good and tasty!\nThe food is interesting and non-\nstandard, so you want to try\neverything! Cozy place, good service,\ngood wine list and very tasty! Thank\nyou!",
+      color: "#665748",
+      fontId: "quicksand",
+      uppercase: false,
+      weight: 400,
+      align: "center",
+      letterSpacing: 0.06,
+      suggestions: [
+        "Everything was very good and tasty!\nThe food is interesting and non-standard, so you want to try everything! Cozy place, good service, good wine list and very tasty! Thank you!",
+        "Beautiful experience from start to finish. Cozy, thoughtful and genuinely memorable.",
+        "A warm place with wonderful service, great wine and food worth coming back for.",
+      ],
+    },
+    {
+      id: "cta",
+      kind: "cta",
+      label: "Author",
+      visible: true,
+      hideable: false,
+      text: "Olivia W.",
+      color: "#665748",
+      fontId: "quicksand",
+      uppercase: false,
+      weight: 700,
+      align: "center",
+      suggestions: ["Olivia W.", "Avery M.", "Mia K.", "Sophia R."],
+    },
+  ],
+};
+
 // City "postcard" poster — a full-bleed travel photo with a giant condensed city
 // name stacked one letter per line down the right edge (white, difference-blended
 // over the photo so it inverts the picture: light letters over dark areas, dark
@@ -2702,6 +2900,8 @@ const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [SOULKIN_SPLIT.id]: SOULKIN_SPLIT,
   [SUNDAY_POSTER.id]: SUNDAY_POSTER,
   [DUEL_THIS_OR_THAT.id]: DUEL_THIS_OR_THAT,
+  [BUSINESS_CHOICE_THIS_OR_THAT.id]: BUSINESS_CHOICE_THIS_OR_THAT,
+  [OLIVIA_TESTIMONIAL.id]: OLIVIA_TESTIMONIAL,
   [POSTCARD_LONDON.id]: POSTCARD_LONDON,
   [CITYMASK_SAN_FRANCISCO.id]: CITYMASK_SAN_FRANCISCO,
   [SELF_PORTRAIT.id]: SELF_PORTRAIT,
@@ -2762,6 +2962,7 @@ export interface RemixEditorState {
   version?: number;
   caption?: string;
   city_overview?: string;
+  aspect_ratio?: string;
   layers?: EditorLayer[];
 }
 
@@ -2814,7 +3015,7 @@ export function assetsFromLayers(layers: EditorLayer[]): RemixEditorAsset[] {
 // current header/description text so the remix card + agents have a flat caption.
 export function remixStateFromLayers(
   layers: EditorLayer[],
-  extras?: { caption?: string; cityOverview?: string },
+  extras?: { caption?: string; cityOverview?: string; aspectRatio?: string },
 ): RemixEditorState {
   const header = layers.find((layer) => layer.kind === "header") as TextLayer | undefined;
   const description = layers.find((layer) => layer.kind === "description") as TextLayer | undefined;
@@ -2822,6 +3023,7 @@ export function remixStateFromLayers(
     version: 1,
     caption: extras?.caption ?? header?.text,
     city_overview: extras?.cityOverview ?? description?.text,
+    aspect_ratio: extras?.aspectRatio,
     layers: serializeRemixLayers(layers),
   };
 }
@@ -3499,6 +3701,322 @@ export function duelPollGeometry(
     h: rowH,
   }));
   return { x, y, w, h, rows };
+}
+
+// ── Business Edition "This or that?" geometry ───────────────────────────────
+// Measured from the 1200 × 1500 reference image. A cream canvas carries a
+// fixed mixed-type headline, two overlapping rounded photo panels, two optional
+// rounded pill labels and optional small text at top/bottom. Horizontal
+// measures and type sizes are fractions of canvas width; vertical measures are
+// fractions of canvas height unless noted.
+export const BUSINESS_CHOICE_LAYOUT = {
+  colors: {
+    defaultText: "#444444",
+    quietText: "#333333",
+    pillFill: "#fff9ba",
+    pillBorder: "#4b4b46",
+  },
+  headline: {
+    thisText: "This",
+    orText: "or",
+    thatText: "that?",
+    thisFont: "anton",
+    orFont: "poppins",
+    thatFont: "playfair",
+    thisLeft: 68 / 1200,
+    thisTop: 185 / 1500,
+    thisSize: 0.245,
+    orLeft: 565 / 1200,
+    orTop: 289 / 1500,
+    orSize: 0.055,
+    thatLeft: 600 / 1200,
+    thatTop: 190 / 1500,
+    thatSize: 0.205,
+  },
+  handle: {
+    centerX: 0.5,
+    top: 77 / 1500,
+    size: 0.024,
+    lineHeight: 1,
+  },
+  photos: [
+    {
+      id: "photo-1",
+      x: 79 / 1200,
+      y: 557 / 1500,
+      w: 491 / 1200,
+      h: 523 / 1500,
+      radius: 12 / 1200,
+    },
+    {
+      id: "photo-2",
+      x: 596 / 1200,
+      y: 682 / 1500,
+      w: 524 / 1200,
+      h: 539 / 1500,
+      radius: 12 / 1200,
+    },
+  ],
+  pills: {
+    business: {
+      x: 511 / 1200,
+      y: 582 / 1500,
+      w: 421 / 1200,
+      h: 76 / 1500,
+    },
+    edition: {
+      x: 224 / 1200,
+      y: 1114 / 1500,
+      w: 422 / 1200,
+      h: 76 / 1500,
+    },
+    radius: 17 / 1200,
+    border: 2.5 / 1200,
+    labelSize: 0.027,
+  },
+  bottom: {
+    centerX: 0.5,
+    top: 1387 / 1500,
+    width: 0.72,
+    size: 0.03,
+    lineHeight: 1.1,
+  },
+} as const;
+
+function numericAspectRatio(aspectRatio: string): number {
+  const [w, h] = aspectRatio.split("/").map((part) => Number(part.trim()));
+  if (!w || !h) return 4 / 5;
+  return w / h;
+}
+
+export function businessChoiceGeometry(aspectRatio: string) {
+  const baseRatio = 4 / 5;
+  const targetRatio = numericAspectRatio(aspectRatio);
+  const baseHeight = 1 / baseRatio;
+  const targetHeight = 1 / targetRatio;
+  const fitToHeight = targetRatio > baseRatio;
+  const scale = fitToHeight ? targetHeight / baseHeight : 1;
+  const xOffset = fitToHeight ? (1 - scale) / 2 : 0;
+  const yOffset = fitToHeight ? 0 : (targetHeight - baseHeight * scale) / 2;
+
+  const x = (value: number) => xOffset + value * scale;
+  const w = (value: number) => value * scale;
+  const y = (value: number) => (yOffset + value * baseHeight * scale) / targetHeight;
+  const h = (value: number) => (value * baseHeight * scale) / targetHeight;
+  const s = (value: number) => value * scale;
+
+  return {
+    sizeScale: scale,
+    headline: {
+      thisLeft: x(BUSINESS_CHOICE_LAYOUT.headline.thisLeft),
+      thisTop: y(BUSINESS_CHOICE_LAYOUT.headline.thisTop),
+      thisSize: s(BUSINESS_CHOICE_LAYOUT.headline.thisSize),
+      orLeft: x(BUSINESS_CHOICE_LAYOUT.headline.orLeft),
+      orTop: y(BUSINESS_CHOICE_LAYOUT.headline.orTop),
+      orSize: s(BUSINESS_CHOICE_LAYOUT.headline.orSize),
+      thatLeft: x(BUSINESS_CHOICE_LAYOUT.headline.thatLeft),
+      thatTop: y(BUSINESS_CHOICE_LAYOUT.headline.thatTop),
+      thatSize: s(BUSINESS_CHOICE_LAYOUT.headline.thatSize),
+    },
+    handle: {
+      centerX: x(BUSINESS_CHOICE_LAYOUT.handle.centerX),
+      top: y(BUSINESS_CHOICE_LAYOUT.handle.top),
+      size: s(BUSINESS_CHOICE_LAYOUT.handle.size),
+    },
+    photos: BUSINESS_CHOICE_LAYOUT.photos.map((photo) => ({
+      id: photo.id,
+      x: x(photo.x),
+      y: y(photo.y),
+      w: w(photo.w),
+      h: h(photo.h),
+      radius: s(photo.radius),
+    })),
+    pills: {
+      business: {
+        x: x(BUSINESS_CHOICE_LAYOUT.pills.business.x),
+        y: y(BUSINESS_CHOICE_LAYOUT.pills.business.y),
+        w: w(BUSINESS_CHOICE_LAYOUT.pills.business.w),
+        h: h(BUSINESS_CHOICE_LAYOUT.pills.business.h),
+      },
+      edition: {
+        x: x(BUSINESS_CHOICE_LAYOUT.pills.edition.x),
+        y: y(BUSINESS_CHOICE_LAYOUT.pills.edition.y),
+        w: w(BUSINESS_CHOICE_LAYOUT.pills.edition.w),
+        h: h(BUSINESS_CHOICE_LAYOUT.pills.edition.h),
+      },
+      radius: s(BUSINESS_CHOICE_LAYOUT.pills.radius),
+      border: s(BUSINESS_CHOICE_LAYOUT.pills.border),
+      labelSize: s(BUSINESS_CHOICE_LAYOUT.pills.labelSize),
+    },
+    bottom: {
+      centerX: x(BUSINESS_CHOICE_LAYOUT.bottom.centerX),
+      top: y(BUSINESS_CHOICE_LAYOUT.bottom.top),
+      width: w(BUSINESS_CHOICE_LAYOUT.bottom.width),
+      size: s(BUSINESS_CHOICE_LAYOUT.bottom.size),
+    },
+  };
+}
+
+function sameHexColor(a: string | undefined, b: string): boolean {
+  const normalize = (value: string | undefined) => value?.trim().toLowerCase();
+  return normalize(a) === normalize(b);
+}
+
+export function businessChoiceAccent(layers: EditorLayer[]): string | null {
+  const business = layers.find((layer): layer is TextLayer => layer.id === "header");
+  if (!business || sameHexColor(business.color, BUSINESS_CHOICE_LAYOUT.colors.defaultText)) {
+    return null;
+  }
+  return business.color;
+}
+
+export function businessChoiceBackground(
+  template: Pick<RemixEditorTemplate, "background">,
+  layers: EditorLayer[],
+): string {
+  return businessChoiceAccent(layers) ?? template.background;
+}
+
+export function businessChoicePillFill(layers: EditorLayer[]): string {
+  return businessChoiceAccent(layers) ?? BUSINESS_CHOICE_LAYOUT.colors.pillFill;
+}
+
+export function businessChoicePillTextColor(layers: EditorLayer[]): string {
+  const accent = businessChoiceAccent(layers);
+  return accent ? readableTextColor(accent) : BUSINESS_CHOICE_LAYOUT.colors.defaultText;
+}
+
+export function businessChoiceHeadlineFontIds(layers: EditorLayer[]): {
+  thisFontId: string;
+  orFontId: string;
+  thatFontId: string;
+} {
+  const business = layers.find((layer): layer is TextLayer => layer.id === "header");
+  const customFontId =
+    business && business.fontId !== "montserrat" && business.fontId.trim() ? business.fontId : null;
+  return {
+    thisFontId: customFontId ?? BUSINESS_CHOICE_LAYOUT.headline.thisFont,
+    orFontId: customFontId ?? BUSINESS_CHOICE_LAYOUT.headline.orFont,
+    thatFontId: customFontId ?? BUSINESS_CHOICE_LAYOUT.headline.thatFont,
+  };
+}
+
+// ── Olivia Testimonial geometry ──────────────────────────────────────────────
+// Measured from the 1200 × 1200 reference. The avatar image doubles as a blurred
+// full-canvas backdrop and the circular portrait clipped above the white card.
+export const TESTIMONIAL_LAYOUT = {
+  colors: {
+    card: "#fffdf9",
+    text: "#665748",
+    star: "#b08b68",
+    glow: "rgba(255,255,255,0.34)",
+    warmWash: "rgba(224,174,126,0.44)",
+    shadow: "rgba(58,43,31,0.24)",
+  },
+  backdrop: {
+    blur: 28 / 1200,
+    scale: 1.2,
+  },
+  card: {
+    x: 200 / 1200,
+    y: 313 / 1200,
+    w: 800 / 1200,
+    h: 643 / 1200,
+    radius: 54 / 1200,
+    shadowBlur: 30 / 1200,
+    shadowY: 26 / 1200,
+  },
+  avatar: {
+    centerX: 0.5,
+    top: 218 / 1200,
+    size: 200 / 1200,
+  },
+  header: {
+    centerX: 0.5,
+    top: 423 / 1200,
+    width: 0.66,
+    size: 0.026,
+    lineHeight: 1.18,
+  },
+  stars: {
+    centerX: 0.5,
+    centerY: 476 / 1200,
+    size: 0.043,
+    gap: 0.06,
+  },
+  testimonial: {
+    centerX: 0.5,
+    top: 535 / 1200,
+    width: 0.67,
+    size: 0.032,
+    lineHeight: 1.52,
+  },
+  author: {
+    centerX: 0.5,
+    top: 881 / 1200,
+    width: 0.6,
+    size: 0.036,
+    lineHeight: 1.05,
+  },
+} as const;
+
+export function testimonialGeometry(aspectRatio: string) {
+  const baseRatio = 1;
+  const targetRatio = numericAspectRatio(aspectRatio);
+  const baseHeight = 1 / baseRatio;
+  const targetHeight = 1 / targetRatio;
+  const fitToHeight = targetRatio > baseRatio;
+  const scale = fitToHeight ? targetHeight / baseHeight : 1;
+  const xOffset = fitToHeight ? (1 - scale) / 2 : 0;
+  const yOffset = fitToHeight ? 0 : (targetHeight - baseHeight * scale) / 2;
+
+  const x = (value: number) => xOffset + value * scale;
+  const w = (value: number) => value * scale;
+  const y = (value: number) => (yOffset + value * baseHeight * scale) / targetHeight;
+  const h = (value: number) => (value * baseHeight * scale) / targetHeight;
+  const s = (value: number) => value * scale;
+
+  return {
+    sizeScale: scale,
+    card: {
+      x: x(TESTIMONIAL_LAYOUT.card.x),
+      y: y(TESTIMONIAL_LAYOUT.card.y),
+      w: w(TESTIMONIAL_LAYOUT.card.w),
+      h: h(TESTIMONIAL_LAYOUT.card.h),
+      radius: s(TESTIMONIAL_LAYOUT.card.radius),
+      shadowBlur: s(TESTIMONIAL_LAYOUT.card.shadowBlur),
+      shadowY: s(TESTIMONIAL_LAYOUT.card.shadowY),
+    },
+    avatar: {
+      centerX: x(TESTIMONIAL_LAYOUT.avatar.centerX),
+      top: y(TESTIMONIAL_LAYOUT.avatar.top),
+      size: s(TESTIMONIAL_LAYOUT.avatar.size),
+    },
+    header: {
+      centerX: x(TESTIMONIAL_LAYOUT.header.centerX),
+      top: y(TESTIMONIAL_LAYOUT.header.top),
+      width: w(TESTIMONIAL_LAYOUT.header.width),
+      size: s(TESTIMONIAL_LAYOUT.header.size),
+    },
+    stars: {
+      centerX: x(TESTIMONIAL_LAYOUT.stars.centerX),
+      centerY: y(TESTIMONIAL_LAYOUT.stars.centerY),
+      size: s(TESTIMONIAL_LAYOUT.stars.size),
+      gap: s(TESTIMONIAL_LAYOUT.stars.gap),
+    },
+    testimonial: {
+      centerX: x(TESTIMONIAL_LAYOUT.testimonial.centerX),
+      top: y(TESTIMONIAL_LAYOUT.testimonial.top),
+      width: w(TESTIMONIAL_LAYOUT.testimonial.width),
+      size: s(TESTIMONIAL_LAYOUT.testimonial.size),
+    },
+    author: {
+      centerX: x(TESTIMONIAL_LAYOUT.author.centerX),
+      top: y(TESTIMONIAL_LAYOUT.author.top),
+      width: w(TESTIMONIAL_LAYOUT.author.width),
+      size: s(TESTIMONIAL_LAYOUT.author.size),
+    },
+  };
 }
 
 // ── Postcard (city poster) geometry ──────────────────────────────────────────

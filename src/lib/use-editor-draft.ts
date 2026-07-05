@@ -121,10 +121,15 @@ export function useRemixDraft(
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef = useRef<EditorLayer[] | null>(null);
   const inFlightRef = useRef(false);
+  const templateRef = useRef(template);
   // Skip saving the freshly-loaded remix back immediately; just record its
   // attachment baseline so the first real edit can detect asset changes.
   const firstRef = useRef(true);
   const lastAssetKeyRef = useRef<string>("");
+
+  useEffect(() => {
+    templateRef.current = template;
+  }, [template]);
 
   const flush = useCallback(
     async (next: EditorLayer[]) => {
@@ -137,15 +142,16 @@ export function useRemixDraft(
       inFlightRef.current = true;
       setStatus("saving");
       try {
+        const currentTemplate = templateRef.current;
         const assetIds = assetIdsFromLayers(next);
         const assetKey = assetIds.join(",");
         const assetsChanged = assetKey !== lastAssetKeyRef.current;
         // Re-render the creative and upload it so the remixes-list thumbnail
         // reflects this edit. Best-effort (resolves to undefined on failure), so
         // a thumbnail hiccup never blocks persisting the layer state.
-        const thumbnail = await uploadRemixThumbnail(template, next);
+        const thumbnail = await uploadRemixThumbnail(currentTemplate, next);
         await updateRemix(remixId, {
-          state: remixStateFromLayers(next),
+          state: remixStateFromLayers(next, { aspectRatio: currentTemplate.aspectRatio }),
           assetIds: assetsChanged ? assetIds : undefined,
           thumbnailAssetId: thumbnail?.assetId,
           thumbnailUrl: thumbnail?.url,
@@ -161,7 +167,7 @@ export function useRemixDraft(
         if (queued) void flush(queued);
       }
     },
-    [remixId, template],
+    [remixId],
   );
 
   useEffect(() => {
@@ -177,7 +183,7 @@ export function useRemixDraft(
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [layers, remixId, flush]);
+  }, [layers, remixId, flush, template.aspectRatio]);
 
   return { status };
 }

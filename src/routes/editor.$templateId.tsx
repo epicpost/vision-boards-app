@@ -89,6 +89,14 @@ import {
   VERTICALS_LAYOUT,
   verticalsTitleChars,
   DUEL_LAYOUT,
+  BUSINESS_CHOICE_LAYOUT,
+  businessChoiceBackground,
+  businessChoiceGeometry,
+  businessChoiceHeadlineFontIds,
+  businessChoicePillFill,
+  businessChoicePillTextColor,
+  TESTIMONIAL_LAYOUT,
+  testimonialGeometry,
   duelCaptionWords,
   duelDisplayCase,
   duelVisibleOptions,
@@ -125,6 +133,7 @@ import {
   transformCss,
   WEIGHT_LABELS,
   type EditorColor,
+  type EditorAspectRatioOption,
   type EditorLayer,
   type ExportFormat,
   type ImageLayer,
@@ -143,11 +152,14 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 
 export const Route = createFileRoute("/editor/$templateId")({
-  validateSearch: (search: Record<string, unknown>): { caption?: string; remixId?: string } => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { caption?: string; remixId?: string; aspectRatio?: string } => ({
     caption: typeof search.caption === "string" ? search.caption : undefined,
     // When present, the editor opens this saved remix (your images + text)
     // instead of the bare template defaults.
     remixId: typeof search.remixId === "string" ? search.remixId : undefined,
+    aspectRatio: typeof search.aspectRatio === "string" ? search.aspectRatio : undefined,
   }),
   head: () => ({
     meta: [
@@ -176,7 +188,7 @@ function EditorUnavailable({ children }: { children: React.ReactNode }) {
 
 function EditorRoute() {
   const { templateId } = Route.useParams();
-  const { caption, remixId } = Route.useSearch();
+  const { caption, remixId, aspectRatio } = Route.useSearch();
   const template = getRemixEditorTemplate(templateId);
 
   if (!template) {
@@ -194,10 +206,14 @@ function EditorRoute() {
   // Editing a saved remix: load its state (your images + text) before mounting
   // the editor, so you see the remixed creative — not the template defaults.
   if (remixId) {
-    return <RemixEditorLoader template={template} remixId={remixId} />;
+    return (
+      <RemixEditorLoader template={template} remixId={remixId} initialAspectRatio={aspectRatio} />
+    );
   }
 
-  return <EditorScreen template={template} initialCaption={caption} />;
+  return (
+    <EditorScreen template={template} initialCaption={caption} initialAspectRatio={aspectRatio} />
+  );
 }
 
 // Fetches a remix, rebuilds the editor layers (resolving each image to a
@@ -206,12 +222,16 @@ function EditorRoute() {
 function RemixEditorLoader({
   template,
   remixId,
+  initialAspectRatio,
 }: {
   template: RemixEditorTemplate;
   remixId: string;
+  initialAspectRatio?: string;
 }) {
   const [state, setState] = useState<
-    { status: "loading" } | { status: "error" } | { status: "ready"; layers: EditorLayer[] }
+    | { status: "loading" }
+    | { status: "error" }
+    | { status: "ready"; layers: EditorLayer[]; aspectRatio?: string }
   >({ status: "loading" });
 
   useEffect(() => {
@@ -233,7 +253,13 @@ function RemixEditorLoader({
               : layer,
           ),
         );
-        if (!cancelled) setState({ status: "ready", layers });
+        if (!cancelled) {
+          setState({
+            status: "ready",
+            layers,
+            aspectRatio: initialAspectRatio ?? remix.state?.aspect_ratio,
+          });
+        }
       } catch {
         if (!cancelled) setState({ status: "error" });
       }
@@ -241,7 +267,7 @@ function RemixEditorLoader({
     return () => {
       cancelled = true;
     };
-  }, [remixId, template]);
+  }, [initialAspectRatio, remixId, template]);
 
   if (state.status === "loading") return <EditorSkeleton template={template} />;
   if (state.status === "error") {
@@ -254,7 +280,14 @@ function RemixEditorLoader({
       </EditorUnavailable>
     );
   }
-  return <EditorScreen template={template} remixId={remixId} initialLayers={state.layers} />;
+  return (
+    <EditorScreen
+      template={template}
+      remixId={remixId}
+      initialLayers={state.layers}
+      initialAspectRatio={state.aspectRatio}
+    />
+  );
 }
 
 // Page-specific skeleton mirroring the editor chrome (top bar + chat rail +
@@ -626,6 +659,44 @@ function ShareMenu({
   );
 }
 
+function AspectRatioSelector({
+  options,
+  value,
+  onChange,
+}: {
+  options: EditorAspectRatioOption[];
+  value: string;
+  onChange: (aspectRatio: string) => void;
+}) {
+  if (options.length <= 1) return null;
+
+  return (
+    <div className="border-b border-border px-6 pb-5">
+      <div className="grid grid-cols-3 gap-1 rounded-[16px] bg-secondary p-1">
+        {options.map((option) => {
+          const active = option.aspectRatio === value;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onChange(option.aspectRatio)}
+              className={cn(
+                "h-10 rounded-[12px] px-3 text-sm font-semibold transition",
+                active
+                  ? "bg-foreground text-background shadow-sm"
+                  : "text-muted-foreground hover:bg-background/50 hover:text-foreground",
+              )}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function EditorSection({
   title,
   open,
@@ -960,6 +1031,7 @@ function DraggableImage({
   }
 
   const photo = photoStyle();
+  const frameRadius = style?.borderRadius;
 
   return (
     <div
@@ -987,7 +1059,7 @@ function DraggableImage({
       )}
 
       {/* The actual crop the frame keeps. */}
-      <div className="absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden" style={{ borderRadius: frameRadius }}>
         <img
           ref={imgRef}
           src={layer.src}
@@ -1007,7 +1079,10 @@ function DraggableImage({
       {/* Selection / drag border — high z so it sits above the photo and any
           text overlaid on the frame. */}
       {(selected || dragging) && (
-        <div className="pointer-events-none absolute inset-0 z-50 ring-2 ring-inset ring-destructive" />
+        <div
+          className="pointer-events-none absolute inset-0 z-50 ring-2 ring-inset ring-destructive"
+          style={{ borderRadius: frameRadius }}
+        />
       )}
     </div>
   );
@@ -2096,6 +2171,402 @@ function DuelPreview({
           {wordmark.uppercase ? wordmark.text.toUpperCase() : wordmark.text}
         </div>
       )}
+    </div>
+  );
+}
+
+// Business Edition comparison pin: fixed mixed-type "This or that?" headline,
+// two rounded photo panels and optional handle / BUSINESS / EDITION / bottom
+// caption copy. Mirrors `exportBusinessChoice`.
+function BusinessChoicePreview({
+  template,
+  layers,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const photos = layers
+    .filter((layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image")
+    .slice(0, 2);
+  const handle = layers.find((layer): layer is TextLayer => layer.id === "eyebrow");
+  const business = layers.find((layer): layer is TextLayer => layer.id === "header");
+  const edition = layers.find((layer): layer is TextLayer => layer.id === "cta");
+  const bottom = layers.find((layer): layer is TextLayer => layer.id === "description");
+  const handleStyle = handle ? resolveTextStyle(handle) : null;
+  const businessStyle = business ? resolveTextStyle(business) : null;
+  const editionStyle = edition ? resolveTextStyle(edition) : null;
+  const bottomStyle = bottom ? resolveTextStyle(bottom) : null;
+  const headlineFonts = businessChoiceHeadlineFontIds(layers);
+  const geometry = businessChoiceGeometry(template.aspectRatio);
+  const headlineColor = business?.color ?? BUSINESS_CHOICE_LAYOUT.colors.defaultText;
+  const headlineWeight =
+    business && business.fontId !== "montserrat" && businessStyle ? businessStyle.weight : 400;
+  const cqi = (value: number) => `${value * 100}cqi`;
+  const pct = (value: number) => `${value * 100}%`;
+
+  const pillText = (layer: TextLayer) => (layer.uppercase ? layer.text.toUpperCase() : layer.text);
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: businessChoiceBackground(template, layers),
+        containerType: "inline-size",
+      }}
+    >
+      {handle?.visible && handleStyle && handle.text.trim() && (
+        <div
+          className="pointer-events-none absolute text-center"
+          style={{
+            left: 0,
+            right: 0,
+            top: pct(geometry.handle.top),
+            fontFamily: fontById(handle.fontId).family,
+            fontWeight: handleStyle.weight,
+            fontSize: cqi(geometry.handle.size * handleStyle.sizeScale),
+            lineHeight: BUSINESS_CHOICE_LAYOUT.handle.lineHeight,
+            letterSpacing: `${handleStyle.letterSpacing}em`,
+            color: handle.color,
+          }}
+        >
+          {handle.uppercase ? handle.text.toUpperCase() : handle.text}
+        </div>
+      )}
+
+      <div
+        className="pointer-events-none absolute"
+        style={{
+          left: pct(geometry.headline.thisLeft),
+          top: pct(geometry.headline.thisTop),
+          fontFamily: fontById(headlineFonts.thisFontId).family,
+          fontWeight: headlineWeight,
+          fontSize: cqi(geometry.headline.thisSize),
+          lineHeight: 0.86,
+          color: headlineColor,
+        }}
+      >
+        {BUSINESS_CHOICE_LAYOUT.headline.thisText}
+      </div>
+      <div
+        className="pointer-events-none absolute"
+        style={{
+          left: pct(geometry.headline.orLeft),
+          top: pct(geometry.headline.orTop),
+          fontFamily: fontById(headlineFonts.orFontId).family,
+          fontWeight: headlineWeight,
+          fontSize: cqi(geometry.headline.orSize),
+          lineHeight: 1,
+          color: headlineColor,
+        }}
+      >
+        {BUSINESS_CHOICE_LAYOUT.headline.orText}
+      </div>
+      <div
+        className="pointer-events-none absolute"
+        style={{
+          left: pct(geometry.headline.thatLeft),
+          top: pct(geometry.headline.thatTop),
+          fontFamily: fontById(headlineFonts.thatFontId).family,
+          fontStyle: "italic",
+          fontWeight: headlineWeight,
+          fontSize: cqi(geometry.headline.thatSize),
+          lineHeight: 1,
+          color: headlineColor,
+        }}
+      >
+        {BUSINESS_CHOICE_LAYOUT.headline.thatText}
+      </div>
+
+      {photos.map((photo, index) => {
+        const box = geometry.photos[index];
+        if (!box) return null;
+        return photo.visible ? (
+          <DraggableImage
+            key={photo.id}
+            layer={photo}
+            fit="cover"
+            selected={selectedId === photo.id}
+            onSelect={() => onSelect(photo.id)}
+            onPan={(offsetX, offsetY) =>
+              updateLayer(
+                photo.id,
+                { transform: { ...imageTransform(photo), offsetX, offsetY } },
+                `pan-${photo.id}`,
+              )
+            }
+            style={{
+              left: pct(box.x),
+              top: pct(box.y),
+              width: pct(box.w),
+              height: pct(box.h),
+              borderRadius: cqi(box.radius),
+              zIndex: index + 1,
+            }}
+          />
+        ) : null;
+      })}
+
+      {business?.visible && businessStyle && business.text.trim() && (
+        <div
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            onSelect(business.id);
+          }}
+          className="absolute flex items-center justify-center"
+          style={{
+            left: pct(geometry.pills.business.x),
+            top: pct(geometry.pills.business.y),
+            width: pct(geometry.pills.business.w),
+            height: pct(geometry.pills.business.h),
+            borderRadius: cqi(geometry.pills.radius),
+            border: `${cqi(geometry.pills.border)} solid ${BUSINESS_CHOICE_LAYOUT.colors.pillBorder}`,
+            background: businessChoicePillFill(layers),
+            fontFamily: fontById(business.fontId).family,
+            fontWeight: businessStyle.weight,
+            fontSize: cqi(geometry.pills.labelSize * businessStyle.sizeScale),
+            letterSpacing: `${businessStyle.letterSpacing}em`,
+            color: businessChoicePillTextColor(layers),
+            outline: selectedId === business.id ? "2px solid var(--destructive, #ef4444)" : "none",
+            outlineOffset: "1px",
+            zIndex: 5,
+          }}
+        >
+          {pillText(business)}
+        </div>
+      )}
+
+      {edition?.visible && editionStyle && edition.text.trim() && (
+        <div
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            onSelect(edition.id);
+          }}
+          className="absolute flex items-center justify-center"
+          style={{
+            left: pct(geometry.pills.edition.x),
+            top: pct(geometry.pills.edition.y),
+            width: pct(geometry.pills.edition.w),
+            height: pct(geometry.pills.edition.h),
+            borderRadius: cqi(geometry.pills.radius),
+            border: `${cqi(geometry.pills.border)} solid ${BUSINESS_CHOICE_LAYOUT.colors.pillBorder}`,
+            background: businessChoicePillFill(layers),
+            fontFamily: fontById(edition.fontId).family,
+            fontWeight: editionStyle.weight,
+            fontSize: cqi(geometry.pills.labelSize * editionStyle.sizeScale),
+            letterSpacing: `${editionStyle.letterSpacing}em`,
+            color: businessChoicePillTextColor(layers),
+            outline: selectedId === edition.id ? "2px solid var(--destructive, #ef4444)" : "none",
+            outlineOffset: "1px",
+            zIndex: 5,
+          }}
+        >
+          {pillText(edition)}
+        </div>
+      )}
+
+      {bottom?.visible && bottomStyle && bottom.text.trim() && (
+        <div
+          className="pointer-events-none absolute text-center"
+          style={{
+            left: "50%",
+            top: pct(geometry.bottom.top),
+            width: pct(geometry.bottom.width),
+            transform: "translateX(-50%)",
+            fontFamily: fontById(bottom.fontId).family,
+            fontStyle: "italic",
+            fontWeight: bottomStyle.weight,
+            fontSize: cqi(geometry.bottom.size * bottomStyle.sizeScale),
+            lineHeight: BUSINESS_CHOICE_LAYOUT.bottom.lineHeight,
+            letterSpacing: `${bottomStyle.letterSpacing}em`,
+            color: bottom.color,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {bottom.uppercase ? bottom.text.toUpperCase() : bottom.text}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Olivia testimonial card: blurred avatar background, floating white review card,
+// circular avatar, five stars, optional review, required author and an optional
+// CEO line for brand/copy variants. Mirrors `exportTestimonial`.
+function TestimonialPreview({
+  template,
+  layers,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const image = layers.find((layer): layer is ImageLayer => layer.kind === "image");
+  const header = layers.find((layer): layer is TextLayer => layer.id === "header");
+  const testimonial = layers.find((layer): layer is TextLayer => layer.id === "description");
+  const author = layers.find((layer): layer is TextLayer => layer.id === "cta");
+  const geometry = testimonialGeometry(template.aspectRatio);
+  const cqi = (value: number) => `${value * 100}cqi`;
+  const pct = (value: number) => `${value * 100}%`;
+  const selectedOutline = (id: string) =>
+    selectedId === id ? "2px solid var(--destructive, #ef4444)" : "none";
+
+  const textBlock = (
+    layer: TextLayer | undefined,
+    box: { centerX: number; top: number; width: number; size: number },
+    options: { title: string; italic?: boolean; lineHeight: number },
+  ) => {
+    if (!layer?.visible || !layer.text.trim()) return null;
+    const style = resolveTextStyle(layer);
+    const label = layer.uppercase ? layer.text.toUpperCase() : layer.text;
+    return (
+      <div
+        aria-label={options.title}
+        onPointerDown={(event) => {
+          event.stopPropagation();
+          onSelect(layer.id);
+        }}
+        className="absolute text-center"
+        style={{
+          left: pct(box.centerX),
+          top: pct(box.top),
+          width: pct(box.width),
+          transform: "translateX(-50%)",
+          fontFamily: fontById(layer.fontId).family,
+          fontStyle: options.italic ? "italic" : "normal",
+          fontWeight: style.weight,
+          fontSize: cqi(box.size * style.sizeScale),
+          lineHeight: options.lineHeight,
+          letterSpacing: `${style.letterSpacing}em`,
+          color: layer.color,
+          whiteSpace: "pre-line",
+          outline: selectedOutline(layer.id),
+          outlineOffset: "4px",
+          zIndex: 7,
+        }}
+      >
+        {label}
+      </div>
+    );
+  };
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+      }}
+    >
+      {image && (
+        <>
+          <img
+            src={image.src}
+            alt=""
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+            style={{
+              filter: `blur(${cqi(TESTIMONIAL_LAYOUT.backdrop.blur)})`,
+              transform: `scale(${TESTIMONIAL_LAYOUT.backdrop.scale})`,
+              opacity: 0.86,
+            }}
+          />
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(circle at 24% 16%, rgba(255,255,255,0.62), transparent 21%), radial-gradient(circle at 73% 71%, rgba(255,255,255,0.5), transparent 24%)",
+            }}
+          />
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{ background: TESTIMONIAL_LAYOUT.colors.warmWash }}
+          />
+        </>
+      )}
+
+      <div
+        className="pointer-events-none absolute"
+        style={{
+          left: pct(geometry.card.x),
+          top: pct(geometry.card.y),
+          width: pct(geometry.card.w),
+          height: pct(geometry.card.h),
+          borderRadius: cqi(geometry.card.radius),
+          background: TESTIMONIAL_LAYOUT.colors.card,
+          boxShadow: `0 ${cqi(geometry.card.shadowY)} ${cqi(geometry.card.shadowBlur)} ${TESTIMONIAL_LAYOUT.colors.shadow}`,
+          zIndex: 2,
+        }}
+      />
+
+      {image?.visible && (
+        <DraggableImage
+          layer={image}
+          fit="cover"
+          selected={selectedId === image.id}
+          onSelect={() => onSelect(image.id)}
+          onPan={(offsetX, offsetY) =>
+            updateLayer(
+              image.id,
+              { transform: { ...imageTransform(image), offsetX, offsetY } },
+              `pan-${image.id}`,
+            )
+          }
+          className="rounded-full"
+          style={{
+            left: `calc(${pct(geometry.avatar.centerX)} - ${cqi(geometry.avatar.size / 2)})`,
+            top: pct(geometry.avatar.top),
+            width: cqi(geometry.avatar.size),
+            height: cqi(geometry.avatar.size),
+            borderRadius: "9999px",
+            zIndex: 6,
+          }}
+        />
+      )}
+
+      {textBlock(header, geometry.header, {
+        title: "CEO line",
+        lineHeight: TESTIMONIAL_LAYOUT.header.lineHeight,
+      })}
+
+      <div
+        className="pointer-events-none absolute flex items-center justify-center"
+        style={{
+          left: pct(geometry.stars.centerX),
+          top: pct(geometry.stars.centerY),
+          transform: "translate(-50%, -50%)",
+          gap: cqi(geometry.stars.gap - geometry.stars.size),
+          color: author?.color ?? TESTIMONIAL_LAYOUT.colors.star,
+          fontSize: cqi(geometry.stars.size),
+          lineHeight: 1,
+          zIndex: 6,
+        }}
+      >
+        {Array.from({ length: 5 }, (_, index) => (
+          <span key={index}>★</span>
+        ))}
+      </div>
+
+      {textBlock(testimonial, geometry.testimonial, {
+        title: "Testimonial",
+        italic: true,
+        lineHeight: TESTIMONIAL_LAYOUT.testimonial.lineHeight,
+      })}
+      {textBlock(author, geometry.author, {
+        title: "Author",
+        lineHeight: TESTIMONIAL_LAYOUT.author.lineHeight,
+      })}
     </div>
   );
 }
@@ -4346,6 +4817,19 @@ function defaultOpenSections(template: RemixEditorTemplate): Record<string, bool
       description: false,
     };
   }
+  if (template.layout === "business-choice") {
+    return {
+      "photo-1": true,
+      "photo-2": false,
+      eyebrow: false,
+      header: true,
+      cta: false,
+      description: true,
+    };
+  }
+  if (template.layout === "testimonial") {
+    return { image: true, header: false, description: true, cta: true };
+  }
   if (template.layout === "postcard") {
     return { image: true, header: true, eyebrow: false, cta: false };
   }
@@ -4380,20 +4864,46 @@ function defaultOpenSections(template: RemixEditorTemplate): Record<string, bool
   return { image: true, header: true, description: false, cta: false, logo: false };
 }
 
+function normalizeEditorAspectRatio(
+  aspectRatio: string | undefined,
+  options: EditorAspectRatioOption[],
+  fallback: string,
+): string {
+  if (!aspectRatio?.trim()) return fallback;
+  const normalized = aspectRatio.replace(/\s/g, "").replace(":", "/");
+  return (
+    options.find((option) => option.aspectRatio.replace(/\s/g, "") === normalized)?.aspectRatio ??
+    fallback
+  );
+}
+
 function EditorScreen({
   template,
   initialCaption,
+  initialAspectRatio,
   remixId,
   initialLayers,
 }: {
   template: RemixEditorTemplate;
   initialCaption?: string;
+  initialAspectRatio?: string;
   // When set, the editor is bound to a saved remix: autosave targets the remix
   // and `initialLayers` (the remix's loaded state) seed the canvas.
   remixId?: string;
   initialLayers?: EditorLayer[];
 }) {
   const router = useRouter();
+  const aspectRatioOptions = template.aspectRatioOptions ?? [];
+  const [selectedAspectRatio, setSelectedAspectRatio] = useState(() =>
+    normalizeEditorAspectRatio(initialAspectRatio, aspectRatioOptions, template.aspectRatio),
+  );
+  const activeTemplate = useMemo<RemixEditorTemplate>(
+    () =>
+      selectedAspectRatio === template.aspectRatio
+        ? template
+        : { ...template, aspectRatio: selectedAspectRatio },
+    [selectedAspectRatio, template],
+  );
 
   const [layers, setLayers] = useState<EditorLayer[]>(() => {
     if (initialLayers) return initialLayers;
@@ -4459,7 +4969,7 @@ function EditorScreen({
     },
     { enabled: !remixId },
   );
-  const remixDraft = useRemixDraft(remixId, layers, template);
+  const remixDraft = useRemixDraft(remixId, layers, activeTemplate);
   const draftStatus = remixId ? remixDraft.status : fileDraft.status;
 
   const [chatDraft, setChatDraft] = useState("");
@@ -4720,14 +5230,30 @@ function EditorScreen({
     setChatDraft("");
   }
 
+  function changeAspectRatio(aspectRatio: string) {
+    setSelectedAspectRatio(aspectRatio);
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (aspectRatio === template.aspectRatio) {
+      url.searchParams.delete("aspectRatio");
+    } else {
+      url.searchParams.set("aspectRatio", aspectRatio);
+    }
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+  }
+
   async function handleDownload(format: ExportFormat) {
     try {
       setExporting(true);
-      const blob = await exportCreative(template, layers, format);
+      const blob = await exportCreative(activeTemplate, layers, format);
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `epicpost-${template.id}.${EXPORT_FORMATS[format].extension}`;
+      anchor.download = `epicpost-${activeTemplate.id}.${EXPORT_FORMATS[format].extension}`;
       anchor.rel = "noopener";
       document.body.appendChild(anchor);
       anchor.click();
@@ -4807,7 +5333,11 @@ function EditorScreen({
           </div>
           <SaveStatus status={draftStatus} />
         </div>
-        <ShareMenu formats={template.formats} exporting={exporting} onDownload={handleDownload} />
+        <ShareMenu
+          formats={activeTemplate.formats}
+          exporting={exporting}
+          onDownload={handleDownload}
+        />
       </header>
 
       <div className="flex flex-1 flex-col lg:min-h-0 lg:flex-row">
@@ -4889,6 +5419,7 @@ function EditorScreen({
                 template.layout === "relax" ||
                 template.layout === "cover" ||
                 template.layout === "duel" ||
+                template.layout === "business-choice" ||
                 template.layout === "postcard" ||
                 template.layout === "citymask" ||
                 template.layout === "self" ||
@@ -4910,7 +5441,7 @@ function EditorScreen({
           >
             {template.layout === "moodboard" ? (
               <MoodboardPreview
-                template={template}
+                template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
@@ -4918,7 +5449,7 @@ function EditorScreen({
               />
             ) : template.layout === "verticals" ? (
               <VerticalsPreview
-                template={template}
+                template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
@@ -4926,7 +5457,7 @@ function EditorScreen({
               />
             ) : template.layout === "relax" ? (
               <RelaxPreview
-                template={template}
+                template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
@@ -4934,7 +5465,7 @@ function EditorScreen({
               />
             ) : template.layout === "porto" ? (
               <PortoPreview
-                template={template}
+                template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
@@ -4942,7 +5473,7 @@ function EditorScreen({
               />
             ) : template.layout === "cover" ? (
               <CoverPreview
-                template={template}
+                template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
@@ -4950,7 +5481,7 @@ function EditorScreen({
               />
             ) : template.layout === "split" ? (
               <SplitPreview
-                template={template}
+                template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
@@ -4958,7 +5489,7 @@ function EditorScreen({
               />
             ) : template.layout === "sliced" ? (
               <SlicedPreview
-                template={template}
+                template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
@@ -4966,7 +5497,7 @@ function EditorScreen({
               />
             ) : template.layout === "editorial" ? (
               <EditorialPreview
-                template={template}
+                template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
@@ -4974,7 +5505,7 @@ function EditorScreen({
               />
             ) : template.layout === "collage" ? (
               <CollagePreview
-                template={template}
+                template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
@@ -4982,7 +5513,23 @@ function EditorScreen({
               />
             ) : template.layout === "duel" ? (
               <DuelPreview
-                template={template}
+                template={activeTemplate}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
+            ) : template.layout === "business-choice" ? (
+              <BusinessChoicePreview
+                template={activeTemplate}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
+            ) : template.layout === "testimonial" ? (
+              <TestimonialPreview
+                template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
@@ -4990,7 +5537,7 @@ function EditorScreen({
               />
             ) : template.layout === "postcard" ? (
               <PostcardPreview
-                template={template}
+                template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
@@ -4998,35 +5545,35 @@ function EditorScreen({
               />
             ) : template.layout === "citymask" ? (
               <CityMaskPreview
-                template={template}
+                template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
               />
             ) : template.layout === "self" ? (
               <SelfPreview
-                template={template}
+                template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
               />
             ) : template.layout === "statement" ? (
               <StatementPreview
-                template={template}
+                template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
               />
             ) : template.layout === "woven" ? (
               <WovenPreview
-                template={template}
+                template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
               />
             ) : template.layout === "brief" ? (
               <BriefPreview
-                template={template}
+                template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
@@ -5034,7 +5581,7 @@ function EditorScreen({
               />
             ) : template.layout === "grid" ? (
               <GridPreview
-                template={template}
+                template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
@@ -5042,7 +5589,7 @@ function EditorScreen({
               />
             ) : template.layout === "drop" ? (
               <DropPreview
-                template={template}
+                template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
@@ -5050,7 +5597,7 @@ function EditorScreen({
               />
             ) : template.layout === "mosaic" ? (
               <MosaicPreview
-                template={template}
+                template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
@@ -5058,7 +5605,7 @@ function EditorScreen({
               />
             ) : (
               <CreativePreview
-                template={template}
+                template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
                 onSelect={setSelectedImageId}
@@ -5095,7 +5642,11 @@ function EditorScreen({
               <Wand2 className="h-4 w-4" />
               Fix design
             </button>
-            <DownloadFormatMenu formats={template.formats} align="center" onSelect={handleDownload}>
+            <DownloadFormatMenu
+              formats={activeTemplate.formats}
+              align="center"
+              onSelect={handleDownload}
+            >
               <button
                 type="button"
                 aria-label="Download"
@@ -5119,6 +5670,12 @@ function EditorScreen({
               <SlidersHorizontal className="h-5 w-5 text-foreground" />
               <h2 className="text-lg font-bold text-foreground">Edit creative</h2>
             </div>
+
+            <AspectRatioSelector
+              options={aspectRatioOptions}
+              value={selectedAspectRatio}
+              onChange={changeAspectRatio}
+            />
 
             {/* Moodboard / relax / cover / verticals / mosaic: one replaceable
                 photo per panel (+ the title, where the layout has one). */}
@@ -5444,6 +6001,201 @@ function EditorScreen({
                       <TextField
                         label={label}
                         value={layer.text}
+                        onChange={(value) =>
+                          updateLayer(layer.id, { text: value }, `${layer.id}-text`)
+                        }
+                        onSuggest={() => cycleSuggestion(layer)}
+                      />
+                      <div className="mt-4">
+                        <FontDropdown
+                          value={layer.fontId}
+                          color={layer.color}
+                          onChange={(fontId) => changeFont(layer.id, fontId)}
+                        />
+                      </div>
+                      <div className="mt-4">
+                        <ColorSwatches
+                          palette={template.palette}
+                          value={layer.color}
+                          onChange={(hex) => updateLayer(layer.id, { color: hex })}
+                        />
+                      </div>
+                      <TextStyleControls
+                        layer={layer}
+                        onChange={(patch, key) => updateLayer(layer.id, patch, key)}
+                      />
+                    </EditorSection>
+                  ) : null,
+                )}
+              </>
+            )}
+
+            {/* Business Edition: two photos, optional handle, optional BUSINESS /
+                EDITION labels and optional bottom caption. */}
+            {template.layout === "business-choice" && (
+              <>
+                {photos.slice(0, 2).map((photo) => (
+                  <EditorSection
+                    key={photo.id}
+                    title={photo.label}
+                    open={openSections[photo.id] ?? false}
+                    onToggleOpen={() => toggleOpen(photo.id)}
+                    hideable={photo.hideable}
+                    visible={photo.visible}
+                    onToggleVisible={() => toggleVisible(photo.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+                        <img src={photo.src} alt="" className="h-full w-full object-cover" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openReplace(photo.id)}
+                        className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                      >
+                        <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                        Replace photo
+                      </button>
+                    </div>
+                    <ImageControls
+                      layer={photo}
+                      onChange={(transform, key) => updateLayer(photo.id, { transform }, key)}
+                      onReset={() =>
+                        updateLayer(photo.id, { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                      }
+                    />
+                  </EditorSection>
+                ))}
+
+                {[
+                  { layer: eyebrow, title: "Handle", label: "Handle text", multiline: false },
+                  {
+                    layer: header,
+                    title: "Business label",
+                    label: "Business label text",
+                    multiline: false,
+                  },
+                  {
+                    layer: cta,
+                    title: "Edition label",
+                    label: "Edition label text",
+                    multiline: false,
+                  },
+                  {
+                    layer: description,
+                    title: "Bottom caption",
+                    label: "Bottom caption text",
+                    multiline: false,
+                  },
+                ].map(({ layer, title, label, multiline }) =>
+                  layer ? (
+                    <EditorSection
+                      key={layer.id}
+                      title={title}
+                      open={openSections[layer.id] ?? false}
+                      onToggleOpen={() => toggleOpen(layer.id)}
+                      hideable={layer.hideable}
+                      visible={layer.visible}
+                      onToggleVisible={() => toggleVisible(layer.id)}
+                    >
+                      <TextField
+                        label={label}
+                        value={layer.text}
+                        multiline={multiline}
+                        onChange={(value) =>
+                          updateLayer(layer.id, { text: value }, `${layer.id}-text`)
+                        }
+                        onSuggest={() => cycleSuggestion(layer)}
+                      />
+                      <div className="mt-4">
+                        <FontDropdown
+                          value={layer.fontId}
+                          color={layer.color}
+                          onChange={(fontId) => changeFont(layer.id, fontId)}
+                        />
+                      </div>
+                      <div className="mt-4">
+                        <ColorSwatches
+                          palette={template.palette}
+                          value={layer.color}
+                          onChange={(hex) => updateLayer(layer.id, { color: hex })}
+                        />
+                      </div>
+                      <TextStyleControls
+                        layer={layer}
+                        onChange={(patch, key) => updateLayer(layer.id, patch, key)}
+                      />
+                    </EditorSection>
+                  ) : null,
+                )}
+              </>
+            )}
+
+            {/* Olivia Testimonial: one avatar, optional CEO line/testimonial and
+                required author text. */}
+            {template.layout === "testimonial" && (
+              <>
+                {image && (
+                  <EditorSection
+                    title="Avatar"
+                    open={openSections.image ?? true}
+                    onToggleOpen={() => toggleOpen("image")}
+                    hideable={image.hideable}
+                    visible={image.visible}
+                    onToggleVisible={() => toggleVisible("image")}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-full border border-border bg-secondary">
+                        <img src={image.src} alt="" className="h-full w-full object-cover" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openReplace("image")}
+                        className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                      >
+                        <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                        Replace avatar
+                      </button>
+                    </div>
+                    <ImageControls
+                      layer={image}
+                      onChange={(transform, key) => updateLayer("image", { transform }, key)}
+                      onReset={() =>
+                        updateLayer("image", { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                      }
+                    />
+                  </EditorSection>
+                )}
+
+                {[
+                  {
+                    layer: header,
+                    title: "CEO line",
+                    label: "CEO line text",
+                    multiline: false,
+                  },
+                  {
+                    layer: description,
+                    title: "Testimonial",
+                    label: "Testimonial text",
+                    multiline: true,
+                  },
+                  { layer: cta, title: "Author", label: "Author text", multiline: false },
+                ].map(({ layer, title, label, multiline }) =>
+                  layer ? (
+                    <EditorSection
+                      key={layer.id}
+                      title={title}
+                      open={openSections[layer.id] ?? false}
+                      onToggleOpen={() => toggleOpen(layer.id)}
+                      hideable={layer.hideable}
+                      visible={layer.visible}
+                      onToggleVisible={() => toggleVisible(layer.id)}
+                    >
+                      <TextField
+                        label={label}
+                        value={layer.text}
+                        multiline={multiline}
                         onChange={(value) =>
                           updateLayer(layer.id, { text: value }, `${layer.id}-text`)
                         }
@@ -6267,6 +7019,8 @@ function EditorScreen({
               template.layout !== "collage" &&
               template.layout !== "sliced" &&
               template.layout !== "duel" &&
+              template.layout !== "business-choice" &&
+              template.layout !== "testimonial" &&
               template.layout !== "postcard" &&
               template.layout !== "citymask" &&
               template.layout !== "self" &&
@@ -6348,6 +7102,8 @@ function EditorScreen({
               template.layout !== "collage" &&
               template.layout !== "sliced" &&
               template.layout !== "duel" &&
+              template.layout !== "business-choice" &&
+              template.layout !== "testimonial" &&
               template.layout !== "postcard" &&
               template.layout !== "citymask" &&
               template.layout !== "self" &&
@@ -6395,6 +7151,8 @@ function EditorScreen({
             {/* Description */}
             {template.layout !== "sliced" &&
               template.layout !== "duel" &&
+              template.layout !== "business-choice" &&
+              template.layout !== "testimonial" &&
               template.layout !== "postcard" &&
               template.layout !== "citymask" &&
               template.layout !== "self" &&
@@ -6456,6 +7214,8 @@ function EditorScreen({
             {/* Call to action */}
             {template.layout !== "sliced" &&
               template.layout !== "duel" &&
+              template.layout !== "business-choice" &&
+              template.layout !== "testimonial" &&
               template.layout !== "postcard" &&
               template.layout !== "citymask" &&
               template.layout !== "self" &&

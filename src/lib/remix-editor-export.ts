@@ -21,6 +21,14 @@ import {
   VERTICALS_LAYOUT,
   verticalsTitleChars,
   DUEL_LAYOUT,
+  BUSINESS_CHOICE_LAYOUT,
+  businessChoiceBackground,
+  businessChoiceGeometry,
+  businessChoiceHeadlineFontIds,
+  businessChoicePillFill,
+  businessChoicePillTextColor,
+  TESTIMONIAL_LAYOUT,
+  testimonialGeometry,
   duelCaptionWords,
   duelDisplayCase,
   duelVisibleOptions,
@@ -168,6 +176,22 @@ function drawImageCover(
   ctx.save();
   ctx.beginPath();
   ctx.rect(box.x, box.y, box.w, box.h);
+  ctx.clip();
+  drawTransformedImage(ctx, image, box, baseScale, transform);
+  ctx.restore();
+}
+
+function drawRoundedImageCover(
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  box: { x: number; y: number; w: number; h: number },
+  radius: number,
+  transform: ImageTransform = DEFAULT_IMAGE_TRANSFORM,
+) {
+  const baseScale = Math.max(box.w / image.width, box.h / image.height);
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(box.x, box.y, box.w, box.h, radius);
   ctx.clip();
   drawTransformedImage(ctx, image, box, baseScale, transform);
   ctx.restore();
@@ -520,6 +544,420 @@ async function exportDuel(
     ctx.letterSpacing = "0px";
     ctx.restore();
   }
+
+  return canvasToBlob(canvas, format);
+}
+
+function fittedSingleLineSize(
+  ctx: CanvasRenderingContext2D,
+  label: string,
+  font: string,
+  baseSize: number,
+  maxWidth: number,
+  minSize: number,
+): number {
+  ctx.font = font.replace("{size}", `${baseSize}`);
+  const measured = ctx.measureText(label).width;
+  if (!measured || measured <= maxWidth) return baseSize;
+  return Math.max(minSize, baseSize * (maxWidth / measured));
+}
+
+// Rasterize the Business Edition "This or that?" pin: fixed mixed-type
+// headline, two rounded photos, optional handle/pill labels/bottom caption.
+// Mirrors `BusinessChoicePreview`.
+async function exportBusinessChoice(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+
+  const photos = layers
+    .filter((layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image")
+    .slice(0, 2);
+  const handle = byId<TextLayer>("eyebrow");
+  const business = byId<TextLayer>("header");
+  const edition = byId<TextLayer>("cta");
+  const bottom = byId<TextLayer>("description");
+  const headlineFonts = businessChoiceHeadlineFontIds(layers);
+  const geometry = businessChoiceGeometry(template.aspectRatio);
+
+  const textLayers = [handle, business, edition, bottom].filter((layer): layer is TextLayer =>
+    Boolean(layer && layer.visible && layer.text.trim()),
+  );
+  const headlineFontIds = [
+    headlineFonts.thisFontId,
+    headlineFonts.orFontId,
+    headlineFonts.thatFontId,
+  ];
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all([
+      ...textLayers.map((layer) =>
+        document.fonts
+          .load(
+            `${resolveTextStyle(layer).weight} 64px ${primaryFamily(fontById(layer.fontId).family)}`,
+          )
+          .catch(() => undefined),
+      ),
+      ...headlineFontIds.map((fontId) =>
+        document.fonts
+          .load(`400 100px ${primaryFamily(fontById(fontId).family)}`)
+          .catch(() => undefined),
+      ),
+    ]).catch(() => undefined);
+  }
+
+  ctx.fillStyle = businessChoiceBackground(template, layers);
+  ctx.fillRect(0, 0, width, height);
+
+  const H = geometry.headline;
+  const headlineColor = business?.color ?? BUSINESS_CHOICE_LAYOUT.colors.defaultText;
+  ctx.save();
+  ctx.fillStyle = headlineColor;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.letterSpacing = "0px";
+  ctx.font = `400 ${H.thisSize * width}px ${fontById(headlineFonts.thisFontId).family}`;
+  ctx.fillText(BUSINESS_CHOICE_LAYOUT.headline.thisText, H.thisLeft * width, H.thisTop * height);
+  ctx.font = `400 ${H.orSize * width}px ${fontById(headlineFonts.orFontId).family}`;
+  ctx.fillText(BUSINESS_CHOICE_LAYOUT.headline.orText, H.orLeft * width, H.orTop * height);
+  ctx.font = `italic 400 ${H.thatSize * width}px ${fontById(headlineFonts.thatFontId).family}`;
+  ctx.fillText(BUSINESS_CHOICE_LAYOUT.headline.thatText, H.thatLeft * width, H.thatTop * height);
+  ctx.restore();
+
+  let failed = 0;
+  for (let index = 0; index < photos.length; index++) {
+    const layer = photos[index];
+    if (!layer.visible) continue;
+    const boxConfig = geometry.photos[index];
+    if (!boxConfig) continue;
+    const box = {
+      x: boxConfig.x * width,
+      y: boxConfig.y * height,
+      w: boxConfig.w * width,
+      h: boxConfig.h * height,
+    };
+    try {
+      const img = await loadImage(layer.src);
+      drawRoundedImageCover(ctx, img, box, boxConfig.radius * width, imageTransform(layer));
+    } catch {
+      failed += 1;
+    }
+  }
+  if (failed > 0) throw new ExportImageError(failed);
+
+  if (handle?.visible && handle.text.trim()) {
+    const style = resolveTextStyle(handle);
+    const font = fontById(handle.fontId);
+    const label = handle.uppercase ? handle.text.toUpperCase() : handle.text;
+    const size = geometry.handle.size * style.sizeScale * width;
+    ctx.save();
+    ctx.font = `${style.weight} ${size}px ${font.family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    ctx.fillStyle = handle.color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText(label, geometry.handle.centerX * width, geometry.handle.top * height);
+    ctx.restore();
+  }
+
+  const drawPill = (layer: TextLayer | undefined, boxConfig: typeof geometry.pills.business) => {
+    if (!layer?.visible || !layer.text.trim()) return;
+    const style = resolveTextStyle(layer);
+    const font = fontById(layer.fontId);
+    const label = layer.uppercase ? layer.text.toUpperCase() : layer.text;
+    const x = boxConfig.x * width;
+    const y = boxConfig.y * height;
+    const w = boxConfig.w * width;
+    const h = boxConfig.h * height;
+    const radius = geometry.pills.radius * width;
+    const border = geometry.pills.border * width;
+
+    ctx.save();
+    ctx.fillStyle = businessChoicePillFill(layers);
+    ctx.strokeStyle = BUSINESS_CHOICE_LAYOUT.colors.pillBorder;
+    ctx.lineWidth = border;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, radius);
+    ctx.fill();
+    ctx.stroke();
+
+    const baseSize = geometry.pills.labelSize * style.sizeScale * width;
+    const templateFont = `${style.weight} {size}px ${font.family}`;
+    const size = fittedSingleLineSize(ctx, label, templateFont, baseSize, w * 0.76, width * 0.014);
+    ctx.font = templateFont.replace("{size}", `${size}`);
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    ctx.fillStyle = businessChoicePillTextColor(layers);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, x + w / 2, y + h / 2);
+    ctx.restore();
+  };
+  drawPill(business, geometry.pills.business);
+  drawPill(edition, geometry.pills.edition);
+
+  if (bottom?.visible && bottom.text.trim()) {
+    const style = resolveTextStyle(bottom);
+    const font = fontById(bottom.fontId);
+    const label = bottom.uppercase ? bottom.text.toUpperCase() : bottom.text;
+    const baseSize = geometry.bottom.size * style.sizeScale * width;
+    const templateFont = `italic ${style.weight} {size}px ${font.family}`;
+    const size = fittedSingleLineSize(
+      ctx,
+      label,
+      templateFont,
+      baseSize,
+      geometry.bottom.width * width,
+      width * 0.018,
+    );
+    ctx.save();
+    ctx.font = templateFont.replace("{size}", `${size}`);
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    ctx.fillStyle = bottom.color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText(label, geometry.bottom.centerX * width, geometry.bottom.top * height);
+    ctx.restore();
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
+function testimonialWrappedLines(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+): string[] {
+  return text
+    .split(/\n/)
+    .flatMap((line) => (line.trim() ? wrapLines(ctx, line.trim(), maxWidth) : [""]));
+}
+
+function fittedMultilineText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  fontTemplate: string,
+  baseSize: number,
+  maxWidth: number,
+  maxHeight: number,
+  lineHeight: number,
+  minSize: number,
+): { size: number; lines: string[] } {
+  let size = baseSize;
+  let lines: string[] = [];
+  while (size > minSize) {
+    ctx.font = fontTemplate.replace("{size}", `${size}`);
+    lines = testimonialWrappedLines(ctx, text, maxWidth);
+    if (lines.length * size * lineHeight <= maxHeight) break;
+    size -= 1;
+  }
+  ctx.font = fontTemplate.replace("{size}", `${size}`);
+  return { size, lines: testimonialWrappedLines(ctx, text, maxWidth) };
+}
+
+// Rasterize the Olivia testimonial card: blurred avatar background, floating
+// white card, circular avatar, five stars, optional review and author text.
+// Mirrors `TestimonialPreview`.
+async function exportTestimonial(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+
+  const imageLayer = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const header = byId<TextLayer>("header");
+  const testimonial = byId<TextLayer>("description");
+  const author = byId<TextLayer>("cta");
+  const geometry = testimonialGeometry(template.aspectRatio);
+  const textLayers = [header, testimonial, author].filter((layer): layer is TextLayer =>
+    Boolean(layer && layer.visible && layer.text.trim()),
+  );
+
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      textLayers.map((layer) =>
+        document.fonts
+          .load(
+            `${resolveTextStyle(layer).weight} 64px ${primaryFamily(fontById(layer.fontId).family)}`,
+          )
+          .catch(() => undefined),
+      ),
+    ).catch(() => undefined);
+  }
+
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  if (imageLayer?.visible) {
+    try {
+      const img = await loadImage(imageLayer.src);
+      ctx.save();
+      ctx.filter = `blur(${TESTIMONIAL_LAYOUT.backdrop.blur * width}px)`;
+      ctx.globalAlpha = 0.86;
+      const overflow = ((TESTIMONIAL_LAYOUT.backdrop.scale - 1) / 2) * width;
+      drawImageCover(ctx, img, {
+        x: -overflow,
+        y: -overflow,
+        w: width + overflow * 2,
+        h: height + overflow * 2,
+      });
+      ctx.restore();
+    } catch {
+      throw new ExportImageError(1);
+    }
+  }
+
+  const glowA = ctx.createRadialGradient(
+    width * 0.24,
+    height * 0.16,
+    0,
+    width * 0.24,
+    height * 0.16,
+    width * 0.3,
+  );
+  glowA.addColorStop(0, "rgba(255,255,255,0.62)");
+  glowA.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = glowA;
+  ctx.fillRect(0, 0, width, height);
+
+  const glowB = ctx.createRadialGradient(
+    width * 0.73,
+    height * 0.71,
+    0,
+    width * 0.73,
+    height * 0.71,
+    width * 0.33,
+  );
+  glowB.addColorStop(0, "rgba(255,255,255,0.5)");
+  glowB.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = glowB;
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.fillStyle = TESTIMONIAL_LAYOUT.colors.warmWash;
+  ctx.fillRect(0, 0, width, height);
+
+  const card = {
+    x: geometry.card.x * width,
+    y: geometry.card.y * height,
+    w: geometry.card.w * width,
+    h: geometry.card.h * height,
+  };
+  ctx.save();
+  ctx.shadowColor = TESTIMONIAL_LAYOUT.colors.shadow;
+  ctx.shadowBlur = geometry.card.shadowBlur * width;
+  ctx.shadowOffsetY = geometry.card.shadowY * width;
+  ctx.fillStyle = TESTIMONIAL_LAYOUT.colors.card;
+  ctx.beginPath();
+  ctx.roundRect(card.x, card.y, card.w, card.h, geometry.card.radius * width);
+  ctx.fill();
+  ctx.restore();
+
+  if (imageLayer?.visible) {
+    try {
+      const img = await loadImage(imageLayer.src);
+      const size = geometry.avatar.size * width;
+      drawRoundedImageCover(
+        ctx,
+        img,
+        {
+          x: geometry.avatar.centerX * width - size / 2,
+          y: geometry.avatar.top * height,
+          w: size,
+          h: size,
+        },
+        size / 2,
+        imageTransform(imageLayer),
+      );
+    } catch {
+      throw new ExportImageError(1);
+    }
+  }
+
+  const drawTextBlock = (
+    layer: TextLayer | undefined,
+    box: { centerX: number; top: number; width: number; size: number },
+    options: { lineHeight: number; italic?: boolean; maxHeight: number },
+  ) => {
+    if (!layer?.visible || !layer.text.trim()) return;
+    const style = resolveTextStyle(layer);
+    const font = fontById(layer.fontId);
+    const label = layer.uppercase ? layer.text.toUpperCase() : layer.text;
+    const baseSize = box.size * style.sizeScale * width;
+    const fontTemplate = `${options.italic ? "italic " : ""}${style.weight} {size}px ${font.family}`;
+    const { size, lines } = fittedMultilineText(
+      ctx,
+      label,
+      fontTemplate,
+      baseSize,
+      box.width * width,
+      options.maxHeight * height,
+      options.lineHeight,
+      width * 0.014,
+    );
+    ctx.save();
+    ctx.font = fontTemplate.replace("{size}", `${size}`);
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    ctx.fillStyle = layer.color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    const linePx = size * options.lineHeight;
+    lines.forEach((line, index) => {
+      ctx.fillText(line, box.centerX * width, box.top * height + index * linePx);
+    });
+    ctx.restore();
+  };
+
+  drawTextBlock(header, geometry.header, {
+    lineHeight: TESTIMONIAL_LAYOUT.header.lineHeight,
+    maxHeight: 0.06,
+  });
+
+  ctx.save();
+  ctx.fillStyle = author?.color ?? TESTIMONIAL_LAYOUT.colors.star;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `700 ${geometry.stars.size * width}px ${fontById("quicksand").family}`;
+  for (let i = 0; i < 5; i++) {
+    ctx.fillText(
+      "★",
+      geometry.stars.centerX * width + (i - 2) * geometry.stars.gap * width,
+      geometry.stars.centerY * height,
+    );
+  }
+  ctx.restore();
+
+  drawTextBlock(testimonial, geometry.testimonial, {
+    italic: true,
+    lineHeight: TESTIMONIAL_LAYOUT.testimonial.lineHeight,
+    maxHeight: Math.max(0.12, geometry.author.top - geometry.testimonial.top - 0.035),
+  });
+  drawTextBlock(author, geometry.author, {
+    lineHeight: TESTIMONIAL_LAYOUT.author.lineHeight,
+    maxHeight: 0.08,
+  });
 
   return canvasToBlob(canvas, format);
 }
@@ -3146,6 +3584,13 @@ export async function exportCreative(
   }
   if (template.layout === "duel") {
     return exportDuel(template, layers, format, width);
+  }
+  if (template.layout === "business-choice") {
+    return exportBusinessChoice(template, layers, format, width);
+  }
+  if (template.layout === "testimonial") {
+    const square = template.aspectRatio.replace(/\s/g, "") === "1/1";
+    return exportTestimonial(template, layers, format, square && width === 1080 ? 1200 : width);
   }
   if (template.layout === "postcard") {
     return exportPostcard(template, layers, format, width);

@@ -435,9 +435,7 @@ export function RemixComposer({
         // the brand logo and show it (it replaces the wordmark in the render).
         if (layer.kind === "logo") {
           return [
-            showLogoCard && brandLogoUrl
-              ? { ...layer, src: brandLogoUrl, visible: true }
-              : layer,
+            showLogoCard && brandLogoUrl ? { ...layer, src: brandLogoUrl, visible: true } : layer,
           ];
         }
         const withFont =
@@ -451,7 +449,7 @@ export function RemixComposer({
             ? { ...withFont, color: selectedCaptionColor }
             : withFont;
         if (withColor.kind === "header" && trimmedCaption) {
-          return [{ ...withColor, text: trimmedCaption }];
+          return [{ ...withColor, text: trimmedCaption, visible: true }];
         }
         if (withColor.kind === "description" && trimmedCityOverview) {
           return [{ ...withColor, text: trimmedCityOverview }];
@@ -495,6 +493,7 @@ export function RemixComposer({
         state: remixStateFromLayers(layers, {
           caption: trimmedCaption || undefined,
           cityOverview: trimmedCityOverview || undefined,
+          aspectRatio: editorTemplate.aspectRatio,
         }),
         thumbnailAssetId,
         thumbnailUrl,
