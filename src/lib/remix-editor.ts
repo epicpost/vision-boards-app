@@ -63,12 +63,10 @@ export interface ImageLayer extends BaseLayer {
   // (vs. the template's default photo). The remix stores this — not the bytes —
   // and the editor resolves it back to a URL on load. Absent === template default.
   assetId?: string;
-  // The hosted URL for `assetId` at the time it was attached. Backend-remix
-  // templates re-resolve this server-side from `assetId` on load; local
-  // templates (no backend row — see lib/local-templates.ts) have nowhere to
-  // resolve it, so it rides along on the layer itself and round-trips through
-  // `serializeRemixLayers`/persisted state, letting `assetsFromLayers` rebuild
-  // the remix's asset list purely from the saved layers.
+  // The hosted URL for `assetId` at the time it was attached. Backend remixes
+  // re-resolve this server-side from `assetId` on load; legacy local remixes
+  // keep it on the layer itself so `assetsFromLayers` can rebuild their asset
+  // list from saved layer state.
   assetUrl?: string;
 }
 
@@ -4776,12 +4774,12 @@ export const DROP_LAYOUT = {
   pill: {
     centerY: 0.938,
     height: 0.05,
-    padX: 0.045,
+    padX: 0.034,
     gap: 0.022,
-    inset: 0.008,
-    stroke: 0.003,
+    inset: 0,
+    stroke: 0.0016,
     labelSize: 0.024,
-    ctaSize: 0.028,
+    ctaSize: 0.025,
     labelTracking: 0.02,
   },
 } as const;

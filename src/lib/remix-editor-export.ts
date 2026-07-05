@@ -3520,12 +3520,6 @@ async function exportDrop(
     const innerX = outerX + outerW - inset - innerW;
     const innerY = outerY + (outerH - innerH) / 2;
 
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = pill.stroke * width;
-    ctx.beginPath();
-    ctx.roundRect(outerX, outerY, outerW, outerH, outerH / 2);
-    ctx.stroke();
-
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
     ctx.roundRect(innerX, innerY, innerW, innerH, innerH / 2);
@@ -3540,9 +3534,17 @@ async function exportDrop(
 
     ctx.font = `${ctaStyle.weight} ${ctaSize}px ${ctaFont.family}`;
     ctx.letterSpacing = `${ctaStyle.letterSpacing}em`;
-    ctx.fillStyle = cta.color;
+    // Visual knockout: the handle letters reveal the red canvas below the
+    // white tab, matching the reference's transparent-text treatment.
+    ctx.fillStyle = template.background;
     ctx.textAlign = "center";
     ctx.fillText(handleText, innerX + innerW / 2, innerY + innerH / 2);
+
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = pill.stroke * width;
+    ctx.beginPath();
+    ctx.roundRect(outerX, outerY, outerW, outerH, outerH / 2);
+    ctx.stroke();
     ctx.restore();
   }
 

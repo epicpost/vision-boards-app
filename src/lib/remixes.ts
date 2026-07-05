@@ -1,9 +1,7 @@
 import { expireAuthSession, getAccessToken, getAuthUser, requestAuthDialog } from "@/lib/auth";
 import { API_BASE_URL } from "@/lib/post-templates";
-import { getLocalTemplate } from "@/lib/local-templates";
 import type { RemixEditorAsset, RemixEditorState } from "@/lib/remix-editor";
 import {
-  createLocalRemix,
   deleteLocalRemix,
   fetchLocalRemix,
   isLocalRemixId,
@@ -75,42 +73,19 @@ async function throwApiError(response: Response, fallback: string): Promise<neve
   throw new Error(apiErrorMessage(payload) ?? `${fallback} failed with ${response.status}`);
 }
 
-// Create a remix from the editor's initial state + the ordered uploaded assets.
-// Returns the new remix id so the caller can open `/editor/$templateId?remixId=`.
-//
-// Local templates (see lib/local-templates.ts) have no backend row to attach a
-// remix to — `POST .../post-templates/{id}/remixes` 404s for them — so those
-// are saved to our own file-backed store instead (`thumbnailUrl` in place of
-// `thumbnailAssetId`, since there's no backend asset registry to resolve an id
-// back to a URL from).
 export async function createRemix(
   templateId: string,
   {
     assetIds,
     state,
     thumbnailAssetId,
-    thumbnailUrl,
   }: {
     assetIds: string[];
     state: RemixEditorState;
     thumbnailAssetId?: string;
-    thumbnailUrl?: string;
   },
 ): Promise<{ remixId: string }> {
   const token = requireToken("save your remix");
-  const localTemplate = getLocalTemplate(templateId);
-  if (localTemplate) {
-    const { remix_id } = await createLocalRemix({
-      data: {
-        scopeId: remixScopeId(),
-        templateId,
-        templateTitle: localTemplate.title,
-        state,
-        thumbnailUrl: thumbnailUrl ?? null,
-      },
-    });
-    return { remixId: remix_id };
-  }
   const response = await fetch(
     new URL(`/api/v1/post-templates/${encodeURIComponent(templateId)}/remixes`, API_BASE_URL),
     {

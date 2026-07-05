@@ -24,7 +24,6 @@ import {
   type PostTemplateFeedParams,
 } from "@/lib/post-templates";
 import { recordSearch, searchMenuQueryKey } from "@/lib/search-menu";
-import { localTemplatesForFeed } from "@/lib/local-templates";
 
 const ALL_CATEGORY_ID = "all";
 const PULL_REFRESH_THRESHOLD = 72;
@@ -121,22 +120,13 @@ function Index() {
   const isFetchingNextTemplatesPage = templatesQuery.isFetchingNextPage;
   const templates = useMemo(() => {
     const seen = new Set<string>();
-    // Client-rendered templates (e.g. the verticals editor) are prepended to the
-    // "All"/search feed so they surface in the grid; a board filter shows none.
-    const local = localTemplatesForFeed(feedParams);
 
-    return [
-      ...local,
-      ...(templatesQuery.data?.pages.flatMap((page) => page.data) ?? []),
-    ].filter((template) => {
+    return (templatesQuery.data?.pages.flatMap((page) => page.data) ?? []).filter((template) => {
       if (seen.has(template.id)) return false;
       seen.add(template.id);
       return true;
     });
-    // feedParams is derived from these primitives; list them so the memo tracks
-    // filter changes without re-running on every render (object identity).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [templatesQuery.data, activeBoardId, search]);
+  }, [templatesQuery.data]);
 
   // If the active board disappears from the list (e.g. deleted), fall back to All.
   useEffect(() => {

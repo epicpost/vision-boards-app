@@ -475,7 +475,6 @@ export function RemixComposer({
       // Upload the rendered creative as the remix thumbnail. Best-effort: a
       // failure here must not block saving the remix.
       let thumbnailAssetId: string | undefined;
-      let thumbnailUrl: string | undefined;
       try {
         const meta = EXPORT_FORMATS[format];
         const thumbFile = new File([blob], `remix-thumbnail.${meta.extension}`, {
@@ -483,7 +482,6 @@ export function RemixComposer({
         });
         const [thumbAsset] = await uploadAssetFiles([thumbFile]);
         thumbnailAssetId = thumbAsset?.asset_id;
-        thumbnailUrl = thumbAsset?.url;
       } catch {
         // Leave the thumbnail unset — the remix still saves.
       }
@@ -496,7 +494,6 @@ export function RemixComposer({
           aspectRatio: editorTemplate.aspectRatio,
         }),
         thumbnailAssetId,
-        thumbnailUrl,
       });
 
       if (clientRemixUrlRef.current?.startsWith("blob:")) {

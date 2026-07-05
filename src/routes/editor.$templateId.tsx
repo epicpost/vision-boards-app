@@ -3784,6 +3784,8 @@ function DropPreview({
           style={{
             top: pct(DROP_LAYOUT.pill.centerY),
             height: cqi(DROP_LAYOUT.pill.height),
+            boxSizing: "border-box",
+            borderWidth: cqi(DROP_LAYOUT.pill.stroke),
             paddingLeft: cqi(DROP_LAYOUT.pill.padX),
             paddingRight: cqi(DROP_LAYOUT.pill.inset),
             gap: cqi(DROP_LAYOUT.pill.gap),
@@ -3796,18 +3798,27 @@ function DropPreview({
         >
           DISCOVER MORE AT
           <span
-            className="flex h-full items-center rounded-full bg-white"
+            className="flex items-center rounded-full bg-white"
             style={{
+              height: cqi(DROP_LAYOUT.pill.height),
               paddingLeft: cqi(DROP_LAYOUT.pill.padX),
               paddingRight: cqi(DROP_LAYOUT.pill.padX),
               fontFamily: fontById(cta.fontId).family,
               fontWeight: resolveTextStyle(cta).weight,
               fontSize: cqi(DROP_LAYOUT.pill.ctaSize * resolveTextStyle(cta).sizeScale),
               letterSpacing: `${resolveTextStyle(cta).letterSpacing}em`,
-              color: cta.color,
             }}
           >
-            {cta.uppercase ? cta.text.toUpperCase() : cta.text}
+            <span
+              style={{
+                background: template.background,
+                backgroundClip: "text",
+                WebkitBackgroundClip: "text",
+                color: "transparent",
+              }}
+            >
+              {cta.uppercase ? cta.text.toUpperCase() : cta.text}
+            </span>
           </span>
         </div>
       )}

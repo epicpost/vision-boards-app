@@ -1,10 +1,6 @@
-// File-backed remix store for templates that have no backend row (see
-// lib/local-templates.ts). The real remix endpoints live under
-// `/api/v1/post-templates/{id}/remixes`, which 404s for a local template id —
-// there's nothing on the server to attach the remix to. This mirrors that
-// contract entirely on our own Nitro server (same pattern as
-// lib/editor-drafts.ts) so saving/editing/listing a remix of a local template
-// works without a backend template row.
+// File-backed remix store for legacy local remix ids. Current templates save
+// through `/api/v1/post-templates/{id}/remixes`; this remains so older saved
+// `local-...` remixes can still be opened, updated and deleted.
 //
 // A local remix's id is prefixed (`local-…`) so `lib/remixes.ts` can route
 // fetch/update/delete calls here purely from the id, without needing to know
