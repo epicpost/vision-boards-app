@@ -96,6 +96,9 @@ import {
   businessChoicePillFill,
   businessChoicePillTextColor,
   TESTIMONIAL_LAYOUT,
+  TESTIMONIAL_ARC_LAYOUT,
+  testimonialArcChars,
+  testimonialArcGeometry,
   testimonialGeometry,
   duelCaptionWords,
   duelDisplayCase,
@@ -2571,6 +2574,249 @@ function TestimonialPreview({
   );
 }
 
+// Claudia arced testimonial story: warm blurred backdrop, arced heading,
+// scalloped-style avatar, rounded white card, optional author/handle/website and
+// a five-star badge. Mirrors `exportTestimonialArc`.
+function TestimonialArcPreview({
+  template,
+  layers,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const image = layers.find((layer): layer is ImageLayer => layer.kind === "image");
+  const title = layers.find((layer): layer is TextLayer => layer.id === "header");
+  const testimonial = layers.find((layer): layer is TextLayer => layer.id === "description");
+  const author = layers.find((layer): layer is TextLayer => layer.id === "cta");
+  const handle = layers.find((layer): layer is TextLayer => layer.id === "eyebrow");
+  const website = layers.find((layer): layer is TextLayer => layer.id === "website");
+  const geometry = testimonialArcGeometry(template.aspectRatio);
+  const pct = (value: number) => `${value * 100}%`;
+  const cqi = (value: number) => `${value * 100}cqi`;
+  const selectedOutline = (id: string) =>
+    selectedId === id ? "2px solid var(--destructive, #ef4444)" : "none";
+
+  const textBlock = (
+    layer: TextLayer | undefined,
+    box: { centerX: number; top: number; width: number; size: number },
+    options: { title: string; lineHeight: number },
+  ) => {
+    if (!layer?.visible || !layer.text.trim()) return null;
+    const style = resolveTextStyle(layer);
+    const label = layer.uppercase ? layer.text.toUpperCase() : layer.text;
+    return (
+      <div
+        aria-label={options.title}
+        onPointerDown={(event) => {
+          event.stopPropagation();
+          onSelect(layer.id);
+        }}
+        className="absolute text-center"
+        style={{
+          left: pct(box.centerX),
+          top: pct(box.top),
+          width: pct(box.width),
+          transform: "translateX(-50%)",
+          fontFamily: fontById(layer.fontId).family,
+          fontWeight: style.weight,
+          fontSize: cqi(box.size * style.sizeScale),
+          lineHeight: options.lineHeight,
+          letterSpacing: `${style.letterSpacing}em`,
+          color: layer.color,
+          whiteSpace: "pre-line",
+          outline: selectedOutline(layer.id),
+          outlineOffset: "4px",
+          zIndex: 8,
+        }}
+      >
+        {label}
+      </div>
+    );
+  };
+
+  const arcStyle = title ? resolveTextStyle(title) : null;
+  const arcChars = title ? testimonialArcChars(title.uppercase ? title.text.toUpperCase() : title.text) : [];
+  const arcMid = (arcChars.length - 1) / 2;
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+      }}
+    >
+      {image?.visible && (
+        <img
+          src={image.src}
+          alt=""
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+          style={{
+            filter: `blur(${cqi(TESTIMONIAL_ARC_LAYOUT.backdrop.blur)})`,
+            transform: `scale(${TESTIMONIAL_ARC_LAYOUT.backdrop.scale})`,
+            opacity: TESTIMONIAL_ARC_LAYOUT.backdrop.opacity,
+          }}
+        />
+      )}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(rgba(189,167,151,0.78), rgba(189,167,151,0.78)), linear-gradient(90deg, rgba(244,238,226,0.24), transparent 30%, rgba(126,105,91,0.14))",
+        }}
+      />
+
+      {title?.visible && arcStyle && arcChars.length > 0 && (
+        <div
+          aria-label="Arc title"
+          className="absolute inset-0"
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            onSelect(title.id);
+          }}
+          style={{
+            color: title.color,
+            fontFamily: fontById(title.fontId).family,
+            fontWeight: arcStyle.weight,
+            fontSize: cqi(geometry.arc.size * arcStyle.sizeScale),
+            lineHeight: TESTIMONIAL_ARC_LAYOUT.arc.lineHeight,
+            outline: selectedOutline(title.id),
+            outlineOffset: "-10px",
+            zIndex: 5,
+          }}
+        >
+          {arcChars.map((char, index) => {
+            const angle = (index - arcMid) * geometry.arc.stepDeg;
+            const radians = (angle * Math.PI) / 180;
+            const x = `calc(${pct(geometry.arc.centerX)} + ${cqi(Math.sin(radians) * geometry.arc.radius)})`;
+            const y = `calc(${pct(geometry.arc.centerY)} - ${cqi(Math.cos(radians) * geometry.arc.radius)})`;
+            return (
+              <span
+                key={`${char}-${index}`}
+                className="absolute"
+                style={{
+                  left: x,
+                  top: y,
+                  transform: `translate(-50%, -50%) rotate(${angle}deg)`,
+                  transformOrigin: "center",
+                }}
+              >
+                {char}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      <div
+        className="pointer-events-none absolute"
+        style={{
+          left: pct(geometry.card.x),
+          top: pct(geometry.card.y),
+          width: pct(geometry.card.w),
+          height: pct(geometry.card.h),
+          borderRadius: cqi(geometry.card.radius),
+          background: TESTIMONIAL_ARC_LAYOUT.colors.card,
+          boxShadow: `0 ${cqi(0.012)} ${cqi(0.03)} ${TESTIMONIAL_ARC_LAYOUT.colors.cardShadow}`,
+          zIndex: 2,
+        }}
+      />
+
+      {image?.visible && (
+        <DraggableImage
+          layer={image}
+          fit="cover"
+          selected={selectedId === image.id}
+          onSelect={() => onSelect(image.id)}
+          onPan={(offsetX, offsetY) =>
+            updateLayer(
+              image.id,
+              { transform: { ...imageTransform(image), offsetX, offsetY } },
+              `pan-${image.id}`,
+            )
+          }
+          style={{
+            left: `calc(${pct(geometry.avatar.centerX)} - ${cqi(geometry.avatar.size / 2)})`,
+            top: pct(geometry.avatar.top),
+            width: cqi(geometry.avatar.size),
+            height: cqi(geometry.avatar.size),
+            borderRadius: cqi(geometry.avatar.radius),
+            zIndex: 7,
+          }}
+        />
+      )}
+
+      {geometry.sparkles.map((sparkle, index) => (
+        <span
+          key={index}
+          className="pointer-events-none absolute"
+          style={{
+            left: `calc(${pct(sparkle.x)} - ${cqi(sparkle.size / 2)})`,
+            top: `calc(${pct(sparkle.y)} - ${cqi(sparkle.size / 2)})`,
+            width: cqi(sparkle.size),
+            height: cqi(sparkle.size),
+            zIndex: 8,
+          }}
+        >
+          <span
+            className="absolute inset-0 rotate-45 bg-white"
+            style={{
+              clipPath: "polygon(50% 0, 63% 37%, 100% 50%, 63% 63%, 50% 100%, 37% 63%, 0 50%, 37% 37%)",
+            }}
+          />
+        </span>
+      ))}
+
+      {textBlock(testimonial, geometry.testimonial, {
+        title: "Testimonial",
+        lineHeight: TESTIMONIAL_ARC_LAYOUT.testimonial.lineHeight,
+      })}
+      {textBlock(author, geometry.author, {
+        title: "Author",
+        lineHeight: TESTIMONIAL_ARC_LAYOUT.author.lineHeight,
+      })}
+      {textBlock(handle, geometry.handle, {
+        title: "Handle",
+        lineHeight: TESTIMONIAL_ARC_LAYOUT.handle.lineHeight,
+      })}
+
+      <div
+        className="pointer-events-none absolute flex items-center justify-center bg-white"
+        style={{
+          left: `calc(${pct(geometry.stars.centerX)} - ${pct(geometry.stars.pillW / 2)})`,
+          top: `calc(${pct(geometry.stars.centerY)} - ${pct(geometry.stars.pillH / 2)})`,
+          width: pct(geometry.stars.pillW),
+          height: pct(geometry.stars.pillH),
+          border: `${cqi(geometry.stars.border)} solid ${TESTIMONIAL_ARC_LAYOUT.colors.pillBorder}`,
+          borderRadius: "9999px",
+          color: TESTIMONIAL_ARC_LAYOUT.colors.star,
+          fontFamily: fontById("poppins").family,
+          fontSize: cqi(geometry.stars.size),
+          lineHeight: 1,
+          gap: cqi(geometry.stars.gap - geometry.stars.size),
+          zIndex: 9,
+        }}
+      >
+        {Array.from({ length: 5 }, (_, index) => (
+          <span key={index}>★</span>
+        ))}
+      </div>
+
+      {textBlock(website, geometry.website, {
+        title: "Website",
+        lineHeight: TESTIMONIAL_ARC_LAYOUT.website.lineHeight,
+      })}
+    </div>
+  );
+}
+
 // City postcard poster (the LONDON template): a full-bleed travel photo, the
 // city name stacked one letter per cell down the right column (each glyph
 // stretched to fill its cell and difference-blended over the photo so it inverts
@@ -4841,6 +5087,16 @@ function defaultOpenSections(template: RemixEditorTemplate): Record<string, bool
   if (template.layout === "testimonial") {
     return { image: true, header: false, description: true, cta: true };
   }
+  if (template.layout === "testimonial-arc") {
+    return {
+      image: true,
+      header: false,
+      description: true,
+      cta: false,
+      eyebrow: false,
+      website: false,
+    };
+  }
   if (template.layout === "postcard") {
     return { image: true, header: true, eyebrow: false, cta: false };
   }
@@ -5288,6 +5544,10 @@ function EditorScreen({
     (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.id === "background",
   );
   const eyebrow = findByKind<TextLayer>("eyebrow");
+  const website = layers.find(
+    (layer): layer is TextLayer =>
+      layer.id === "website" && layer.kind !== "image" && layer.kind !== "logo",
+  );
   // Duel poll options are looked up by id (they share the eyebrow/cta kinds).
   const duelOptionLeft = layers.find(
     (layer): layer is TextLayer =>
@@ -5431,6 +5691,7 @@ function EditorScreen({
                 template.layout === "cover" ||
                 template.layout === "duel" ||
                 template.layout === "business-choice" ||
+                template.layout === "testimonial-arc" ||
                 template.layout === "postcard" ||
                 template.layout === "citymask" ||
                 template.layout === "self" ||
@@ -5540,6 +5801,14 @@ function EditorScreen({
               />
             ) : template.layout === "testimonial" ? (
               <TestimonialPreview
+                template={activeTemplate}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
+            ) : template.layout === "testimonial-arc" ? (
+              <TestimonialArcPreview
                 template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
@@ -6192,6 +6461,97 @@ function EditorScreen({
                     multiline: true,
                   },
                   { layer: cta, title: "Author", label: "Author text", multiline: false },
+                ].map(({ layer, title, label, multiline }) =>
+                  layer ? (
+                    <EditorSection
+                      key={layer.id}
+                      title={title}
+                      open={openSections[layer.id] ?? false}
+                      onToggleOpen={() => toggleOpen(layer.id)}
+                      hideable={layer.hideable}
+                      visible={layer.visible}
+                      onToggleVisible={() => toggleVisible(layer.id)}
+                    >
+                      <TextField
+                        label={label}
+                        value={layer.text}
+                        multiline={multiline}
+                        onChange={(value) =>
+                          updateLayer(layer.id, { text: value }, `${layer.id}-text`)
+                        }
+                        onSuggest={() => cycleSuggestion(layer)}
+                      />
+                      <div className="mt-4">
+                        <FontDropdown
+                          value={layer.fontId}
+                          color={layer.color}
+                          onChange={(fontId) => changeFont(layer.id, fontId)}
+                        />
+                      </div>
+                      <div className="mt-4">
+                        <ColorSwatches
+                          palette={template.palette}
+                          value={layer.color}
+                          onChange={(hex) => updateLayer(layer.id, { color: hex })}
+                        />
+                      </div>
+                      <TextStyleControls
+                        layer={layer}
+                        onChange={(patch, key) => updateLayer(layer.id, patch, key)}
+                      />
+                    </EditorSection>
+                  ) : null,
+                )}
+              </>
+            )}
+
+            {/* Claudia Testimonial: one required avatar, arced title, required
+                testimonial copy, optional author/handle/website and fixed stars. */}
+            {template.layout === "testimonial-arc" && (
+              <>
+                {image && (
+                  <EditorSection
+                    title="Avatar"
+                    open={openSections.image ?? true}
+                    onToggleOpen={() => toggleOpen("image")}
+                    hideable={image.hideable}
+                    visible={image.visible}
+                    onToggleVisible={() => toggleVisible("image")}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[18px] border border-border bg-secondary">
+                        <img src={image.src} alt="" className="h-full w-full object-cover" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openReplace("image")}
+                        className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                      >
+                        <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                        Replace avatar
+                      </button>
+                    </div>
+                    <ImageControls
+                      layer={image}
+                      onChange={(transform, key) => updateLayer("image", { transform }, key)}
+                      onReset={() =>
+                        updateLayer("image", { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                      }
+                    />
+                  </EditorSection>
+                )}
+
+                {[
+                  { layer: header, title: "Arc title", label: "Arc title text", multiline: false },
+                  {
+                    layer: description,
+                    title: "Testimonial",
+                    label: "Testimonial text",
+                    multiline: true,
+                  },
+                  { layer: cta, title: "Author", label: "Author text", multiline: false },
+                  { layer: eyebrow, title: "Handle", label: "Handle text", multiline: false },
+                  { layer: website, title: "Website", label: "Website text", multiline: false },
                 ].map(({ layer, title, label, multiline }) =>
                   layer ? (
                     <EditorSection
@@ -7032,6 +7392,7 @@ function EditorScreen({
               template.layout !== "duel" &&
               template.layout !== "business-choice" &&
               template.layout !== "testimonial" &&
+              template.layout !== "testimonial-arc" &&
               template.layout !== "postcard" &&
               template.layout !== "citymask" &&
               template.layout !== "self" &&
@@ -7115,6 +7476,7 @@ function EditorScreen({
               template.layout !== "duel" &&
               template.layout !== "business-choice" &&
               template.layout !== "testimonial" &&
+              template.layout !== "testimonial-arc" &&
               template.layout !== "postcard" &&
               template.layout !== "citymask" &&
               template.layout !== "self" &&
@@ -7164,6 +7526,7 @@ function EditorScreen({
               template.layout !== "duel" &&
               template.layout !== "business-choice" &&
               template.layout !== "testimonial" &&
+              template.layout !== "testimonial-arc" &&
               template.layout !== "postcard" &&
               template.layout !== "citymask" &&
               template.layout !== "self" &&
@@ -7227,6 +7590,7 @@ function EditorScreen({
               template.layout !== "duel" &&
               template.layout !== "business-choice" &&
               template.layout !== "testimonial" &&
+              template.layout !== "testimonial-arc" &&
               template.layout !== "postcard" &&
               template.layout !== "citymask" &&
               template.layout !== "self" &&

@@ -144,6 +144,7 @@ export type TemplateLayout =
   | "duel"
   | "business-choice"
   | "testimonial"
+  | "testimonial-arc"
   | "postcard"
   | "citymask"
   | "self"
@@ -1847,6 +1848,115 @@ const OLIVIA_TESTIMONIAL: RemixEditorTemplate = {
   ],
 };
 
+// Claudia Testimonial — a story-format testimonial card with a required avatar,
+// arced TESTIMONIAL title, required review copy, optional author/handle/website
+// text and a required five-star badge. Preview art lives at
+// public/templates/shared/3fc57d97907421c80d7eb8db4e560c9d.jpg.
+const CLAUDIA_TESTIMONIAL: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000051",
+  title: "Claudia Testimonial",
+  layout: "testimonial-arc",
+  aspectRatio: "843 / 1500",
+  aspectRatioOptions: [
+    { id: "story", label: "Story", aspectRatio: "843 / 1500" },
+    { id: "portrait", label: "4:5", aspectRatio: "4 / 5" },
+    { id: "square", label: "1:1", aspectRatio: "1 / 1" },
+  ],
+  background: "#bda797",
+  palette: [
+    { label: "White", value: "#ffffff" },
+    { label: "Ink", value: "#111111" },
+    { label: "Taupe", value: "#ad9a83" },
+    { label: "Warm Stone", value: "#bda797" },
+    { label: "Muted", value: "#777777" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Avatar",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/testimonial-arc-avatar-source.jpg",
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Arc title",
+      visible: true,
+      hideable: false,
+      text: "TESTIMONIAL",
+      color: "#ffffff",
+      fontId: "playfair",
+      uppercase: true,
+      weight: 500,
+      letterSpacing: 0.08,
+      suggestions: ["TESTIMONIAL", "KIND WORDS", "CLIENT LOVE", "REVIEW"],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Testimonial",
+      visible: true,
+      hideable: false,
+      text: "Thank you very much! An amazing job\nthat exceeded all my expectations! I am\nvery glad that I trusted you!",
+      color: "#111111",
+      fontId: "poppins",
+      uppercase: false,
+      weight: 400,
+      align: "center",
+      suggestions: [
+        "Thank you very much! An amazing job that exceeded all my expectations! I am very glad that I trusted you!",
+        "A beautiful result, thoughtful service, and an experience I would happily recommend.",
+        "The work was polished, careful, and better than I imagined. Thank you so much!",
+      ],
+    },
+    {
+      id: "cta",
+      kind: "cta",
+      label: "Author",
+      visible: true,
+      hideable: true,
+      text: "- Claudia Alves -",
+      color: "#111111",
+      fontId: "poppins",
+      uppercase: false,
+      weight: 400,
+      align: "center",
+      suggestions: ["- Claudia Alves -", "Claudia Alves.", "- Olivia W. -", "- Sofia Martins -"],
+    },
+    {
+      id: "eyebrow",
+      kind: "eyebrow",
+      label: "Handle",
+      visible: true,
+      hideable: true,
+      text: "@reallygreatsite",
+      color: "#777777",
+      fontId: "poppins",
+      uppercase: false,
+      weight: 400,
+      align: "center",
+      suggestions: ["@reallygreatsite", "@yourbrand", "@clientname", ""],
+    },
+    {
+      id: "website",
+      kind: "eyebrow",
+      label: "Website",
+      visible: true,
+      hideable: true,
+      text: "www.reallygreatsite.com",
+      color: "#ffffff",
+      fontId: "poppins",
+      uppercase: false,
+      weight: 400,
+      align: "center",
+      suggestions: ["www.reallygreatsite.com", "www.yourbrand.com", "yourbrand.com", ""],
+    },
+  ],
+};
+
 // City "postcard" poster — a full-bleed travel photo with a giant condensed city
 // name stacked one letter per line down the right edge (white, difference-blended
 // over the photo so it inverts the picture: light letters over dark areas, dark
@@ -2900,6 +3010,7 @@ const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [DUEL_THIS_OR_THAT.id]: DUEL_THIS_OR_THAT,
   [BUSINESS_CHOICE_THIS_OR_THAT.id]: BUSINESS_CHOICE_THIS_OR_THAT,
   [OLIVIA_TESTIMONIAL.id]: OLIVIA_TESTIMONIAL,
+  [CLAUDIA_TESTIMONIAL.id]: CLAUDIA_TESTIMONIAL,
   [POSTCARD_LONDON.id]: POSTCARD_LONDON,
   [CITYMASK_SAN_FRANCISCO.id]: CITYMASK_SAN_FRANCISCO,
   [SELF_PORTRAIT.id]: SELF_PORTRAIT,
@@ -4013,6 +4124,179 @@ export function testimonialGeometry(aspectRatio: string) {
       top: y(TESTIMONIAL_LAYOUT.author.top),
       width: w(TESTIMONIAL_LAYOUT.author.width),
       size: s(TESTIMONIAL_LAYOUT.author.size),
+    },
+  };
+}
+
+// ── Claudia arced testimonial geometry ──────────────────────────────────────
+// Measured from the 843 × 1500 reference. The whole design is preserved as a
+// centered story poster when exporting to wider ratios such as 4:5 or 1:1.
+export const TESTIMONIAL_ARC_LAYOUT = {
+  base: {
+    width: 843,
+    height: 1500,
+  },
+  colors: {
+    background: "#bda797",
+    wash: "rgba(183,154,132,0.46)",
+    card: "#ffffff",
+    cardShadow: "rgba(94,76,61,0.11)",
+    pillBorder: "#ad9a83",
+    star: "#000000",
+  },
+  backdrop: {
+    blur: 28 / 843,
+    scale: 3.1,
+    opacity: 0.28,
+  },
+  arc: {
+    centerX: 0.5,
+    centerY: 578 / 1500,
+    radius: 260 / 843,
+    size: 63 / 843,
+    stepDeg: 10.4,
+    lineHeight: 1,
+  },
+  avatar: {
+    centerX: 0.5,
+    top: 505 / 1500,
+    size: 176 / 843,
+    radius: 34 / 843,
+  },
+  card: {
+    x: 126 / 843,
+    y: 594 / 1500,
+    w: 591 / 843,
+    h: 474 / 1500,
+    radius: 36 / 843,
+  },
+  sparkle: {
+    fill: "#ffffff",
+    shapes: [
+      { x: 495 / 843, y: 482 / 1500, size: 42 / 843 },
+      { x: 555 / 843, y: 492 / 1500, size: 17 / 843 },
+      { x: 557 / 843, y: 558 / 1500, size: 30 / 843 },
+      { x: 612 / 843, y: 575 / 1500, size: 22 / 843 },
+    ],
+  },
+  testimonial: {
+    centerX: 0.5,
+    top: 750 / 1500,
+    width: 520 / 843,
+    size: 27 / 843,
+    lineHeight: 1.32,
+  },
+  author: {
+    centerX: 0.5,
+    top: 902 / 1500,
+    width: 480 / 843,
+    size: 38 / 843,
+    lineHeight: 1.08,
+  },
+  handle: {
+    centerX: 0.5,
+    top: 960 / 1500,
+    width: 400 / 843,
+    size: 19 / 843,
+    lineHeight: 1.1,
+  },
+  stars: {
+    centerX: 0.5,
+    centerY: 1061 / 1500,
+    pillW: 264 / 843,
+    pillH: 68 / 1500,
+    border: 3 / 843,
+    size: 31 / 843,
+    gap: 42 / 843,
+  },
+  website: {
+    centerX: 0.5,
+    top: 1234 / 1500,
+    width: 0.78,
+    size: 30 / 843,
+    lineHeight: 1.08,
+  },
+} as const;
+
+export function testimonialArcChars(text: string): string[] {
+  return text.replace(/\s+/g, "").split("");
+}
+
+export function testimonialArcGeometry(aspectRatio: string) {
+  const baseRatio = TESTIMONIAL_ARC_LAYOUT.base.width / TESTIMONIAL_ARC_LAYOUT.base.height;
+  const targetRatio = numericAspectRatio(aspectRatio);
+  const baseHeight = 1 / baseRatio;
+  const targetHeight = 1 / targetRatio;
+  const fitToHeight = targetRatio > baseRatio;
+  const scale = fitToHeight ? targetHeight / baseHeight : 1;
+  const xOffset = fitToHeight ? (1 - scale) / 2 : 0;
+  const yOffset = fitToHeight ? 0 : (targetHeight - baseHeight * scale) / 2;
+
+  const x = (value: number) => xOffset + value * scale;
+  const w = (value: number) => value * scale;
+  const y = (value: number) => (yOffset + value * baseHeight * scale) / targetHeight;
+  const h = (value: number) => (value * baseHeight * scale) / targetHeight;
+  const s = (value: number) => value * scale;
+
+  return {
+    sizeScale: scale,
+    arc: {
+      centerX: x(TESTIMONIAL_ARC_LAYOUT.arc.centerX),
+      centerY: y(TESTIMONIAL_ARC_LAYOUT.arc.centerY),
+      radius: s(TESTIMONIAL_ARC_LAYOUT.arc.radius),
+      size: s(TESTIMONIAL_ARC_LAYOUT.arc.size),
+      stepDeg: TESTIMONIAL_ARC_LAYOUT.arc.stepDeg,
+    },
+    avatar: {
+      centerX: x(TESTIMONIAL_ARC_LAYOUT.avatar.centerX),
+      top: y(TESTIMONIAL_ARC_LAYOUT.avatar.top),
+      size: s(TESTIMONIAL_ARC_LAYOUT.avatar.size),
+      radius: s(TESTIMONIAL_ARC_LAYOUT.avatar.radius),
+    },
+    card: {
+      x: x(TESTIMONIAL_ARC_LAYOUT.card.x),
+      y: y(TESTIMONIAL_ARC_LAYOUT.card.y),
+      w: w(TESTIMONIAL_ARC_LAYOUT.card.w),
+      h: h(TESTIMONIAL_ARC_LAYOUT.card.h),
+      radius: s(TESTIMONIAL_ARC_LAYOUT.card.radius),
+    },
+    sparkles: TESTIMONIAL_ARC_LAYOUT.sparkle.shapes.map((shape) => ({
+      x: x(shape.x),
+      y: y(shape.y),
+      size: s(shape.size),
+    })),
+    testimonial: {
+      centerX: x(TESTIMONIAL_ARC_LAYOUT.testimonial.centerX),
+      top: y(TESTIMONIAL_ARC_LAYOUT.testimonial.top),
+      width: w(TESTIMONIAL_ARC_LAYOUT.testimonial.width),
+      size: s(TESTIMONIAL_ARC_LAYOUT.testimonial.size),
+    },
+    author: {
+      centerX: x(TESTIMONIAL_ARC_LAYOUT.author.centerX),
+      top: y(TESTIMONIAL_ARC_LAYOUT.author.top),
+      width: w(TESTIMONIAL_ARC_LAYOUT.author.width),
+      size: s(TESTIMONIAL_ARC_LAYOUT.author.size),
+    },
+    handle: {
+      centerX: x(TESTIMONIAL_ARC_LAYOUT.handle.centerX),
+      top: y(TESTIMONIAL_ARC_LAYOUT.handle.top),
+      width: w(TESTIMONIAL_ARC_LAYOUT.handle.width),
+      size: s(TESTIMONIAL_ARC_LAYOUT.handle.size),
+    },
+    stars: {
+      centerX: x(TESTIMONIAL_ARC_LAYOUT.stars.centerX),
+      centerY: y(TESTIMONIAL_ARC_LAYOUT.stars.centerY),
+      pillW: w(TESTIMONIAL_ARC_LAYOUT.stars.pillW),
+      pillH: h(TESTIMONIAL_ARC_LAYOUT.stars.pillH),
+      border: s(TESTIMONIAL_ARC_LAYOUT.stars.border),
+      size: s(TESTIMONIAL_ARC_LAYOUT.stars.size),
+      gap: s(TESTIMONIAL_ARC_LAYOUT.stars.gap),
+    },
+    website: {
+      centerX: x(TESTIMONIAL_ARC_LAYOUT.website.centerX),
+      top: y(TESTIMONIAL_ARC_LAYOUT.website.top),
+      width: w(TESTIMONIAL_ARC_LAYOUT.website.width),
+      size: s(TESTIMONIAL_ARC_LAYOUT.website.size),
     },
   };
 }

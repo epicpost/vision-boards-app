@@ -28,6 +28,9 @@ import {
   businessChoicePillFill,
   businessChoicePillTextColor,
   TESTIMONIAL_LAYOUT,
+  TESTIMONIAL_ARC_LAYOUT,
+  testimonialArcChars,
+  testimonialArcGeometry,
   testimonialGeometry,
   duelCaptionWords,
   duelDisplayCase,
@@ -957,6 +960,273 @@ async function exportTestimonial(
   drawTextBlock(author, geometry.author, {
     lineHeight: TESTIMONIAL_LAYOUT.author.lineHeight,
     maxHeight: 0.08,
+  });
+
+  return canvasToBlob(canvas, format);
+}
+
+function drawTestimonialArcTitle(
+  ctx: CanvasRenderingContext2D,
+  layer: TextLayer | undefined,
+  geometry: ReturnType<typeof testimonialArcGeometry>,
+  width: number,
+  height: number,
+) {
+  if (!layer?.visible || !layer.text.trim()) return;
+  const style = resolveTextStyle(layer);
+  const font = fontById(layer.fontId);
+  const chars = testimonialArcChars(layer.uppercase ? layer.text.toUpperCase() : layer.text);
+  if (!chars.length) return;
+  const mid = (chars.length - 1) / 2;
+  const size = geometry.arc.size * style.sizeScale * width;
+
+  ctx.save();
+  ctx.fillStyle = layer.color;
+  ctx.font = `${style.weight} ${size}px ${font.family}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  chars.forEach((char, index) => {
+    const angle = (index - mid) * geometry.arc.stepDeg;
+    const radians = (angle * Math.PI) / 180;
+    const x = geometry.arc.centerX * width + Math.sin(radians) * geometry.arc.radius * width;
+    const y = geometry.arc.centerY * height - Math.cos(radians) * geometry.arc.radius * width;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(radians);
+    ctx.fillText(char, 0, 0);
+    ctx.restore();
+  });
+  ctx.restore();
+}
+
+function drawTestimonialArcSparkle(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+) {
+  const outer = size / 2;
+  const inner = size * 0.13;
+  ctx.beginPath();
+  for (let i = 0; i < 8; i += 1) {
+    const angle = -Math.PI / 2 + (i * Math.PI) / 4;
+    const radius = i % 2 === 0 ? outer : inner;
+    const px = x + Math.cos(angle) * radius;
+    const py = y + Math.sin(angle) * radius;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+// Rasterize the Claudia arced testimonial story. Mirrors
+// `TestimonialArcPreview`.
+async function exportTestimonialArc(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+
+  const imageLayer = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const title = byId<TextLayer>("header");
+  const testimonial = byId<TextLayer>("description");
+  const author = byId<TextLayer>("cta");
+  const handle = byId<TextLayer>("eyebrow");
+  const website = byId<TextLayer>("website");
+  const geometry = testimonialArcGeometry(template.aspectRatio);
+  const textLayers = [title, testimonial, author, handle, website].filter(
+    (layer): layer is TextLayer => Boolean(layer && layer.visible && layer.text.trim()),
+  );
+
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      [
+        ...textLayers.map((layer) =>
+          document.fonts
+            .load(
+              `${resolveTextStyle(layer).weight} 64px ${primaryFamily(fontById(layer.fontId).family)}`,
+            )
+            .catch(() => undefined),
+        ),
+        document.fonts
+          .load(`700 64px ${primaryFamily(fontById("poppins").family)}`)
+          .catch(() => undefined),
+      ],
+    ).catch(() => undefined);
+  }
+
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  if (imageLayer?.visible) {
+    try {
+      const img = await loadImage(imageLayer.src);
+      ctx.save();
+      ctx.filter = `blur(${TESTIMONIAL_ARC_LAYOUT.backdrop.blur * width}px)`;
+      ctx.globalAlpha = TESTIMONIAL_ARC_LAYOUT.backdrop.opacity;
+      const overflow = ((TESTIMONIAL_ARC_LAYOUT.backdrop.scale - 1) / 2) * width;
+      drawImageCover(ctx, img, {
+        x: -overflow,
+        y: -overflow,
+        w: width + overflow * 2,
+        h: height + overflow * 2,
+      });
+      ctx.restore();
+    } catch {
+      throw new ExportImageError(1);
+    }
+  }
+
+  ctx.fillStyle = "rgba(189,167,151,0.78)";
+  ctx.fillRect(0, 0, width, height);
+  const shade = ctx.createLinearGradient(0, 0, width, 0);
+  shade.addColorStop(0, "rgba(244,238,226,0.24)");
+  shade.addColorStop(0.3, "rgba(244,238,226,0)");
+  shade.addColorStop(1, "rgba(126,105,91,0.14)");
+  ctx.fillStyle = shade;
+  ctx.fillRect(0, 0, width, height);
+
+  drawTestimonialArcTitle(ctx, title, geometry, width, height);
+
+  ctx.save();
+  ctx.fillStyle = TESTIMONIAL_ARC_LAYOUT.colors.card;
+  ctx.shadowColor = TESTIMONIAL_ARC_LAYOUT.colors.cardShadow;
+  ctx.shadowBlur = 0.03 * width;
+  ctx.shadowOffsetY = 0.012 * width;
+  ctx.beginPath();
+  ctx.roundRect(
+    geometry.card.x * width,
+    geometry.card.y * height,
+    geometry.card.w * width,
+    geometry.card.h * height,
+    geometry.card.radius * width,
+  );
+  ctx.fill();
+  ctx.restore();
+
+  if (imageLayer?.visible) {
+    try {
+      const img = await loadImage(imageLayer.src);
+      const size = geometry.avatar.size * width;
+      drawRoundedImageCover(
+        ctx,
+        img,
+        {
+          x: geometry.avatar.centerX * width - size / 2,
+          y: geometry.avatar.top * height,
+          w: size,
+          h: size,
+        },
+        geometry.avatar.radius * width,
+        imageTransform(imageLayer),
+      );
+    } catch {
+      throw new ExportImageError(1);
+    }
+  }
+
+  ctx.save();
+  ctx.fillStyle = TESTIMONIAL_ARC_LAYOUT.sparkle.fill;
+  geometry.sparkles.forEach((sparkle) => {
+    drawTestimonialArcSparkle(
+      ctx,
+      sparkle.x * width,
+      sparkle.y * height,
+      sparkle.size * width,
+    );
+  });
+  ctx.restore();
+
+  const drawTextBlock = (
+    layer: TextLayer | undefined,
+    box: { centerX: number; top: number; width: number; size: number },
+    options: { lineHeight: number; maxHeight: number },
+  ) => {
+    if (!layer?.visible || !layer.text.trim()) return;
+    const style = resolveTextStyle(layer);
+    const font = fontById(layer.fontId);
+    const label = layer.uppercase ? layer.text.toUpperCase() : layer.text;
+    const baseSize = box.size * style.sizeScale * width;
+    const fontTemplate = `${style.weight} {size}px ${font.family}`;
+    const { size, lines } = fittedMultilineText(
+      ctx,
+      label,
+      fontTemplate,
+      baseSize,
+      box.width * width,
+      options.maxHeight * height,
+      options.lineHeight,
+      width * 0.012,
+    );
+    ctx.save();
+    ctx.font = fontTemplate.replace("{size}", `${size}`);
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    ctx.fillStyle = layer.color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    const linePx = size * options.lineHeight;
+    lines.forEach((line, index) => {
+      ctx.fillText(line, box.centerX * width, box.top * height + index * linePx);
+    });
+    ctx.restore();
+  };
+
+  drawTextBlock(testimonial, geometry.testimonial, {
+    lineHeight: TESTIMONIAL_ARC_LAYOUT.testimonial.lineHeight,
+    maxHeight: 0.12,
+  });
+  drawTextBlock(author, geometry.author, {
+    lineHeight: TESTIMONIAL_ARC_LAYOUT.author.lineHeight,
+    maxHeight: 0.055,
+  });
+  drawTextBlock(handle, geometry.handle, {
+    lineHeight: TESTIMONIAL_ARC_LAYOUT.handle.lineHeight,
+    maxHeight: 0.035,
+  });
+
+  const pill = {
+    x: (geometry.stars.centerX - geometry.stars.pillW / 2) * width,
+    y: (geometry.stars.centerY - geometry.stars.pillH / 2) * height,
+    w: geometry.stars.pillW * width,
+    h: geometry.stars.pillH * height,
+  };
+  ctx.save();
+  ctx.fillStyle = "#ffffff";
+  ctx.strokeStyle = TESTIMONIAL_ARC_LAYOUT.colors.pillBorder;
+  ctx.lineWidth = geometry.stars.border * width;
+  ctx.beginPath();
+  ctx.roundRect(pill.x, pill.y, pill.w, pill.h, pill.h / 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = TESTIMONIAL_ARC_LAYOUT.colors.star;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `700 ${geometry.stars.size * width}px ${fontById("poppins").family}`;
+  for (let i = 0; i < 5; i += 1) {
+    ctx.fillText(
+      "★",
+      geometry.stars.centerX * width + (i - 2) * geometry.stars.gap * width,
+      geometry.stars.centerY * height,
+    );
+  }
+  ctx.restore();
+
+  drawTextBlock(website, geometry.website, {
+    lineHeight: TESTIMONIAL_ARC_LAYOUT.website.lineHeight,
+    maxHeight: 0.045,
   });
 
   return canvasToBlob(canvas, format);
