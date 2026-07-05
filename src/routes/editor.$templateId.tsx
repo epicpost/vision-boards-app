@@ -4405,6 +4405,24 @@ function EditorScreen({
     }
     return cloned;
   });
+  const layersRef = useRef<EditorLayer[]>(layers);
+  const stableImageLayersRef = useRef<Map<string, ImageLayer>>(
+    new Map(
+      layers
+        .filter(
+          (layer): layer is ImageLayer => layer.kind === "image" && !layer.src.startsWith("blob:"),
+        )
+        .map((layer) => [layer.id, layer]),
+    ),
+  );
+  useEffect(() => {
+    layersRef.current = layers;
+    layers.forEach((layer) => {
+      if (layer.kind === "image" && !layer.src.startsWith("blob:")) {
+        stableImageLayersRef.current.set(layer.id, layer);
+      }
+    });
+  }, [layers]);
   // Re-register any brand fonts referenced by the loaded layers (a remix saved
   // with the Fonts card attached carries `fontId: "brand:<Family>"`). Runs during
   // render so `fontById` resolves the real family on first paint, and injects the
@@ -4468,6 +4486,8 @@ function EditorScreen({
   const [exporting, setExporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const replaceTargetRef = useRef<string | null>(null);
+  const replaceUploadSeqRef = useRef(0);
+  const activeReplaceUploadsRef = useRef<Map<string, number>>(new Map());
 
   // Load the editor's webfonts once so previews and the picker render correctly.
   useEffect(() => {
@@ -4494,21 +4514,24 @@ function EditorScreen({
 
   function apply(next: EditorLayer[], coalesceKey?: string) {
     const now = Date.now();
+    const current = layersRef.current;
     const previousEdit = coalesceRef.current;
     const coalesced =
       Boolean(coalesceKey) &&
       previousEdit != null &&
       previousEdit.key === coalesceKey &&
       now - previousEdit.time < 1000;
-    if (!coalesced) setPast((prev) => [...prev, layers]);
+    if (!coalesced) setPast((prev) => [...prev, current]);
     coalesceRef.current = coalesceKey ? { key: coalesceKey, time: now } : null;
     setFuture([]);
+    layersRef.current = next;
     setLayers(next);
   }
 
   function updateLayer(id: string, patch: LayerPatch, coalesceKey?: string) {
+    const current = layersRef.current;
     apply(
-      layers.map((layer) => (layer.id === id ? ({ ...layer, ...patch } as EditorLayer) : layer)),
+      current.map((layer) => (layer.id === id ? ({ ...layer, ...patch } as EditorLayer) : layer)),
       coalesceKey,
     );
   }
@@ -4536,8 +4559,10 @@ function EditorScreen({
   function undo() {
     if (!past.length) return;
     const previous = past[past.length - 1];
+    const current = layersRef.current;
     setPast(past.slice(0, -1));
-    setFuture([layers, ...future]);
+    setFuture([current, ...future]);
+    layersRef.current = previous;
     setLayers(previous);
     coalesceRef.current = null;
   }
@@ -4545,8 +4570,10 @@ function EditorScreen({
   function redo() {
     if (!future.length) return;
     const next = future[0];
+    const current = layersRef.current;
     setFuture(future.slice(1));
-    setPast([...past, layers]);
+    setPast([...past, current]);
+    layersRef.current = next;
     setLayers(next);
     coalesceRef.current = null;
   }
@@ -4623,20 +4650,56 @@ function EditorScreen({
     // Instant local preview — blob URLs are same-origin, so canvas export stays
     // clean even before the upload finishes.
     const url = URL.createObjectURL(file);
+    const fallbackLayer = stableImageLayersRef.current.get(id);
     updateLayer(id, { src: url, visible: true }, `replace-${id}`);
     // Persist + attach the new photo to the remix so the swap survives reload.
     // Coalesced into the same undo step as the src change above.
     if (remixId) {
+      const requestId = replaceUploadSeqRef.current + 1;
+      replaceUploadSeqRef.current = requestId;
+      activeReplaceUploadsRef.current.set(id, requestId);
       try {
         const [asset] = await uploadAssetFiles([file]);
-        if (asset?.asset_id) {
-          // `assetUrl` rides along on the layer so a local (no-backend-row)
-          // remix's autosave can rebuild its asset list purely from the saved
-          // layers — see `assetsFromLayers`.
-          updateLayer(id, { assetId: asset.asset_id, assetUrl: asset.url }, `replace-${id}`);
+        if (activeReplaceUploadsRef.current.get(id) !== requestId) {
+          URL.revokeObjectURL(url);
+          return;
         }
+        if (!asset?.asset_id) {
+          throw new Error("Upload did not return an asset.");
+        }
+        // `assetUrl` rides along on the layer so a local (no-backend-row)
+        // remix's autosave can rebuild its asset list purely from the saved
+        // layers — see `assetsFromLayers`.
+        updateLayer(
+          id,
+          { src: asset.url, assetId: asset.asset_id, assetUrl: asset.url, visible: true },
+          `replace-${id}`,
+        );
+        URL.revokeObjectURL(url);
       } catch {
-        toast.error("Couldn't save the new image — it may not persist on reload.");
+        if (activeReplaceUploadsRef.current.get(id) === requestId) {
+          toast.error("Couldn't save the new image — it may not persist on reload.");
+          if (fallbackLayer) {
+            updateLayer(
+              id,
+              {
+                src: fallbackLayer.src,
+                transform: fallbackLayer.transform ? { ...fallbackLayer.transform } : undefined,
+                assetId: fallbackLayer.assetId,
+                assetUrl: fallbackLayer.assetUrl,
+                visible: fallbackLayer.visible,
+              },
+              `replace-${id}`,
+            );
+          }
+          URL.revokeObjectURL(url);
+        } else {
+          URL.revokeObjectURL(url);
+        }
+      } finally {
+        if (activeReplaceUploadsRef.current.get(id) === requestId) {
+          activeReplaceUploadsRef.current.delete(id);
+        }
       }
     }
   }

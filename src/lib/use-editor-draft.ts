@@ -17,6 +17,10 @@ function draftScopeId(): string {
   return getAuthUser()?.id ?? "anon";
 }
 
+function hasTemporaryImagePreview(layers: EditorLayer[]): boolean {
+  return layers.some((layer) => layer.kind === "image" && layer.src.startsWith("blob:"));
+}
+
 /**
  * Autosaves the editor's layer state to the backend on every change (debounced)
  * and loads the last saved draft on mount. Returns the hydrated layers (once),
@@ -125,6 +129,7 @@ export function useRemixDraft(
   const flush = useCallback(
     async (next: EditorLayer[]) => {
       if (!remixId) return;
+      if (hasTemporaryImagePreview(next)) return;
       if (inFlightRef.current) {
         pendingRef.current = next;
         return;
@@ -167,6 +172,7 @@ export function useRemixDraft(
       return;
     }
     if (timerRef.current) clearTimeout(timerRef.current);
+    if (hasTemporaryImagePreview(layers)) return;
     timerRef.current = setTimeout(() => void flush(layers), 600);
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
