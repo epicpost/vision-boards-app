@@ -33,10 +33,19 @@ import {
   cityMaskLabelLines,
   selfChars,
   selfGeometry,
+  STATEMENT_LAYOUT,
+  statementGeometry,
+  statementTagAnchor,
+  statementTagLines,
+  wovenGeometry,
+  briefGeometry,
   GRID_LAYOUT,
   gridVariant,
   gridCellRect,
   gridTextLines,
+  mosaicCells,
+  DROP_LAYOUT,
+  dropCaptionFontSize,
   PORTO_CAPTION_TRACKING,
   PORTO_CARD,
   PORTO_LAYOUT,
@@ -59,9 +68,7 @@ import { resolveCleanImageSrc } from "@/lib/image-proxy";
 // catches this to warn the user instead of downloading a partial/black export.
 export class ExportImageError extends Error {
   constructor(public readonly failedCount: number) {
-    super(
-      `Couldn't load ${failedCount} photo${failedCount === 1 ? "" : "s"} for export.`,
-    );
+    super(`Couldn't load ${failedCount} photo${failedCount === 1 ? "" : "s"} for export.`);
     this.name = "ExportImageError";
   }
 }
@@ -630,7 +637,10 @@ async function exportPostcard(
     const size = POSTCARD_LAYOUT.subtitle.size * style.sizeScale * width;
     const label = subtitle.uppercase ? subtitle.text.toUpperCase() : subtitle.text;
     ctx.save();
-    ctx.translate(POSTCARD_LAYOUT.subtitle.centerX * width, POSTCARD_LAYOUT.subtitle.centerY * height);
+    ctx.translate(
+      POSTCARD_LAYOUT.subtitle.centerX * width,
+      POSTCARD_LAYOUT.subtitle.centerY * height,
+    );
     ctx.rotate(-Math.PI / 2);
     ctx.font = `${style.weight} ${size}px ${font.family}`;
     ctx.letterSpacing = `${style.letterSpacing || POSTCARD_LAYOUT.subtitle.tracking}em`;
@@ -654,7 +664,11 @@ async function exportPostcard(
     ctx.fillStyle = country.color;
     ctx.textAlign = "right";
     ctx.textBaseline = "alphabetic";
-    ctx.fillText(label, POSTCARD_LAYOUT.country.right * width, POSTCARD_LAYOUT.country.baseline * height);
+    ctx.fillText(
+      label,
+      POSTCARD_LAYOUT.country.right * width,
+      POSTCARD_LAYOUT.country.baseline * height,
+    );
     ctx.letterSpacing = "0px";
     ctx.restore();
   }
@@ -929,6 +943,350 @@ async function exportSelf(
   return canvasToBlob(canvas, format);
 }
 
+// Rasterize a Statement Portrait poster: a full-bleed photo on the left half
+// and a giant word-wrapped statement on the right, each line revealing the
+// same continuous photo (everything else white), plus an optional small
+// tracked tagline + underline beside it. Mirrors `StatementPreview`.
+async function exportStatement(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+
+  const photoLayer = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const header = byId<TextLayer>("header");
+  const tag = byId<TextLayer>("cta");
+
+  // White canvas — the photo shows through the left panel and the caption.
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  let photo: HTMLImageElement | null = null;
+  if (photoLayer?.visible && photoLayer.src) {
+    try {
+      photo = await loadImage(photoLayer.src);
+    } catch {
+      throw new ExportImageError(1);
+    }
+  }
+  const photoTransform = photoLayer ? imageTransform(photoLayer) : DEFAULT_IMAGE_TRANSFORM;
+
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      [header, tag].map((layer) => {
+        if (!layer?.visible || !layer.text.trim()) return Promise.resolve();
+        const font = fontById(layer.fontId);
+        return document.fonts
+          .load(`${resolveTextStyle(layer).weight} 100px ${primaryFamily(font.family)}`)
+          .catch(() => undefined);
+      }),
+    ).catch(() => undefined);
+  }
+
+  const style = header ? resolveTextStyle(header) : null;
+  const label = header ? (header.uppercase ? header.text.toUpperCase() : header.text) : "";
+  const geo =
+    header?.visible && style
+      ? statementGeometry(label, header.fontId, style.weight, width, height)
+      : null;
+
+  // Paint the left photo panel plus the word-wrapped caption onto `target`.
+  const paintRegions = (target: CanvasRenderingContext2D) => {
+    target.fillRect(0, 0, geo ? geo.photoRight : width * STATEMENT_LAYOUT.photoRight, height);
+    if (geo && header && style && geo.lines.length && geo.fontSize > 0) {
+      const font = fontById(header.fontId);
+      target.save();
+      target.translate(0, geo.top);
+      target.scale(1, geo.scaleY);
+      target.font = `${style.weight} ${geo.fontSize}px ${font.family}`;
+      target.textAlign = "left";
+      target.textBaseline = "alphabetic";
+      geo.lines.forEach((line) => target.fillText(line.text, geo.left, line.baseline));
+      target.restore();
+    }
+  };
+
+  if (photo) {
+    // Paint the panel + caption into a mask, keep the photo only where they
+    // are, then composite that over the white canvas.
+    const mask = document.createElement("canvas");
+    mask.width = width;
+    mask.height = height;
+    const maskCtx = mask.getContext("2d");
+    if (maskCtx) {
+      maskCtx.fillStyle = "#000";
+      paintRegions(maskCtx);
+      maskCtx.globalCompositeOperation = "source-in";
+      drawImageCover(maskCtx, photo, { x: 0, y: 0, w: width, h: height }, photoTransform);
+      ctx.drawImage(mask, 0, 0);
+    }
+  } else if (header) {
+    ctx.save();
+    ctx.fillStyle = header.color;
+    paintRegions(ctx);
+    ctx.restore();
+  }
+
+  // Optional tagline + underline, plain ink over the white canvas (not masked
+  // by the photo) — sits beside the shorter wrapped rows.
+  if (tag?.visible && tag.text.trim()) {
+    const T = STATEMENT_LAYOUT.tag;
+    const font = fontById(tag.fontId);
+    const tagStyle = resolveTextStyle(tag);
+    const label = tag.uppercase ? tag.text.toUpperCase() : tag.text;
+    const lines = statementTagLines(
+      label,
+      tag.fontId,
+      tagStyle.weight,
+      width,
+      tagStyle.letterSpacing || T.tracking,
+    );
+    const size = T.size * tagStyle.sizeScale * width;
+    const slot = size * T.lineHeight;
+    // Nest beside whichever wrapped caption row has the most spare room; fall
+    // back to the fixed corner position when there's no caption to anchor to.
+    const anchor = geo ? statementTagAnchor(geo, width) : null;
+    const blockH = lines.length * slot;
+    const x = anchor ? anchor.x : T.left * width;
+    const topY = anchor ? anchor.centerY - blockH / 2 : T.top * height;
+
+    ctx.save();
+    ctx.font = `${tagStyle.weight} ${size}px ${font.family}`;
+    ctx.letterSpacing = `${tagStyle.letterSpacing || T.tracking}em`;
+    ctx.fillStyle = tag.color;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    let widest = 0;
+    lines.forEach((line, i) => {
+      ctx.fillText(line, x, topY + i * slot + size * 0.85);
+      widest = Math.max(widest, ctx.measureText(line).width);
+    });
+    ctx.letterSpacing = "0px";
+    ctx.restore();
+
+    // Underline beneath the last line, overshooting the text a touch either side.
+    const underlineY = topY + lines.length * slot + T.underlineGap * width;
+    ctx.fillStyle = tag.color;
+    ctx.fillRect(
+      x - T.underlineExtendLeft * width,
+      underlineY,
+      widest + (T.underlineExtendLeft + T.underlineExtendRight) * width,
+      T.underlineWeight * width,
+    );
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
+// Rasterize a Woven Calm poster: a warm stone canvas with a tall photo panel on
+// the left, and on the right a large serif title (word-wrapped) stacked over a
+// small grey body paragraph (word-wrapped). Mirrors `WovenPreview`.
+async function exportWoven(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+
+  const photoLayer = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const header = byId<TextLayer>("header");
+  const body = byId<TextLayer>("description");
+
+  // Warm stone canvas (or the chosen brand background).
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  // Ensure both faces are loaded before we measure/wrap and paint.
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      [header, body]
+        .filter((layer): layer is TextLayer => Boolean(layer?.visible && layer.text.trim()))
+        .map((layer) =>
+          document.fonts
+            .load(
+              `${resolveTextStyle(layer).weight} 64px ${primaryFamily(fontById(layer.fontId).family)}`,
+            )
+            .catch(() => undefined),
+        ),
+    );
+  }
+
+  const headerStyle = header ? resolveTextStyle(header) : null;
+  const bodyStyle = body ? resolveTextStyle(body) : null;
+  const geo = wovenGeometry(
+    header?.visible ? header.text : "",
+    header?.fontId ?? "playfair",
+    headerStyle?.weight ?? 500,
+    header?.uppercase ?? true,
+    body?.visible ? body.text : "",
+    body?.fontId ?? "montserrat",
+    bodyStyle?.weight ?? 400,
+    width,
+    height,
+  );
+
+  // Photo panel on the left.
+  if (photoLayer?.visible && photoLayer.src) {
+    let photo: HTMLImageElement;
+    try {
+      photo = await loadImage(photoLayer.src);
+    } catch {
+      throw new ExportImageError(1);
+    }
+    drawImageCover(ctx, photo, geo.photo, imageTransform(photoLayer));
+  }
+
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+
+  if (header?.visible && headerStyle) {
+    ctx.fillStyle = header.color;
+    ctx.font = `${headerStyle.weight} ${geo.titleFontSize}px ${fontById(header.fontId).family}`;
+    for (const line of geo.titleLines) {
+      ctx.fillText(line.text, geo.colLeft, line.baseline);
+    }
+  }
+
+  if (body?.visible && bodyStyle) {
+    ctx.fillStyle = body.color;
+    ctx.font = `${bodyStyle.weight} ${geo.bodyFontSize}px ${fontById(body.fontId).family}`;
+    for (const line of geo.bodyLines) {
+      ctx.fillText(line.text, geo.colLeft, line.baseline);
+    }
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
+// Rasterize a Studio Brief poster: a white paper panel on the left carrying a
+// bullet-and-rule marker, a bold serif category caption and a mission
+// paragraph, beside a full-bleed photo in its own box on the right. Mirrors
+// `BriefPreview`.
+async function exportBrief(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+
+  const photoLayer = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const header = byId<TextLayer>("header");
+  const body = byId<TextLayer>("description");
+
+  // Paper canvas (or the chosen brand background).
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  // Ensure both faces are loaded before we measure/wrap and paint.
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      [header, body]
+        .filter((layer): layer is TextLayer => Boolean(layer?.visible && layer.text.trim()))
+        .map((layer) =>
+          document.fonts
+            .load(
+              `${resolveTextStyle(layer).weight} 64px ${primaryFamily(fontById(layer.fontId).family)}`,
+            )
+            .catch(() => undefined),
+        ),
+    );
+  }
+
+  const headerStyle = header ? resolveTextStyle(header) : null;
+  const bodyStyle = body ? resolveTextStyle(body) : null;
+  const geo = briefGeometry(
+    header?.visible ? header.text : "",
+    header?.fontId ?? "playfair",
+    headerStyle?.weight ?? 700,
+    header?.uppercase ?? false,
+    body?.visible ? body.text : "",
+    body?.fontId ?? "quicksand",
+    bodyStyle?.weight ?? 400,
+    width,
+    height,
+  );
+
+  // Full-bleed photo in its own box on the right.
+  if (photoLayer?.visible && photoLayer.src) {
+    let photo: HTMLImageElement;
+    try {
+      photo = await loadImage(photoLayer.src);
+    } catch {
+      throw new ExportImageError(1);
+    }
+    drawImageCover(ctx, photo, geo.photo, imageTransform(photoLayer));
+  }
+
+  // Bullet-and-rule marker, tinted with the caption's colour.
+  ctx.save();
+  ctx.fillStyle = header?.color ?? "#000000";
+  ctx.fillRect(
+    geo.marker.x1,
+    geo.marker.y - geo.marker.lineWidth / 2,
+    geo.marker.x2 - geo.marker.x1,
+    geo.marker.lineWidth,
+  );
+  ctx.beginPath();
+  ctx.arc(geo.marker.dotX, geo.marker.y, geo.marker.dotR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+
+  if (header?.visible && headerStyle) {
+    ctx.fillStyle = header.color;
+    ctx.font = `${headerStyle.weight} ${geo.titleFontSize}px ${fontById(header.fontId).family}`;
+    for (const line of geo.titleLines) {
+      ctx.fillText(line.text, geo.colLeft, line.baseline);
+    }
+  }
+
+  if (body?.visible && bodyStyle) {
+    ctx.fillStyle = body.color;
+    ctx.font = `${bodyStyle.weight} ${geo.bodyFontSize}px ${fontById(body.fontId).family}`;
+    for (const line of geo.bodyLines) {
+      ctx.fillText(line.text, geo.colLeft, line.baseline);
+    }
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
 // Trace a rounded rectangle path (used to clip each relax photo panel).
 function roundRectPath(
   ctx: CanvasRenderingContext2D,
@@ -1058,8 +1416,10 @@ async function exportRelax(
     });
   };
 
-  if (header) addBlock(header, RELAX_LAYOUT.caption.headline.size, RELAX_LAYOUT.caption.headline.lineHeight);
-  if (description) addBlock(description, RELAX_LAYOUT.caption.sub.size, RELAX_LAYOUT.caption.sub.lineHeight);
+  if (header)
+    addBlock(header, RELAX_LAYOUT.caption.headline.size, RELAX_LAYOUT.caption.headline.lineHeight);
+  if (description)
+    addBlock(description, RELAX_LAYOUT.caption.sub.size, RELAX_LAYOUT.caption.sub.lineHeight);
 
   const totalH = blocks.reduce(
     (sum, block) => sum + block.topGap + block.lines.length * block.lineHeight,
@@ -1261,7 +1621,9 @@ async function exportSplit(
     ctx.letterSpacing = `${style.letterSpacing}em`;
     const lines = raw
       .split("\n")
-      .flatMap((para) => (para.trim() === "" ? [""] : wrapLines(ctx, para, SPLIT_LAYOUT.body.width * width)));
+      .flatMap((para) =>
+        para.trim() === "" ? [""] : wrapLines(ctx, para, SPLIT_LAYOUT.body.width * width),
+      );
     applyTextShadow(ctx, style.shadow, size);
     ctx.fillStyle = description.color;
     ctx.textAlign = "left";
@@ -1599,7 +1961,9 @@ async function exportPorto(
           )
         : Promise.resolve(),
       capFont
-        ? document.fonts.load(`${resolveTextStyle(caption!).weight} 100px ${primaryFamily(capFont.family)}`)
+        ? document.fonts.load(
+            `${resolveTextStyle(caption!).weight} 100px ${primaryFamily(capFont.family)}`,
+          )
         : Promise.resolve(),
     ]).catch(() => undefined);
   }
@@ -1755,8 +2119,20 @@ async function exportCover(
 
   // Lay the block out top-down, then anchor it to the requested edge. Each entry
   // carries its own font/colour/size so the headline and subtitle draw alike.
-  type Line = { text: string; size: number; lineHeight: number; style: ResolvedTextStyle; layer: TextLayer };
-  const blocks: { layer: TextLayer; size: number; lineHeight: number; maxWidth: number; gap: number }[] = [];
+  type Line = {
+    text: string;
+    size: number;
+    lineHeight: number;
+    style: ResolvedTextStyle;
+    layer: TextLayer;
+  };
+  const blocks: {
+    layer: TextLayer;
+    size: number;
+    lineHeight: number;
+    maxWidth: number;
+    gap: number;
+  }[] = [];
   if (header && header.text.trim()) {
     blocks.push({
       layer: header,
@@ -1784,7 +2160,9 @@ async function exportCover(
     await Promise.all(
       blocks.map((block) =>
         document.fonts
-          .load(`${resolveTextStyle(block.layer).weight} ${block.size}px ${primaryFamily(fontById(block.layer.fontId).family)}`)
+          .load(
+            `${resolveTextStyle(block.layer).weight} ${block.size}px ${primaryFamily(fontById(block.layer.fontId).family)}`,
+          )
           .catch(() => undefined),
       ),
     );
@@ -1913,7 +2291,9 @@ async function exportEditorial(
         if (!layer || !layer.text.trim()) return undefined;
         const style = resolveTextStyle(layer);
         const size =
-          (layer.kind === "header" ? geom.headline.size : geom.footer?.size ?? geom.headline.size) *
+          (layer.kind === "header"
+            ? geom.headline.size
+            : (geom.footer?.size ?? geom.headline.size)) *
           style.sizeScale *
           width;
         return document.fonts
@@ -2068,10 +2448,12 @@ async function exportCollage(
     (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image",
   );
   const header = layers.find(
-    (layer): layer is TextLayer => layer.kind === "header" && layer.visible && layer.text.trim() !== "",
+    (layer): layer is TextLayer =>
+      layer.kind === "header" && layer.visible && layer.text.trim() !== "",
   );
   const brand = layers.find(
-    (layer): layer is TextLayer => layer.kind === "eyebrow" && layer.visible && layer.text.trim() !== "",
+    (layer): layer is TextLayer =>
+      layer.kind === "eyebrow" && layer.visible && layer.text.trim() !== "",
   );
   const description = layers.find(
     (layer): layer is TextLayer =>
@@ -2324,7 +2706,12 @@ async function exportGrid(
     if (!layer?.visible || !layer.src) continue;
     try {
       const img = await loadImage(layer.src);
-      drawImageCover(ctx, img, gridCellRect(variant.photos[index], width, height), imageTransform(layer));
+      drawImageCover(
+        ctx,
+        img,
+        gridCellRect(variant.photos[index], width, height),
+        imageTransform(layer),
+      );
     } catch {
       failed += 1;
     }
@@ -2370,7 +2757,9 @@ async function exportGrid(
       title?.visible && title.text.trim() ? gridTextLines(title.text, title.uppercase) : [];
     const tagText =
       tagLayer?.visible && tagLayer.text.trim()
-        ? (tagLayer.uppercase ? tagLayer.text.toUpperCase() : tagLayer.text)
+        ? tagLayer.uppercase
+          ? tagLayer.text.toUpperCase()
+          : tagLayer.text
         : "";
     if (!titleLines.length && !tagText) return;
     const titleStyle = title ? resolveTextStyle(title) : null;
@@ -2443,17 +2832,280 @@ async function exportGrid(
       const scale = Math.min(maxH / img.height, maxW / img.width);
       const dw = img.width * scale;
       const dh = img.height * scale;
-      ctx.drawImage(
-        img,
-        (width - dw) / 2,
-        height - GRID_LAYOUT.logo.bottom * height - dh,
-        dw,
-        dh,
-      );
+      ctx.drawImage(img, (width - dw) / 2, height - GRID_LAYOUT.logo.bottom * height - dh, dw, dh);
     } catch {
       // A missing logo shouldn't block the export — the creative is complete
       // without it.
     }
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
+// Rasterize a masonry moodboard: each `cell-{i+1}` image layer cover-fits its
+// `mosaicCells(template.id)[i]` rect — no text at all. Mirrors `MosaicPreview`.
+async function exportMosaic(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  const cells = mosaicCells(template.id);
+  let failed = 0;
+  for (let index = 0; index < cells.length; index++) {
+    const layer = layers.find(
+      (candidate): candidate is Extract<EditorLayer, { kind: "image" }> =>
+        candidate.id === `cell-${index + 1}` && candidate.kind === "image",
+    );
+    if (!layer?.visible || !layer.src) continue;
+    const cell = cells[index];
+    try {
+      const img = await loadImage(layer.src);
+      drawImageCover(
+        ctx,
+        img,
+        { x: cell.x * width, y: cell.y * height, w: cell.w * width, h: cell.h * height },
+        imageTransform(layer),
+      );
+    } catch {
+      failed += 1;
+    }
+  }
+  if (failed > 0) throw new ExportImageError(failed);
+
+  return canvasToBlob(canvas, format);
+}
+
+// Rasterize a "New Drop" creative: a tilted Polaroid-style photo card between
+// two giant fixed headline words, a script caption in the card's caption
+// strip, optional corner labels and an optional footer pill — mirroring
+// `DropPreview`.
+async function exportDrop(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+
+  const photoLayer = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const caption = byId<TextLayer>("header");
+  const brandLabel = byId<TextLayer>("eyebrow");
+  const categoryLabel = byId<TextLayer>("description");
+  const cta = byId<TextLayer>("cta");
+
+  let photo: HTMLImageElement | null = null;
+  if (photoLayer?.visible && photoLayer.src) {
+    try {
+      photo = await loadImage(photoLayer.src);
+    } catch {
+      throw new ExportImageError(1);
+    }
+  }
+
+  // Preload the webfonts used by the visible text layers, plus the fixed
+  // headline and pill-label fonts (not tied to a layer).
+  const textLayers = [caption, brandLabel, categoryLabel, cta].filter((layer): layer is TextLayer =>
+    Boolean(layer && layer.visible && layer.text.trim()),
+  );
+  if (typeof document !== "undefined" && document.fonts) {
+    const faces = [
+      `400 100px ${primaryFamily(fontById(DROP_LAYOUT.words.font).family)}`,
+      `700 100px ${primaryFamily(fontById("poppins").family)}`,
+      ...textLayers.map(
+        (layer) =>
+          `${resolveTextStyle(layer).weight} 100px ${primaryFamily(fontById(layer.fontId).family)}`,
+      ),
+    ];
+    await Promise.all(faces.map((face) => document.fonts.load(face).catch(() => undefined)));
+  }
+
+  // Giant fixed headline words, drawn first so the card sits on top of them.
+  const wordFont = fontById(DROP_LAYOUT.words.font);
+  ctx.save();
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `400 ${DROP_LAYOUT.words.size * width}px ${wordFont.family}`;
+  ctx.fillText(DROP_LAYOUT.words.top.text, width / 2, DROP_LAYOUT.words.top.centerY * height);
+  ctx.fillText(DROP_LAYOUT.words.bottom.text, width / 2, DROP_LAYOUT.words.bottom.centerY * height);
+  ctx.restore();
+
+  // The tilted Polaroid card: white card + shadow, the photo window and the
+  // script caption in the strip below it, all rotated together about the
+  // card's own centre.
+  const card = DROP_LAYOUT.card;
+  const cardX = card.left * width;
+  const cardY = card.top * height;
+  const cardW = (card.right - card.left) * width;
+  const cardH = (card.bottom - card.top) * height;
+  const cx = cardX + cardW / 2;
+  const cy = cardY + cardH / 2;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate((DROP_LAYOUT.rotation * Math.PI) / 180);
+  ctx.translate(-cx, -cy);
+
+  ctx.save();
+  ctx.shadowColor = card.shadow.color;
+  ctx.shadowBlur = card.shadow.blur * width;
+  ctx.shadowOffsetX = card.shadow.offsetX * width;
+  ctx.shadowOffsetY = card.shadow.offsetY * width;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(cardX, cardY, cardW, cardH);
+  ctx.restore();
+
+  const p = DROP_LAYOUT.photo;
+  const photoBox = {
+    x: p.left * width,
+    y: p.top * height,
+    w: (p.right - p.left) * width,
+    h: (p.bottom - p.top) * height,
+  };
+  if (photo && photoLayer) drawImageCover(ctx, photo, photoBox, imageTransform(photoLayer));
+
+  if (caption?.visible && caption.text.trim()) {
+    const font = fontById(caption.fontId);
+    const style = resolveTextStyle(caption);
+    const size = dropCaptionFontSize(caption, cardW);
+    const label = caption.uppercase ? caption.text.toUpperCase() : caption.text;
+    const stripCenterY = (photoBox.y + photoBox.h + (cardY + cardH)) / 2;
+    ctx.save();
+    ctx.font = `${style.weight} ${size}px ${font.family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    applyTextShadow(ctx, style.shadow, size);
+    ctx.fillStyle = caption.color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, cx, stripCenterY);
+    ctx.restore();
+  }
+  ctx.restore(); // end card rotation
+
+  // Top corner brand/category labels — not rotated with the card.
+  const c = DROP_LAYOUT.corners;
+  const cornerY = c.centerY * height;
+  if (brandLabel?.visible && brandLabel.text.trim()) {
+    const font = fontById(brandLabel.fontId);
+    const style = resolveTextStyle(brandLabel);
+    ctx.save();
+    ctx.font = `${style.weight} ${c.size * width * style.sizeScale}px ${font.family}`;
+    ctx.letterSpacing = `${style.letterSpacing || c.tracking}em`;
+    ctx.fillStyle = brandLabel.color;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(
+      brandLabel.uppercase ? brandLabel.text.toUpperCase() : brandLabel.text,
+      c.pad * width,
+      cornerY,
+    );
+    ctx.restore();
+  }
+  if (categoryLabel?.visible && categoryLabel.text.trim()) {
+    const font = fontById(categoryLabel.fontId);
+    const style = resolveTextStyle(categoryLabel);
+    ctx.save();
+    ctx.font = `${style.weight} ${c.size * width * style.sizeScale}px ${font.family}`;
+    ctx.letterSpacing = `${style.letterSpacing || c.tracking}em`;
+    ctx.fillStyle = categoryLabel.color;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillText(
+      categoryLabel.uppercase ? categoryLabel.text.toUpperCase() : categoryLabel.text,
+      width - c.pad * width,
+      cornerY,
+    );
+    ctx.restore();
+  }
+
+  // Footer pill: a stroked capsule holding the fixed "DISCOVER MORE AT" label,
+  // flush against a smaller filled pill holding the editable handle. Both
+  // pills' widths come from the measured text so any handle length centres.
+  if (cta?.visible && cta.text.trim()) {
+    const pill = DROP_LAYOUT.pill;
+    const ctaFont = fontById(cta.fontId);
+    const ctaStyle = resolveTextStyle(cta);
+    const poppins = fontById("poppins");
+    const labelText = "DISCOVER MORE AT";
+    const handleText = cta.uppercase ? cta.text.toUpperCase() : cta.text;
+
+    const outerH = pill.height * width;
+    const labelSize = pill.labelSize * width;
+    const ctaSize = pill.ctaSize * width * ctaStyle.sizeScale;
+
+    ctx.save();
+    ctx.font = `700 ${labelSize}px ${poppins.family}`;
+    ctx.letterSpacing = `${pill.labelTracking}em`;
+    const labelWidth = ctx.measureText(labelText).width;
+
+    ctx.font = `${ctaStyle.weight} ${ctaSize}px ${ctaFont.family}`;
+    ctx.letterSpacing = `${ctaStyle.letterSpacing}em`;
+    const handleWidth = ctx.measureText(handleText).width;
+
+    const inset = pill.inset * width;
+    const innerH = outerH - inset * 2;
+    const innerPadX = pill.padX * width;
+    const innerW = handleWidth + innerPadX * 2;
+
+    const padX = pill.padX * width;
+    const gap = pill.gap * width;
+    const outerW = padX + labelWidth + gap + innerW + inset;
+
+    const outerX = (width - outerW) / 2;
+    const outerY = pill.centerY * height - outerH / 2;
+    const innerX = outerX + outerW - inset - innerW;
+    const innerY = outerY + (outerH - innerH) / 2;
+
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = pill.stroke * width;
+    ctx.beginPath();
+    ctx.roundRect(outerX, outerY, outerW, outerH, outerH / 2);
+    ctx.stroke();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.roundRect(innerX, innerY, innerW, innerH, innerH / 2);
+    ctx.fill();
+
+    ctx.font = `700 ${labelSize}px ${poppins.family}`;
+    ctx.letterSpacing = `${pill.labelTracking}em`;
+    ctx.fillStyle = "#ffffff";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(labelText, outerX + padX, outerY + outerH / 2);
+
+    ctx.font = `${ctaStyle.weight} ${ctaSize}px ${ctaFont.family}`;
+    ctx.letterSpacing = `${ctaStyle.letterSpacing}em`;
+    ctx.fillStyle = cta.color;
+    ctx.textAlign = "center";
+    ctx.fillText(handleText, innerX + innerW / 2, innerY + innerH / 2);
+    ctx.restore();
   }
 
   return canvasToBlob(canvas, format);
@@ -2506,6 +3158,21 @@ export async function exportCreative(
   }
   if (template.layout === "grid") {
     return exportGrid(template, layers, format, width);
+  }
+  if (template.layout === "drop") {
+    return exportDrop(template, layers, format, width);
+  }
+  if (template.layout === "woven") {
+    return exportWoven(template, layers, format, width);
+  }
+  if (template.layout === "statement") {
+    return exportStatement(template, layers, format, width);
+  }
+  if (template.layout === "brief") {
+    return exportBrief(template, layers, format, width);
+  }
+  if (template.layout === "mosaic") {
+    return exportMosaic(template, layers, format, width);
   }
 
   const ratio = parseRatio(template.aspectRatio);

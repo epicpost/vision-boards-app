@@ -129,7 +129,9 @@ export const EXPORT_FORMATS: Record<ExportFormat, ExportFormatMeta> = {
 // full-bleed vertical stack of photo bands with a city title overlaid; "porto"
 // reproduces the measured Porto travel poster reference; "relax" is a stack of
 // rounded photo panels (with gaps) and a caption + subcaption over the middle
-// panel, mirroring the `template_relax.v2.html` render engine template.
+// panel, mirroring the `template_relax.v2.html` render engine template;
+// "mosaic" is an 11-photo masonry moodboard grid (3 uneven columns, one tall
+// centre cell), with no text layers at all.
 export type TemplateLayout =
   | "poster"
   | "moodboard"
@@ -145,7 +147,12 @@ export type TemplateLayout =
   | "postcard"
   | "citymask"
   | "self"
-  | "grid";
+  | "grid"
+  | "drop"
+  | "woven"
+  | "statement"
+  | "brief"
+  | "mosaic";
 
 export interface RemixEditorTemplate {
   id: string;
@@ -207,6 +214,20 @@ export const EDITOR_FONTS: EditorFont[] = [
     family: "'Playfair Display', serif",
     weight: 700,
     weights: [400, 500, 600, 700, 800],
+  },
+  {
+    id: "alexbrush",
+    label: "Alex Brush",
+    family: "'Alex Brush', cursive",
+    weight: 400,
+    weights: [400],
+  },
+  {
+    id: "quicksand",
+    label: "Quicksand",
+    family: "'Quicksand', sans-serif",
+    weight: 400,
+    weights: [400, 500, 600, 700],
   },
 ];
 
@@ -958,11 +979,7 @@ const FRANKOF_CONCEPT: RemixEditorTemplate = {
       uppercase: false,
       weight: 400,
       align: "left",
-      suggestions: [
-        "FRANKOF — 2026 collection",
-        "Designed in-house",
-        "Made to be lived in",
-      ],
+      suggestions: ["FRANKOF — 2026 collection", "Designed in-house", "Made to be lived in"],
     },
   ],
 };
@@ -1032,12 +1049,7 @@ const FRANKOF_FEATURE: RemixEditorTemplate = {
       uppercase: true,
       weight: 500,
       align: "left",
-      suggestions: [
-        "Your\nfavorite\nstyle",
-        "Find your\nfit",
-        "Signature\npieces",
-        "The\nfeature",
-      ],
+      suggestions: ["Your\nfavorite\nstyle", "Find your\nfit", "Signature\npieces", "The\nfeature"],
     },
     {
       id: "image",
@@ -1098,10 +1110,38 @@ const FRANKOF_REVIEWS: RemixEditorTemplate = {
         "In your\nwords",
       ],
     },
-    { id: "photo-1", kind: "image", label: "Thumbnail", visible: true, hideable: false, src: "/templates/frankof-collection/slide-03.png" },
-    { id: "photo-2", kind: "image", label: "Wide photo", visible: true, hideable: false, src: "/templates/frankof-collection/slide-06.png" },
-    { id: "photo-3", kind: "image", label: "Photo 3", visible: true, hideable: false, src: "/templates/frankof-collection/slide-02.png" },
-    { id: "photo-4", kind: "image", label: "Photo 4", visible: true, hideable: false, src: "/templates/frankof-collection/slide-04.png" },
+    {
+      id: "photo-1",
+      kind: "image",
+      label: "Thumbnail",
+      visible: true,
+      hideable: false,
+      src: "/templates/frankof-collection/slide-03.png",
+    },
+    {
+      id: "photo-2",
+      kind: "image",
+      label: "Wide photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/frankof-collection/slide-06.png",
+    },
+    {
+      id: "photo-3",
+      kind: "image",
+      label: "Photo 3",
+      visible: true,
+      hideable: false,
+      src: "/templates/frankof-collection/slide-02.png",
+    },
+    {
+      id: "photo-4",
+      kind: "image",
+      label: "Photo 4",
+      visible: true,
+      hideable: false,
+      src: "/templates/frankof-collection/slide-04.png",
+    },
   ],
 };
 
@@ -1163,9 +1203,30 @@ const FRANKOF_DESIGN: RemixEditorTemplate = {
         "Considered, comfortable, and made to age well.",
       ],
     },
-    { id: "photo-1", kind: "image", label: "Card photo", visible: true, hideable: false, src: "/templates/frankof-collection/slide-05.png" },
-    { id: "photo-2", kind: "image", label: "Photo 2", visible: true, hideable: false, src: "/templates/frankof-collection/slide-01.png" },
-    { id: "photo-3", kind: "image", label: "Photo 3", visible: true, hideable: false, src: "/templates/frankof-collection/slide-08.png" },
+    {
+      id: "photo-1",
+      kind: "image",
+      label: "Card photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/frankof-collection/slide-05.png",
+    },
+    {
+      id: "photo-2",
+      kind: "image",
+      label: "Photo 2",
+      visible: true,
+      hideable: false,
+      src: "/templates/frankof-collection/slide-01.png",
+    },
+    {
+      id: "photo-3",
+      kind: "image",
+      label: "Photo 3",
+      visible: true,
+      hideable: false,
+      src: "/templates/frankof-collection/slide-08.png",
+    },
     // Optional brand logo — off by default; when shown it replaces the wordmark
     // in the top-right slot. The composer's Logo card fills this from the brand kit.
     {
@@ -1202,12 +1263,7 @@ const FRANKOF_TRENDS: RemixEditorTemplate = {
       uppercase: true,
       weight: 500,
       align: "left",
-      suggestions: [
-        "This season's\ntrends",
-        "What's\nnext",
-        "The new\nneutrals",
-        "Trending\nnow",
-      ],
+      suggestions: ["This season's\ntrends", "What's\nnext", "The new\nneutrals", "Trending\nnow"],
     },
     {
       id: "eyebrow",
@@ -1242,8 +1298,22 @@ const FRANKOF_TRENDS: RemixEditorTemplate = {
         "What our design team is watching right now.",
       ],
     },
-    { id: "photo-1", kind: "image", label: "Tall photo", visible: true, hideable: false, src: "/templates/frankof-collection/slide-07.png" },
-    { id: "photo-2", kind: "image", label: "Photo 2", visible: true, hideable: false, src: "/templates/frankof-collection/slide-02.png" },
+    {
+      id: "photo-1",
+      kind: "image",
+      label: "Tall photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/frankof-collection/slide-07.png",
+    },
+    {
+      id: "photo-2",
+      kind: "image",
+      label: "Photo 2",
+      visible: true,
+      hideable: false,
+      src: "/templates/frankof-collection/slide-02.png",
+    },
   ],
 };
 
@@ -1638,12 +1708,7 @@ const POSTCARD_LONDON: RemixEditorTemplate = {
       uppercase: true,
       weight: 600,
       letterSpacing: 0.16,
-      suggestions: [
-        "St. Pauls Cathedral",
-        "The Eiffel Tower",
-        "Shibuya Crossing",
-        "Central Park",
-      ],
+      suggestions: ["St. Pauls Cathedral", "The Eiffel Tower", "Shibuya Crossing", "Central Park"],
     },
     {
       id: "cta",
@@ -1719,13 +1784,7 @@ const CITYMASK_SAN_FRANCISCO: RemixEditorTemplate = {
       uppercase: true,
       weight: 700,
       letterSpacing: 0.06,
-      suggestions: [
-        "United States of America",
-        "United Kingdom",
-        "France",
-        "Japan",
-        "Italy",
-      ],
+      suggestions: ["United States of America", "United Kingdom", "France", "Japan", "Italy"],
     },
   ],
 };
@@ -1983,6 +2042,648 @@ const GRID_CONTRAST: RemixEditorTemplate = {
   ],
 };
 
+// "New Drop" poster — a tilted Polaroid-style photo card (white border + drop
+// shadow) pinned between two giant fixed headline words ("NEW" behind its top
+// edge, "DROP" behind its bottom), a hand-written caption set in the card's
+// caption strip, optional small brand/category labels in the top corners and
+// an optional "DISCOVER MORE AT @handle" pill footer. One required photo, a
+// required caption (script font, brand font supported); the corner labels and
+// the footer pill are optional. Mirrors
+// public/templates/shared/b89ab8d1b7f6cdbdfac67e1b84549e7d.jpg (736 × 1308).
+const DROP_NEW_DROP: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000042",
+  title: "New Drop",
+  layout: "drop",
+  aspectRatio: "736 / 1308",
+  background: "#c92222",
+  palette: [
+    { label: "Red", value: "#c92222" },
+    { label: "White", value: "#ffffff" },
+    { label: "Black", value: "#000000" },
+    { label: "Maroon", value: "#5a0f14" },
+    { label: "Ink", value: "#14161a" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/drop-portrait-source.jpg",
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Caption",
+      visible: true,
+      hideable: false,
+      text: "women's style",
+      color: "#5a0f14",
+      fontId: "alexbrush",
+      uppercase: false,
+      weight: 400,
+      suggestions: ["women's style", "new season", "street ready", "night out"],
+    },
+    {
+      id: "eyebrow",
+      kind: "eyebrow",
+      label: "Brand label",
+      visible: true,
+      hideable: true,
+      text: "SMARTOONS",
+      color: "#ffffff",
+      fontId: "oswald",
+      uppercase: true,
+      weight: 600,
+      letterSpacing: 0.14,
+      suggestions: ["SMARTOONS", "YOUR BRAND", "STUDIO"],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Category label",
+      visible: true,
+      hideable: true,
+      text: "FASHION",
+      color: "#ffffff",
+      fontId: "oswald",
+      uppercase: true,
+      weight: 600,
+      letterSpacing: 0.14,
+      suggestions: ["FASHION", "BEAUTY", "STREETWEAR", "ACCESSORIES"],
+    },
+    {
+      id: "cta",
+      kind: "cta",
+      label: "Handle",
+      visible: true,
+      hideable: true,
+      // The handle sits inside the pill's white fill, so its default is dark
+      // (not white like the other labels, which sit directly on the red bg).
+      text: "@SMARTOONS_TIKTOK",
+      color: "#5a0f14",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 700,
+      suggestions: ["@SMARTOONS_TIKTOK", "@YOURBRAND", "@SHOP_NOW"],
+    },
+  ],
+};
+
+// Woven Calm — the textile-brand editorial poster. Preview art lives at
+// public/templates/shared/b60f85f998182a3089460acd4f8af839.jpg (736 x 920): a
+// warm stone canvas with a tall photo panel on the left, a large serif title and
+// a small grey body paragraph stacked on the right. The default photo is the
+// panel cropped from that reference, so the untouched editor reproduces it.
+const WOVEN_CALM: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000043",
+  title: "Woven Calm",
+  layout: "woven",
+  aspectRatio: "736 / 920",
+  background: "#e8e3dd",
+  palette: [
+    { label: "Stone", value: "#e8e3dd" },
+    { label: "Sand", value: "#e3dccf" },
+    { label: "Mist", value: "#e2e4e1" },
+    { label: "Ivory", value: "#f4f1ea" },
+    { label: "Clay", value: "#d8cabb" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Photo",
+      visible: true,
+      hideable: false,
+      // The left panel cropped from the reference so the default matches it.
+      src: "/templates/shared/woven-source.jpg",
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Title",
+      visible: true,
+      hideable: false,
+      // The big serif headline (word-wrapped). Brand adaptation can swap the
+      // face for a brand family; the serif Playfair Display is the default.
+      text: "WOVEN CALM",
+      color: "#5b5954",
+      fontId: "playfair",
+      uppercase: true,
+      weight: 500,
+      suggestions: ["WOVEN CALM", "QUIET TEXTURE", "SOFT LIGHT", "STILL FORM"],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Body",
+      visible: true,
+      hideable: true,
+      text: "Серия визуальных сцен, созданных для\nпрезентации текстильного продукта.\nПроект соединяет эстетику бренда и\nфункциональный минимализм в спокойной палитре\nсвета и фактур.",
+      color: "#ada197",
+      fontId: "montserrat",
+      uppercase: false,
+      weight: 400,
+      suggestions: [],
+    },
+  ],
+};
+
+// Statement Portrait — the "BE AWESOME BE COOL" split poster. Preview art lives
+// at public/templates/shared/e1715f36feb27ef64348c7d8534f1693.jpg (548 x 761):
+// a photo panel on the left and a giant word-wrapped statement on the right,
+// each line revealing the same continuous photo, with a small optional tracked
+// tagline + underline. The default photo is that reference healed (the white
+// gaps between/around the letters clamp-filled from the nearest real pixel) so
+// a caption edit reveals continuous photo instead of the baked-in letter edges
+// — see self-portrait-source.jpg for the same trick.
+const STATEMENT_PORTRAIT: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000044",
+  title: "Statement Portrait",
+  layout: "statement",
+  aspectRatio: "548 / 761",
+  background: "#ffffff",
+  palette: [
+    { label: "Black", value: "#000000" },
+    { label: "White", value: "#ffffff" },
+    { label: "Ink", value: "#14161a" },
+    { label: "Slate", value: "#3a3f45" },
+    { label: "Stone", value: "#8a8577" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Photo",
+      visible: true,
+      hideable: false,
+      // The reference healed so the letters reveal continuous photo rather
+      // than the baked-in white gaps (see comment above).
+      src: "/templates/shared/statement-split-source.jpg",
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Caption",
+      visible: true,
+      hideable: false,
+      text: "BE AWESOME BE COOL",
+      // Colour is unused when a photo is present (it shows through the
+      // letters), but a value is kept so the no-photo fallback still paints
+      // legible letters.
+      color: "#000000",
+      fontId: "archivo",
+      uppercase: true,
+      weight: 400,
+      suggestions: [
+        "BE AWESOME BE COOL",
+        "STAY WILD AND FREE",
+        "DRESSED TO IMPRESS",
+        "OWN YOUR STYLE",
+      ],
+    },
+    {
+      id: "cta",
+      kind: "cta",
+      label: "Tagline",
+      visible: true,
+      hideable: true,
+      text: "Your presents",
+      color: "#000000",
+      fontId: "oswald",
+      uppercase: true,
+      weight: 700,
+      letterSpacing: 0.08,
+      suggestions: ["Your presents", "New collection", "Now available", "Shop the look"],
+    },
+  ],
+};
+
+// Studio Brief — the "Residential" agency-brief poster. Preview art lives at
+// public/templates/shared/835ae6f846127c33b5e08dc12611e29f.jpg (1080 x 1350): a
+// white paper panel on the left carrying a bullet-and-rule marker, a bold serif
+// category caption and a short mission paragraph, beside a full-bleed photo on
+// the right. The default photo is that reference's own right-hand panel, so the
+// untouched editor reproduces it.
+const STUDIO_BRIEF: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000045",
+  title: "Studio Brief",
+  layout: "brief",
+  aspectRatio: "4 / 5",
+  background: "#ffffff",
+  palette: [
+    { label: "Black", value: "#000000" },
+    { label: "Ink", value: "#14161a" },
+    { label: "Slate", value: "#3a3f45" },
+    { label: "Stone", value: "#8a8577" },
+    { label: "White", value: "#ffffff" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Photo",
+      visible: true,
+      hideable: false,
+      // The reference's own right-hand panel so the default matches it.
+      src: "/templates/shared/brief-residential-source.jpg",
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Category",
+      visible: true,
+      hideable: false,
+      text: "Residential",
+      color: "#000000",
+      fontId: "playfair",
+      uppercase: false,
+      weight: 700,
+      align: "left",
+      suggestions: ["Residential", "Commercial", "Hospitality", "Workspace", "Retail"],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Mission",
+      visible: true,
+      hideable: true,
+      text: "Our mission is to transform your vision into reality by providing bespoke residential interior design services in the vibrant city of Dubai.",
+      color: "#000000",
+      fontId: "quicksand",
+      uppercase: false,
+      weight: 400,
+      align: "left",
+      suggestions: [
+        "Our mission is to transform your vision into reality by providing bespoke residential interior design services in the vibrant city of Dubai.",
+        "We craft considered spaces that balance comfort, light and material honesty for modern city living.",
+        "From concept to handover, our studio delivers tailored interiors that reflect how you actually live.",
+      ],
+    },
+  ],
+};
+
+// Residence Mosaic — the 11-photo interior-design moodboard. Preview art lives
+// at public/templates/shared/1d9692aee1d1536bad55a52a4003aaac.jpg (736 ×
+// 1313): 3 uneven masonry columns (narrow / wide / narrow) with the wide
+// centre column's 3 cells taller than the side columns' 4, split by a thin
+// white gutter. No text — every cell is a required photo, independently
+// replaceable, and each default photo is that reference's own cell so the
+// untouched editor reproduces it exactly.
+const RESIDENCE_MOSAIC: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000046",
+  title: "Residence Mosaic",
+  layout: "mosaic",
+  aspectRatio: "736 / 1313",
+  background: "#ffffff",
+  palette: [
+    { label: "White", value: "#ffffff" },
+    { label: "Ink", value: "#1c1a17" },
+    { label: "Stone", value: "#8a8577" },
+    { label: "Sand", value: "#e7ddd0" },
+    { label: "Black", value: "#000000" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "cell-1",
+      kind: "image",
+      label: "Photo 1",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-residence-01-palm-desert.jpg",
+    },
+    {
+      id: "cell-2",
+      kind: "image",
+      label: "Photo 2",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-residence-02-modern-exterior.jpg",
+    },
+    {
+      id: "cell-3",
+      kind: "image",
+      label: "Photo 3",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-residence-03-window-nook.jpg",
+    },
+    {
+      id: "cell-4",
+      kind: "image",
+      label: "Photo 4",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-residence-04-dune-cushions.jpg",
+    },
+    {
+      id: "cell-5",
+      kind: "image",
+      label: "Photo 5",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-residence-05-seaview-lounge.jpg",
+    },
+    {
+      id: "cell-6",
+      kind: "image",
+      label: "Photo 6",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-residence-06-minimal-corner.jpg",
+    },
+    {
+      id: "cell-7",
+      kind: "image",
+      label: "Photo 7",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-residence-07-gallery-console.jpg",
+    },
+    {
+      id: "cell-8",
+      kind: "image",
+      label: "Photo 8",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-residence-08-fireplace-nook.jpg",
+    },
+    {
+      id: "cell-9",
+      kind: "image",
+      label: "Photo 9",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-residence-09-wood-corner-plant.jpg",
+    },
+    {
+      id: "cell-10",
+      kind: "image",
+      label: "Photo 10",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-residence-10-bright-living-room.jpg",
+    },
+    {
+      id: "cell-11",
+      kind: "image",
+      label: "Photo 11",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-residence-11-skyline-patio.jpg",
+    },
+  ],
+};
+
+// Coastal Mosaic — the 13-photo Mediterranean-home moodboard. Preview art
+// lives at public/templates/shared/078de9478ab62f259139da7a07aa7f60.jpg (736 ×
+// 1313): 3 uneven columns split by a thin white gutter, each column breaking
+// into a different number of cells (4 / 4 / 5) below the two shared top rows.
+// No text — every cell is a required photo, independently replaceable, and
+// each default photo is that reference's own cell so the untouched editor
+// reproduces it exactly (see the "…047" entry in MOSAIC_VARIANTS).
+const COASTAL_MOSAIC: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000047",
+  title: "Coastal Mosaic",
+  layout: "mosaic",
+  aspectRatio: "736 / 1313",
+  background: "#ffffff",
+  palette: [
+    { label: "White", value: "#ffffff" },
+    { label: "Ink", value: "#1c1a17" },
+    { label: "Stone", value: "#8a8577" },
+    { label: "Sand", value: "#e7ddd0" },
+    { label: "Black", value: "#000000" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "cell-1",
+      kind: "image",
+      label: "Photo 1",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-coastal-01-hillside-town.jpg",
+    },
+    {
+      id: "cell-2",
+      kind: "image",
+      label: "Photo 2",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-coastal-02-archway-window.jpg",
+    },
+    {
+      id: "cell-3",
+      kind: "image",
+      label: "Photo 3",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-coastal-03-woven-fans.jpg",
+    },
+    {
+      id: "cell-4",
+      kind: "image",
+      label: "Photo 4",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-coastal-04-cliffside-pool.jpg",
+    },
+    {
+      id: "cell-5",
+      kind: "image",
+      label: "Photo 5",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-coastal-05-terrace-lounge.jpg",
+    },
+    {
+      id: "cell-6",
+      kind: "image",
+      label: "Photo 6",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-coastal-06-rocky-coast.jpg",
+    },
+    {
+      id: "cell-7",
+      kind: "image",
+      label: "Photo 7",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-coastal-07-woven-baskets.jpg",
+    },
+    {
+      id: "cell-8",
+      kind: "image",
+      label: "Photo 8",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-coastal-08-linen-bed.jpg",
+    },
+    {
+      id: "cell-9",
+      kind: "image",
+      label: "Photo 9",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-coastal-09-twine-spool.jpg",
+    },
+    {
+      id: "cell-10",
+      kind: "image",
+      label: "Photo 10",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-coastal-10-plaster-niche.jpg",
+    },
+    {
+      id: "cell-11",
+      kind: "image",
+      label: "Photo 11",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-coastal-11-clifftop-tower.jpg",
+    },
+    {
+      id: "cell-12",
+      kind: "image",
+      label: "Photo 12",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-coastal-12-bedroom-view.jpg",
+    },
+    {
+      id: "cell-13",
+      kind: "image",
+      label: "Photo 13",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-coastal-13-beamed-bedroom.jpg",
+    },
+  ],
+};
+
+// Stone Villa Mosaic — the 11-photo Mediterranean-villa moodboard. Preview art
+// lives at public/templates/shared/12b150466df1b894b3016580977e5ed4.jpg (736 ×
+// 1313): 3 uneven masonry columns (narrow / wide / medium), full-bleed to the
+// canvas edges, split by a hairline gutter; the wide centre column's middle
+// cell spans two row-heights. No text — every cell is a required photo,
+// independently replaceable, and each default photo is that reference's own
+// cell so the untouched editor reproduces it exactly (see the "…048" entry in
+// MOSAIC_VARIANTS).
+const STONE_VILLA_MOSAIC: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000048",
+  title: "Stone Villa Mosaic",
+  layout: "mosaic",
+  aspectRatio: "736 / 1313",
+  background: "#ffffff",
+  palette: [
+    { label: "White", value: "#ffffff" },
+    { label: "Ink", value: "#1c1a17" },
+    { label: "Stone", value: "#8a8577" },
+    { label: "Sand", value: "#e7ddd0" },
+    { label: "Black", value: "#000000" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "cell-1",
+      kind: "image",
+      label: "Photo 1",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-villa-01-stone-cabinet.jpg",
+    },
+    {
+      id: "cell-2",
+      kind: "image",
+      label: "Photo 2",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-villa-02-terracotta-sofa.jpg",
+    },
+    {
+      id: "cell-3",
+      kind: "image",
+      label: "Photo 3",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-villa-03-patio-olive.jpg",
+    },
+    {
+      id: "cell-4",
+      kind: "image",
+      label: "Photo 4",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-villa-04-kitchen-ceiling.jpg",
+    },
+    {
+      id: "cell-5",
+      kind: "image",
+      label: "Photo 5",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-villa-05-staircase-tall.jpg",
+    },
+    {
+      id: "cell-6",
+      kind: "image",
+      label: "Photo 6",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-villa-06-gallery-wall.jpg",
+    },
+    {
+      id: "cell-7",
+      kind: "image",
+      label: "Photo 7",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-villa-07-office-masks.jpg",
+    },
+    {
+      id: "cell-8",
+      kind: "image",
+      label: "Photo 8",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-villa-08-living-room.jpg",
+    },
+    {
+      id: "cell-9",
+      kind: "image",
+      label: "Photo 9",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-villa-09-glass-door.jpg",
+    },
+    {
+      id: "cell-10",
+      kind: "image",
+      label: "Photo 10",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-villa-10-tree-branch.jpg",
+    },
+    {
+      id: "cell-11",
+      kind: "image",
+      label: "Photo 11",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/mosaic-villa-11-bedroom.jpg",
+    },
+  ],
+};
+
 const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [TEMPLATE_28.id]: TEMPLATE_28,
   [TEMPLATE_205.id]: TEMPLATE_205,
@@ -2007,6 +2708,13 @@ const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [GRID_MONO.id]: GRID_MONO,
   [GRID_STATEMENT.id]: GRID_STATEMENT,
   [GRID_CONTRAST.id]: GRID_CONTRAST,
+  [DROP_NEW_DROP.id]: DROP_NEW_DROP,
+  [WOVEN_CALM.id]: WOVEN_CALM,
+  [STATEMENT_PORTRAIT.id]: STATEMENT_PORTRAIT,
+  [STUDIO_BRIEF.id]: STUDIO_BRIEF,
+  [RESIDENCE_MOSAIC.id]: RESIDENCE_MOSAIC,
+  [COASTAL_MOSAIC.id]: COASTAL_MOSAIC,
+  [STONE_VILLA_MOSAIC.id]: STONE_VILLA_MOSAIC,
 };
 
 export function getRemixEditorTemplate(id: string): RemixEditorTemplate | null {
@@ -2371,7 +3079,9 @@ export const EDITORIAL_VARIANTS: Record<string, EditorialGeometry> = {
 };
 
 export function editorialGeometry(templateId: string): EditorialGeometry {
-  return EDITORIAL_VARIANTS[templateId] ?? EDITORIAL_VARIANTS["13000000-0000-0000-0000-000000000101"];
+  return (
+    EDITORIAL_VARIANTS[templateId] ?? EDITORIAL_VARIANTS["13000000-0000-0000-0000-000000000101"]
+  );
 }
 
 // ── FRANKOF collage geometry ─────────────────────────────────────────────────
@@ -2504,10 +3214,7 @@ export function splitHeadlineFontSize(header: TextLayer, canvasWidth: number): n
 
   const scaled = base * (widthBase / widthNew) * style.sizeScale;
   // Keep within a sane band of the base so an extreme face can't blow up or vanish.
-  return Math.min(
-    base * 1.8 * style.sizeScale,
-    Math.max(base * 0.6 * style.sizeScale, scaled),
-  );
+  return Math.min(base * 1.8 * style.sizeScale, Math.max(base * 0.6 * style.sizeScale, scaled));
 }
 
 // Measured from public/templates/shared/porto-poster.jpg (736 x 1308) and
@@ -2956,11 +3663,7 @@ function splitWordBalanced(
 // across lines, so a long city like FRANCISCO becomes FRAN / CISCO.
 // `measure` returns a string's width at font-size 1 (resolution independent);
 // `maxW` is the column width in the same units as the caller's font size.
-function wrapMaskedWord(
-  text: string,
-  measure: (s: string) => number,
-  maxW: number,
-): string[] {
+function wrapMaskedWord(text: string, measure: (s: string) => number, maxW: number): string[] {
   const words = text.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let cur = "";
@@ -3096,7 +3799,12 @@ export function cityMaskGeometry(
 
 // The country label wrapped to its column (greedy word wrap, no mid-word breaks).
 // Shared so the preview and export stack the label identically.
-export function cityMaskLabelLines(text: string, fontId: string, weight: number, width: number): string[] {
+export function cityMaskLabelLines(
+  text: string,
+  fontId: string,
+  weight: number,
+  width: number,
+): string[] {
   const clean = (text ?? "").trim();
   if (!clean) return [];
   const ctx = getMeasureCtx();
@@ -3201,6 +3909,214 @@ export function selfGeometry(
   return { left, cellW, cap, fontSize: cap / L.capRatio, photoRight, cells };
 }
 
+// ── Statement portrait geometry ──────────────────────────────────────────────
+// Like "self" (a full-bleed photo on the left half, the caption revealing the
+// same photo on the right) but the caption is a multi-word statement that's
+// word-wrapped and auto-fit — reusing the citymask wrap/scoring machinery
+// (`wrapMaskedWord`) instead of self's one-letter-per-row stack — plus an
+// optional small tracked tagline with an underline, sitting beside the shorter
+// wrapped rows. Fractions of width/height so the DOM preview (StatementPreview)
+// and the canvas export (exportStatement) agree at any resolution. Measured
+// from the 548 × 761 reference: a thin white gap separates the photo panel
+// (x ≤ ~0.494) from the wrapped caption column (x ≈ 0.505..0.995).
+export const STATEMENT_LAYOUT = {
+  photoRight: 0.494,
+  title: {
+    left: 0.505,
+    right: 0.995,
+    top: 0.096,
+    bottom: 0.858,
+    lineHeight: 0.92,
+    capRatio: 0.72,
+  },
+  // Small tracked tagline (e.g. "Your presents") beside the caption, with a
+  // hairline underline beneath it that overshoots the text a touch either
+  // side. `left`/`top` are only the fallback position (no caption to anchor
+  // to) — normally it's positioned dynamically via `statementTagAnchor`.
+  tag: {
+    left: 0.759,
+    top: 0.511,
+    size: 0.03,
+    lineHeight: 1.15,
+    maxWidth: 0.2,
+    tracking: 0.08,
+    underlineGap: 0.013,
+    underlineWeight: 0.006,
+    underlineExtendLeft: 0.013,
+    underlineExtendRight: 0.033,
+  },
+} as const;
+
+export interface StatementLine {
+  text: string;
+  // Baseline offset from the block top, in unscaled units (before `scaleY`).
+  baseline: number;
+  // Rendered width at `fontSize`, in target canvas units.
+  width: number;
+}
+
+export interface StatementGeometry {
+  fontSize: number;
+  left: number;
+  // Top of the text block (px). The lines are drawn under a
+  // `translate(0, top) scale(1, scaleY)` transform so the caption stretches
+  // vertically to fill the box while its letters keep their width.
+  top: number;
+  scaleY: number;
+  photoRight: number;
+  lines: StatementLine[];
+}
+
+// The fitted font size and per-line baselines for the word-wrapped statement,
+// in the target canvas units (px, or 100 / 100·ratio for a viewBox preview).
+// Mirrors `cityMaskGeometry`'s auto-fit + wrap scoring, just confined to the
+// narrower right-hand column (the left half is the photo panel). Shared by the
+// preview and export so both wrap and stack the caption identically. Falls
+// back to a single centred line when glyph measurement is unavailable (no DOM).
+export function statementGeometry(
+  text: string,
+  fontId: string,
+  weight: number,
+  width: number,
+  height: number,
+): StatementGeometry {
+  const L = STATEMENT_LAYOUT.title;
+  const left = L.left * width;
+  const boxW = (L.right - L.left) * width;
+  const top = L.top * height;
+  const boxH = (L.bottom - L.top) * height;
+  const photoRight = STATEMENT_LAYOUT.photoRight * width;
+  const clean = (text ?? "").trim();
+  const ctx = getMeasureCtx();
+  const font = fontById(fontId);
+  if (!ctx || !clean) {
+    const fontSize = clean ? boxH * 0.3 : 0;
+    return {
+      fontSize,
+      left,
+      top,
+      scaleY: 1,
+      photoRight,
+      lines: clean
+        ? [{ text: clean, baseline: boxH / 2 + fontSize * (L.capRatio / 2), width: boxW }]
+        : [],
+    };
+  }
+  // Measure at a 100px reference; width scales linearly with font size, so
+  // `measure` gives width per 1px of font size.
+  ctx.font = `${weight} 100px ${font.family}`;
+  const measure = (s: string) => ctx.measureText(s).width / 100;
+
+  // Scan candidate font sizes exactly like `cityMaskGeometry`: at each size the
+  // caption is greedily wrapped (breaking an overlong word across lines) to fit
+  // the column, and the highest-scoring feasible size wins — favouring a bigger
+  // font, but penalising extra word-breaks and lopsided lines. This is what
+  // settles "BE AWESOME BE COOL" into BE / AWE / SOME / BE / CO / OL rather than
+  // a smaller, unsplit BE / AWESOME / BE / COOL.
+  const wordCount = clean.split(/\s+/).filter(Boolean).length;
+  let bestSize = 8;
+  let bestLines = [clean];
+  let bestScore = -Infinity;
+  const steps = 140;
+  for (let i = 1; i <= steps; i++) {
+    const size = (boxH * i) / steps;
+    const lines = wrapMaskedWord(clean, measure, boxW / size);
+    const needed = lines.length * size * L.lineHeight;
+    if (needed > boxH) continue;
+    const widths = lines.map((ln) => measure(ln) * size);
+    const widest = Math.max(...widths);
+    if (widest > boxW + 1) continue;
+    const shortest = Math.min(...widths);
+    const balanced = lines.length === 1 || shortest / widest >= 0.42;
+    const extraSplits = Math.max(0, lines.length - wordCount);
+    const score = (size * (balanced ? 1 : 0.55)) / (1 + 0.5 * extraSplits);
+    if (score > bestScore) {
+      bestScore = score;
+      bestSize = size;
+      bestLines = lines;
+    }
+  }
+  // Fill the column width exactly with the widest line, then stretch the whole
+  // block vertically to fill the box height.
+  const widest = bestLines.reduce((max, ln) => Math.max(max, measure(ln)), 0);
+  const fontSize = widest > 0 ? Math.min(boxW / widest, bestSize * 3) : bestSize;
+  const slot = fontSize * L.lineHeight;
+  const naturalH = bestLines.length * slot;
+  const scaleY = naturalH > 0 ? Math.max(0.9, Math.min(boxH / naturalH, 1.6)) : 1;
+  const blockH = naturalH * scaleY;
+  const blockTop = top + Math.max(0, (boxH - blockH) / 2);
+  const lines = bestLines.map((ln, i) => ({
+    text: ln,
+    baseline: i * slot + fontSize * L.capRatio,
+    width: measure(ln) * fontSize,
+  }));
+  return { fontSize, left, top: blockTop, scaleY, photoRight, lines };
+}
+
+// Where the optional tagline sits: vertically centred beside whichever wrapped
+// line has the most spare room (the shortest line — excluding the very first
+// and last rows when there are more than two, so it nests in the middle of the
+// stack rather than crowding the top/bottom edge). This is what puts "Your
+// presents" beside the short "BE" row rather than the wide "SOME"/"COOL" rows,
+// however many lines the caption happens to wrap into. Returns null when
+// there's no caption to anchor to (the caller falls back to a fixed position).
+export function statementTagAnchor(
+  geo: StatementGeometry,
+  width: number,
+): { x: number; centerY: number } | null {
+  if (!geo.lines.length) return null;
+  const n = geo.lines.length;
+  const indices =
+    n > 2 ? Array.from({ length: n - 2 }, (_, i) => i + 1) : geo.lines.map((_, i) => i);
+  const bestIndex = indices.reduce((best, i) =>
+    geo.lines[i].width < geo.lines[best].width ? i : best,
+  );
+  const line = geo.lines[bestIndex];
+  const centerY =
+    geo.top + (line.baseline - geo.fontSize * STATEMENT_LAYOUT.title.capRatio * 0.5) * geo.scaleY;
+  const x = geo.left + line.width + 0.025 * width;
+  return { x, centerY };
+}
+
+// The optional tagline (e.g. "Your presents") wrapped to its column (greedy
+// word wrap, no mid-word breaks). Shared so the preview and export stack it
+// identically.
+export function statementTagLines(
+  text: string,
+  fontId: string,
+  weight: number,
+  width: number,
+  tracking: number = STATEMENT_LAYOUT.tag.tracking,
+): string[] {
+  const clean = (text ?? "").trim();
+  if (!clean) return [];
+  const ctx = getMeasureCtx();
+  if (!ctx) return [clean];
+  const font = fontById(fontId);
+  const size = STATEMENT_LAYOUT.tag.size * width;
+  ctx.font = `${weight} ${size}px ${font.family}`;
+  // Letter-spacing widens the rendered text, so it has to factor into the wrap
+  // measurement too — otherwise "Your presents" can measure as fitting one
+  // line here but visibly overflow once the tracked CSS/canvas text renders.
+  ctx.letterSpacing = `${tracking}em`;
+  const maxW = STATEMENT_LAYOUT.tag.maxWidth * width;
+  const words = clean.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let cur = words[0] ?? "";
+  for (let i = 1; i < words.length; i++) {
+    const candidate = `${cur} ${words[i]}`;
+    if (ctx.measureText(candidate).width <= maxW) {
+      cur = candidate;
+    } else {
+      lines.push(cur);
+      cur = words[i];
+    }
+  }
+  if (cur) lines.push(cur);
+  ctx.letterSpacing = "0px";
+  return lines.length ? lines : [clean];
+}
+
 // ── Mono Grid geometry ───────────────────────────────────────────────────────
 // A full-bleed background photo split into a 3×3 grid by thin lines drawn in
 // the canvas background colour, up to 3 small photos each filling one cell, a
@@ -3292,4 +4208,416 @@ export function gridTextLines(text: string, uppercase: boolean): string[] {
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
+}
+
+// ── "New Drop" geometry ──────────────────────────────────────────────────────
+// A tilted Polaroid-style photo card sits between two giant fixed headline
+// words ("NEW" behind its top edge, "DROP" behind its bottom); the required
+// photo cover-fits the card's photo window, and the required caption is set in
+// script type in the card's caption strip below it. Optional brand/category
+// labels sit in the top corners and an optional pill footer ("DISCOVER MORE AT
+// @handle") sits at the bottom. Horizontal measures and font sizes are
+// fractions of the canvas *width*; vertical anchors are fractions of *height*.
+// Shared by the DOM preview (DropPreview) and the canvas export (exportDrop).
+// Measured from the 736 × 1308 reference
+// (public/templates/shared/b89ab8d1b7f6cdbdfac67e1b84549e7d.jpg).
+export const DROP_LAYOUT = {
+  // The card's un-rotated rect, rotated `rotation` degrees clockwise about its
+  // own centre so it reads as tossed slightly askew.
+  rotation: 2.2,
+  card: {
+    left: 0.181,
+    right: 0.789,
+    top: 0.214,
+    bottom: 0.766,
+    // Drop shadow cast by the tilted card, expressed as canvas-width fractions
+    // so the DOM preview (CSS box-shadow) and canvas export (shadowBlur/Offset)
+    // agree.
+    shadow: { blur: 0.05, offsetX: 0.012, offsetY: 0.03, color: "rgba(0,0,0,0.45)" },
+  },
+  // The photo window inside the card (inset from the card's white border).
+  photo: { left: 0.223, right: 0.747, top: 0.238, bottom: 0.661 },
+  // The script caption, centred in the strip between the photo and the card's
+  // bottom edge. `targetWidth` is the width the caption is fit to (a fraction
+  // of the card's width); size is clamped to a sane band around it.
+  caption: { targetWidth: 0.78, size: 0.1, minSize: 0.045, maxSize: 0.14 },
+  // The giant fixed headline words. Not user-editable — the card's top/bottom
+  // edges are drawn over their middle, leaving only a sliver of each visible.
+  words: {
+    font: "anton",
+    size: 0.34,
+    top: { text: "NEW", centerY: 0.148 },
+    bottom: { text: "DROP", centerY: 0.832 },
+  },
+  // Small tracked-caps brand (left) / category (right) labels, top corners.
+  corners: { centerY: 0.049, pad: 0.064, size: 0.0225, tracking: 0.14 },
+  // The footer pill: a stroked capsule holding the fixed "DISCOVER MORE AT"
+  // label, and — flush to its right — a smaller white filled pill holding the
+  // editable handle. Widths are computed from the measured text so any handle
+  // length centres correctly; see `dropPillMetrics`.
+  pill: {
+    centerY: 0.938,
+    height: 0.05,
+    padX: 0.045,
+    gap: 0.022,
+    inset: 0.008,
+    stroke: 0.003,
+    labelSize: 0.024,
+    ctaSize: 0.028,
+    labelTracking: 0.02,
+  },
+} as const;
+
+// The caption's fitted font size (px at `cardWidth`, the card's rendered
+// width): measures the (cased) text and scales the layout's base size so it
+// fills `caption.targetWidth` of the card, clamped to a sane band — the same
+// "measure, then scale" approach as `portoCaptionFontSize`. Falls back to the
+// plain base size when it can't measure (no DOM, empty text, or an unloaded
+// font), so it is never a wrong guess — only a no-op fallback.
+export function dropCaptionFontSize(caption: TextLayer, cardWidth: number): number {
+  const style = resolveTextStyle(caption);
+  const base = DROP_LAYOUT.caption.size * cardWidth;
+  const fallback = Math.min(
+    DROP_LAYOUT.caption.maxSize * cardWidth,
+    Math.max(DROP_LAYOUT.caption.minSize * cardWidth, base * style.sizeScale),
+  );
+  const label = (caption.uppercase ? caption.text.toUpperCase() : caption.text).trim();
+  const ctx = getMeasureCtx();
+  if (!ctx || !label) return fallback;
+
+  const font = fontById(caption.fontId);
+  const ref = 100;
+  ctx.font = `${style.weight} ${ref}px ${font.family}`;
+  const width = ctx.measureText(label).width;
+  if (!width) return fallback;
+
+  const target = DROP_LAYOUT.caption.targetWidth * cardWidth;
+  const fitted = (target / width) * ref * style.sizeScale;
+  return Math.min(
+    DROP_LAYOUT.caption.maxSize * cardWidth,
+    Math.max(DROP_LAYOUT.caption.minSize * cardWidth, fitted),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Woven Calm — a textile-brand editorial poster (see WOVEN_CALM). A warm stone
+// canvas holds a tall photo panel on the left, and on the right a large serif
+// title (word-wrapped) stacked over a small grey body paragraph (word-wrapped).
+// All positions are fractions of the 736 × 920 reference so the DOM preview
+// (WovenPreview) and the canvas export (exportWoven) agree at any resolution.
+// Measured from the reference: photo panel x≈117..339 y≈179..823; the text
+// column starts at x≈378 and wraps at x≈633 (≈255px wide); the title caps are
+// ≈51px tall with a ≈78px baseline pitch, first baseline ≈408; the body is
+// ≈14px with a ≈16px line pitch, first baseline ≈537.
+export const WOVEN_LAYOUT = {
+  photo: { left: 117 / 736, right: 339 / 736, top: 179 / 920, bottom: 823 / 920 },
+  // Left edge of the text column and the width words wrap within. Wide enough
+  // that the reference's hard-wrapped body lines never re-wrap (so the layout is
+  // reproduced exactly regardless of the body face's metrics), yet narrow enough
+  // that the two-word title still breaks onto two lines.
+  col: { left: 378 / 736, width: 320 / 736 },
+  title: {
+    cap: 51 / 920, // uppercase cap height
+    capRatio: 0.72, // cap height ÷ em for the serif face (Playfair ≈ 0.72)
+    lineHeight: 78 / 51, // baseline pitch ÷ cap height
+    firstBaseline: 408 / 920, // baseline of the first title line
+  },
+  body: {
+    size: 10.5 / 920, // font size
+    lineHeight: 16 / 920, // baseline pitch
+    gap: 51 / 920, // gap between the last title baseline and the first body baseline
+  },
+} as const;
+
+// Word-wrap `text` into lines no wider than `maxWidth`, measuring with the given
+// face. Explicit newlines are honoured as hard paragraph breaks (each paragraph
+// wrapped on its own); long single words are kept whole (they simply overflow,
+// as CSS would). Shared so the preview and export wrap identically.
+export function wovenWrap(
+  text: string,
+  fontId: string,
+  weight: number,
+  sizePx: number,
+  maxWidth: number,
+): string[] {
+  const clean = (text ?? "").replace(/\r\n?/g, "\n").trim();
+  if (!clean) return [];
+  const ctx = getMeasureCtx();
+  const paragraphs = clean.split("\n").map((p) => p.trim());
+  if (!ctx) return paragraphs.filter(Boolean);
+  ctx.font = `${weight} ${sizePx}px ${fontById(fontId).family}`;
+  const lines: string[] = [];
+  for (const paragraph of paragraphs) {
+    const words = paragraph.split(/\s+/).filter(Boolean);
+    if (!words.length) continue;
+    let cur = words[0];
+    for (let i = 1; i < words.length; i++) {
+      const candidate = `${cur} ${words[i]}`;
+      if (ctx.measureText(candidate).width <= maxWidth) cur = candidate;
+      else {
+        lines.push(cur);
+        cur = words[i];
+      }
+    }
+    lines.push(cur);
+  }
+  return lines;
+}
+
+export interface WovenLine {
+  text: string;
+  baseline: number; // alphabetic baseline y, in target units
+}
+
+export interface WovenGeometry {
+  photo: { x: number; y: number; w: number; h: number };
+  colLeft: number;
+  colWidth: number;
+  titleFontSize: number;
+  bodyFontSize: number;
+  titleLines: WovenLine[];
+  bodyLines: WovenLine[];
+}
+
+// Resolve the photo panel plus the positioned title and body lines for the woven
+// poster, in the target canvas units (px, or the preview viewBox units). The
+// body block flows directly beneath the (variable-height) title block, so a
+// longer/shorter title reflows the body rather than overlapping it.
+export function wovenGeometry(
+  titleText: string,
+  titleFontId: string,
+  titleWeight: number,
+  titleUppercase: boolean,
+  bodyText: string,
+  bodyFontId: string,
+  bodyWeight: number,
+  width: number,
+  height: number,
+): WovenGeometry {
+  const L = WOVEN_LAYOUT;
+  const colLeft = L.col.left * width;
+  const colWidth = L.col.width * width;
+  const photo = {
+    x: L.photo.left * width,
+    y: L.photo.top * height,
+    w: (L.photo.right - L.photo.left) * width,
+    h: (L.photo.bottom - L.photo.top) * height,
+  };
+
+  const titleFontSize = (L.title.cap * height) / L.title.capRatio;
+  const titlePitch = L.title.cap * height * L.title.lineHeight;
+  const bodyFontSize = L.body.size * height;
+  const bodyPitch = L.body.lineHeight * height;
+
+  // Wrap at a fixed canonical resolution (not the target one) so the preview and
+  // the export agree on line breaks: sub-pixel font hinting makes measureText
+  // slightly non-linear across sizes, so a shared basis keeps them in step.
+  // Positions below still scale to the actual width/height.
+  const CANON = 1000;
+  const canonHeight = (CANON * height) / width;
+  const mColWidth = L.col.width * CANON;
+  const mTitleSize = (L.title.cap * canonHeight) / L.title.capRatio;
+  const mBodySize = L.body.size * canonHeight;
+
+  const titleRaw = titleUppercase ? (titleText ?? "").toUpperCase() : (titleText ?? "");
+  const titleWords = wovenWrap(titleRaw, titleFontId, titleWeight, mTitleSize, mColWidth);
+  const firstBaseline = L.title.firstBaseline * height;
+  const titleLines: WovenLine[] = titleWords.map((text, i) => ({
+    text,
+    baseline: firstBaseline + i * titlePitch,
+  }));
+
+  const lastTitleBaseline = titleLines.length
+    ? titleLines[titleLines.length - 1].baseline
+    : firstBaseline - titlePitch;
+  const bodyStart = lastTitleBaseline + L.body.gap * height;
+  const bodyWords = wovenWrap(bodyText, bodyFontId, bodyWeight, mBodySize, mColWidth);
+  const bodyLines: WovenLine[] = bodyWords.map((text, i) => ({
+    text,
+    baseline: bodyStart + i * bodyPitch,
+  }));
+
+  return { photo, colLeft, colWidth, titleFontSize, bodyFontSize, titleLines, bodyLines };
+}
+
+// ---------------------------------------------------------------------------
+// Studio Brief — the "Residential" agency-brief poster (see STUDIO_BRIEF). A
+// white paper panel on the left carries a bullet-and-rule marker, a bold serif
+// category caption and a mission paragraph beneath it; a full-bleed photo fills
+// the right panel. All positions are fractions of the 1080 × 1350 reference so
+// the DOM preview (BriefPreview) and the canvas export (exportBrief) agree at
+// any resolution. Measured from the reference: the paper/photo split sits at
+// x≈602/1080; the marker (rule + dot) is centred at x≈82, y≈650; the text
+// column starts at x≈110; the caption caps are ≈52px tall with a first
+// baseline ≈671; the body is a ≈30px line pitch with a first baseline ≈732.
+export const BRIEF_LAYOUT = {
+  splitX: 602 / 1080,
+  marker: { y: 650 / 1350, centerX: 82 / 1080, dotRadius: 14.5 / 1080, lineWidth: 2 / 1080 },
+  // Left edge of the text column and the width words wrap within.
+  col: { left: 110 / 1080, width: 450 / 1080 },
+  title: {
+    cap: 52 / 1350, // ascender-to-baseline height (measured on "Residential")
+    capRatio: 0.797, // that height ÷ em for Playfair Display Bold (measured, mixed-case)
+    lineHeight: 1.25, // baseline pitch ÷ cap height
+    firstBaseline: 671 / 1350, // baseline of the first caption line
+  },
+  body: {
+    size: 26 / 1350, // font size (kept a touch under the measured cap so the
+    // paragraph still wraps at the reference's 4 lines within the column)
+    lineHeight: 30 / 1350, // baseline pitch
+    gap: 61 / 1350, // gap between the last caption baseline and the first body baseline
+  },
+} as const;
+
+export interface BriefGeometry {
+  photo: { x: number; y: number; w: number; h: number };
+  marker: { x1: number; x2: number; y: number; lineWidth: number; dotX: number; dotR: number };
+  colLeft: number;
+  colWidth: number;
+  titleFontSize: number;
+  bodyFontSize: number;
+  titleLines: WovenLine[];
+  bodyLines: WovenLine[];
+}
+
+// Resolve the photo panel, the bullet-and-rule marker, and the positioned
+// caption + body lines for the Studio Brief poster, in the target canvas units
+// (px, or the preview viewBox units). The body block flows directly beneath
+// the (variable-height) caption block, so a longer/shorter caption reflows the
+// body rather than overlapping it.
+export function briefGeometry(
+  titleText: string,
+  titleFontId: string,
+  titleWeight: number,
+  titleUppercase: boolean,
+  bodyText: string,
+  bodyFontId: string,
+  bodyWeight: number,
+  width: number,
+  height: number,
+): BriefGeometry {
+  const L = BRIEF_LAYOUT;
+  const colLeft = L.col.left * width;
+  const colWidth = L.col.width * width;
+  const photo = {
+    x: L.splitX * width,
+    y: 0,
+    w: (1 - L.splitX) * width,
+    h: height,
+  };
+  const dotX = L.marker.centerX * width;
+  const dotR = L.marker.dotRadius * width;
+  const marker = {
+    x1: 0,
+    x2: dotX - dotR,
+    y: L.marker.y * height,
+    lineWidth: L.marker.lineWidth * width,
+    dotX,
+    dotR,
+  };
+
+  const titleFontSize = (L.title.cap * height) / L.title.capRatio;
+  const titlePitch = L.title.cap * height * L.title.lineHeight;
+  const bodyFontSize = L.body.size * height;
+  const bodyPitch = L.body.lineHeight * height;
+
+  const titleRaw = titleUppercase ? (titleText ?? "").toUpperCase() : (titleText ?? "");
+  const titleWords = wovenWrap(titleRaw, titleFontId, titleWeight, titleFontSize, colWidth);
+  const firstBaseline = L.title.firstBaseline * height;
+  const titleLines: WovenLine[] = titleWords.map((text, i) => ({
+    text,
+    baseline: firstBaseline + i * titlePitch,
+  }));
+
+  const lastTitleBaseline = titleLines.length
+    ? titleLines[titleLines.length - 1].baseline
+    : firstBaseline - titlePitch;
+  const bodyStart = lastTitleBaseline + L.body.gap * height;
+  const bodyWords = wovenWrap(bodyText, bodyFontId, bodyWeight, bodyFontSize, colWidth);
+  const bodyLines: WovenLine[] = bodyWords.map((text, i) => ({
+    text,
+    baseline: bodyStart + i * bodyPitch,
+  }));
+
+  return { photo, marker, colLeft, colWidth, titleFontSize, bodyFontSize, titleLines, bodyLines };
+}
+
+// ---------------------------------------------------------------------------
+// Mosaic moodboards — masonry photo grids with no text at all, every cell a
+// required, independently replaceable photo. Each variant is keyed by template
+// id and lists its cells as fractional rects (photo content only, gutters and
+// outer margin excluded) in `cell-{i+1}` layer order; the untouched editor
+// reproduces the reference exactly because each default photo is that cell's
+// own crop and the cell cover-fits the same rect. Shared by the DOM preview
+// (MosaicPreview) and the canvas export (exportMosaic).
+export interface MosaicRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export const MOSAIC_VARIANTS: Record<string, readonly MosaicRect[]> = {
+  // Residence Mosaic (11 cells) — 3 uneven columns (narrow / wide / narrow)
+  // inset from the canvas edges by an outer margin, split by a wider internal
+  // gutter; the wide centre column stacks 3 taller cells while each side
+  // column stacks 4 shorter ones (its row breaks don't line up). Measured off
+  // public/templates/shared/1d9692aee1d1536bad55a52a4003aaac.jpg (736 × 1313).
+  "11000000-0000-0000-0000-000000000046": [
+    { x: 19 / 736, y: 0 / 1313, w: 183 / 736, h: 349 / 1313 }, // cell-1: top-left
+    { x: 217 / 736, y: 0 / 1313, w: 297 / 736, h: 296 / 1313 }, // cell-2: top-centre
+    { x: 528 / 736, y: 0 / 1313, w: 187 / 736, h: 349 / 1313 }, // cell-3: top-right
+    { x: 19 / 736, y: 363 / 1313, w: 183 / 736, h: 286 / 1313 }, // cell-4: mid-left (upper)
+    { x: 217 / 736, y: 311 / 1313, w: 297 / 736, h: 401 / 1313 }, // cell-5: mid-centre
+    { x: 528 / 736, y: 363 / 1313, w: 187 / 736, h: 286 / 1313 }, // cell-6: mid-right (upper)
+    { x: 19 / 736, y: 663 / 1313, w: 183 / 736, h: 274 / 1313 }, // cell-7: mid-left (lower)
+    { x: 528 / 736, y: 663 / 1313, w: 187 / 736, h: 274 / 1313 }, // cell-8: mid-right (lower)
+    { x: 19 / 736, y: 951 / 1313, w: 183 / 736, h: 362 / 1313 }, // cell-9: bottom-left
+    { x: 217 / 736, y: 727 / 1313, w: 297 / 736, h: 586 / 1313 }, // cell-10: bottom-centre, tall
+    { x: 528 / 736, y: 951 / 1313, w: 187 / 736, h: 362 / 1313 }, // cell-11: bottom-right
+  ],
+  // Coastal Mosaic (13 cells) — 3 uneven columns (wide-ish / wide / medium)
+  // split by a thin white gutter, each column breaking into a different number
+  // of cells (4 / 4 / 5) below the two shared top rows; the centre column's
+  // 3rd cell and the right column's stack are the tall ones. Measured off
+  // public/templates/shared/078de9478ab62f259139da7a07aa7f60.jpg (736 × 1313).
+  "11000000-0000-0000-0000-000000000047": [
+    { x: 16 / 736, y: 7 / 1313, w: 225 / 736, h: 263 / 1313 }, // cell-1: col1 row1
+    { x: 248 / 736, y: 7 / 1313, w: 252 / 736, h: 262 / 1313 }, // cell-2: col2 row1
+    { x: 508 / 736, y: 6 / 1313, w: 210 / 736, h: 264 / 1313 }, // cell-3: col3 row1
+    { x: 16 / 736, y: 278 / 1313, w: 225 / 736, h: 218 / 1313 }, // cell-4: col1 row2
+    { x: 248 / 736, y: 277 / 1313, w: 252 / 736, h: 219 / 1313 }, // cell-5: col2 row2
+    { x: 508 / 736, y: 278 / 1313, w: 210 / 736, h: 218 / 1313 }, // cell-6: col3 row2
+    { x: 16 / 736, y: 505 / 1313, w: 225 / 736, h: 399 / 1313 }, // cell-7: col1 row3
+    { x: 248 / 736, y: 504 / 1313, w: 252 / 736, h: 541 / 1313 }, // cell-8: col2 row3 (tall)
+    { x: 508 / 736, y: 504 / 1313, w: 210 / 736, h: 200 / 1313 }, // cell-9: col3 row3
+    { x: 508 / 736, y: 714 / 1313, w: 210 / 736, h: 331 / 1313 }, // cell-10: col3 row4
+    { x: 16 / 736, y: 912 / 1313, w: 225 / 736, h: 391 / 1313 }, // cell-11: col1 row4
+    { x: 248 / 736, y: 1054 / 1313, w: 252 / 736, h: 248 / 1313 }, // cell-12: col2 row4
+    { x: 508 / 736, y: 1054 / 1313, w: 210 / 736, h: 248 / 1313 }, // cell-13: col3 row5
+  ],
+  // Stone Villa Mosaic (11 cells) — 3 uneven columns (narrow / wide / medium),
+  // full-bleed to the canvas edges, split by a hairline gutter; the wide
+  // centre column's middle cell spans two row-heights. Measured off
+  // public/templates/shared/12b150466df1b894b3016580977e5ed4.jpg (736 × 1313).
+  "11000000-0000-0000-0000-000000000048": [
+    { x: 0 / 736, y: 0 / 1313, w: 202.5 / 736, h: 345.5 / 1313 }, // cell-1: top-left
+    { x: 206.5 / 736, y: 0 / 1313, w: 305 / 736, h: 345.5 / 1313 }, // cell-2: top-centre
+    { x: 515.5 / 736, y: 0 / 1313, w: 220.5 / 736, h: 345.5 / 1313 }, // cell-3: top-right
+    { x: 0 / 736, y: 349.5 / 1313, w: 202.5 / 736, h: 296 / 1313 }, // cell-4: mid-left (upper)
+    { x: 206.5 / 736, y: 349.5 / 1313, w: 305 / 736, h: 605 / 1313 }, // cell-5: centre, tall (spans 2 rows)
+    { x: 515.5 / 736, y: 349.5 / 1313, w: 220.5 / 736, h: 296 / 1313 }, // cell-6: mid-right (upper)
+    { x: 0 / 736, y: 649.5 / 1313, w: 202.5 / 736, h: 305 / 1313 }, // cell-7: mid-left (lower)
+    { x: 515.5 / 736, y: 649.5 / 1313, w: 220.5 / 736, h: 305 / 1313 }, // cell-8: mid-right (lower)
+    { x: 0 / 736, y: 958.5 / 1313, w: 202.5 / 736, h: 354.5 / 1313 }, // cell-9: bottom-left
+    { x: 206.5 / 736, y: 958.5 / 1313, w: 305 / 736, h: 354.5 / 1313 }, // cell-10: bottom-centre
+    { x: 515.5 / 736, y: 958.5 / 1313, w: 220.5 / 736, h: 354.5 / 1313 }, // cell-11: bottom-right
+  ],
+};
+
+const MOSAIC_DEFAULT_CELLS = MOSAIC_VARIANTS["11000000-0000-0000-0000-000000000046"];
+
+// The mosaic cell rects for a template id (falls back to the 11-cell default).
+export function mosaicCells(templateId: string): readonly MosaicRect[] {
+  return MOSAIC_VARIANTS[templateId] ?? MOSAIC_DEFAULT_CELLS;
 }

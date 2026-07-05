@@ -61,6 +61,71 @@
         "--strictPort"
       ],
       "port": 5201
+    },
+    {
+      "name": "web-app-drop",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5202",
+        "--strictPort"
+      ],
+      "port": 5202
+    },
+    {
+      "name": "web-app-statement",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5203",
+        "--strictPort"
+      ],
+      "port": 5203
+    },
+    {
+      "name": "web-app-brief",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5204",
+        "--strictPort"
+      ],
+      "port": 5204
+    },
+    {
+      "name": "web-app-mosaic",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5205",
+        "--strictPort"
+      ],
+      "port": 5205
+    },
+    {
+      "name": "web-app-mosaic2",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5210",
+        "--strictPort"
+      ],
+      "port": 5210
     }
   ]
 }
