@@ -3017,9 +3017,17 @@ const OPEN_SPACE_LIVING_ROOM: RemixEditorTemplate = {
     {
       id: "image",
       kind: "image",
-      label: "Living room photo",
+      label: "Backdrop photo",
       visible: true,
       hideable: false,
+      src: "/templates/shared/open-space-living-room-source.jpg",
+    },
+    {
+      id: "detail",
+      kind: "image",
+      label: "Inset photo",
+      visible: false,
+      hideable: true,
       src: "/templates/shared/open-space-living-room-source.jpg",
     },
     {
@@ -5542,11 +5550,13 @@ export function openSpaceGeometry(width: number, height: number): OpenSpaceGeome
 
 export function isDefaultOpenSpaceState(layers: EditorLayer[]): boolean {
   const image = layers.find((layer): layer is ImageLayer => layer.id === "image");
+  const detail = layers.find((layer): layer is ImageLayer => layer.id === "detail");
   const header = layers.find((layer): layer is TextLayer => layer.id === "header");
   const wordmark = layers.find((layer): layer is TextLayer => layer.id === "eyebrow");
   const subline = layers.find((layer): layer is TextLayer => layer.id === "description");
   const logo = layers.find((layer): layer is LogoLayer => layer.id === "logo");
   const t = image ? imageTransform(image) : DEFAULT_IMAGE_TRANSFORM;
+  const detailTransform = detail ? imageTransform(detail) : DEFAULT_IMAGE_TRANSFORM;
   return Boolean(
     image?.visible &&
     image.src === OPEN_SPACE_SOURCE_SRC &&
@@ -5554,6 +5564,12 @@ export function isDefaultOpenSpaceState(layers: EditorLayer[]): boolean {
     t.offsetY === 0 &&
     t.scale === 1 &&
     t.rotation === 0 &&
+    (!detail?.visible ||
+      (detail.src === OPEN_SPACE_SOURCE_SRC &&
+        detailTransform.offsetX === 0 &&
+        detailTransform.offsetY === 0 &&
+        detailTransform.scale === 1 &&
+        detailTransform.rotation === 0)) &&
     header?.visible &&
     header.text === "OPEN SPACE\nLIVING ROOM" &&
     header.color.toLowerCase() === "#ffffff" &&

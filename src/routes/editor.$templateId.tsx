@@ -1554,7 +1554,10 @@ function CoverPreview({
 }) {
   const geom = coverGeometry(template.id);
   const image = layers.find(
-    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image",
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.id === "image",
+  );
+  const detail = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.id === "detail",
   );
   const header = layers.find((layer): layer is TextLayer => layer.kind === "header");
   const description = layers.find((layer): layer is TextLayer => layer.kind === "description");
@@ -4409,6 +4412,7 @@ function OpenSpacePreview({
     .filter(Boolean);
   const firstLine = rawLines[0] ?? "";
   const secondLine = rawLines.slice(1).join(" ");
+  const insetLayer = detail?.visible && detail.src ? detail : image;
 
   const [, setFontTick] = useState(0);
   const faces = [header, wordmark, subline]
@@ -4607,17 +4611,17 @@ function OpenSpacePreview({
         }}
       />
 
-      {image?.visible && (
+      {insetLayer?.visible && (
         <DraggableImage
-          layer={image}
+          layer={insetLayer}
           fit="cover"
-          selected={selectedId === image.id}
-          onSelect={() => onSelect(image.id)}
+          selected={selectedId === insetLayer.id}
+          onSelect={() => onSelect(insetLayer.id)}
           onPan={(offsetX, offsetY) =>
             updateLayer(
-              image.id,
-              { transform: { ...imageTransform(image), offsetX, offsetY } },
-              `pan-${image.id}`,
+              insetLayer.id,
+              { transform: { ...imageTransform(insetLayer), offsetX, offsetY } },
+              `pan-${insetLayer.id}`,
             )
           }
           style={{
@@ -5811,6 +5815,9 @@ function EditorScreen({
   const findByKind = <T extends EditorLayer>(kind: LayerKind) =>
     layers.find((layer) => layer.kind === kind) as T | undefined;
   const image = findByKind<Extract<EditorLayer, { kind: "image" }>>("image");
+  const detailImage = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.id === "detail",
+  );
   // Sliced layout carries a second, optional image layer (the full-bleed
   // background) alongside the sliced photo; look it up by id, not kind.
   const slicedBackground = layers.find(
@@ -7076,6 +7083,43 @@ function EditorScreen({
                       onChange={(transform, key) => updateLayer("image", { transform }, key)}
                       onReset={() =>
                         updateLayer("image", { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                      }
+                    />
+                  </EditorSection>
+                )}
+
+                {detailImage && (
+                  <EditorSection
+                    title={detailImage.label}
+                    open={openSections.detail ?? false}
+                    onToggleOpen={() => toggleOpen("detail")}
+                    hideable={detailImage.hideable}
+                    visible={detailImage.visible}
+                    onToggleVisible={() => toggleVisible("detail")}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+                        <img src={detailImage.src} alt="" className="h-full w-full object-cover" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openReplace("detail")}
+                        className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                      >
+                        <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                        Replace inset
+                      </button>
+                    </div>
+                    <p className="mt-3 text-[13px] text-muted-foreground">
+                      Optional — with one image, the backdrop photo is reused in the inset.
+                    </p>
+                    <ImageControls
+                      layer={detailImage}
+                      onChange={(transform, key) =>
+                        updateLayer("detail", { transform, visible: true }, key)
+                      }
+                      onReset={() =>
+                        updateLayer("detail", { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
                       }
                     />
                   </EditorSection>

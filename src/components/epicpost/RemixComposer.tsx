@@ -419,7 +419,7 @@ export function RemixComposer({
                 ...layer,
                 ...(asset ? { assetId: asset.asset_id, assetUrl: asset.url } : {}),
                 ...(preview ? { src: preview } : {}),
-                visible: true,
+                visible: Boolean(asset) || layer.visible,
               };
             });
       let imageCursor = 0;

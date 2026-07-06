@@ -19,6 +19,7 @@ import {
 import {
   fetchPostTemplates,
   getTemplateMedia,
+  localPostTemplatesForParams,
   postTemplatesQueryKey,
   type PostTemplateFeedResponse,
   type PostTemplateFeedParams,
@@ -120,13 +121,15 @@ function Index() {
   const isFetchingNextTemplatesPage = templatesQuery.isFetchingNextPage;
   const templates = useMemo(() => {
     const seen = new Set<string>();
+    const local = localPostTemplatesForParams(feedParams);
+    const pages = templatesQuery.data?.pages.flatMap((page) => page.data) ?? [];
 
-    return (templatesQuery.data?.pages.flatMap((page) => page.data) ?? []).filter((template) => {
+    return [...local, ...pages].filter((template) => {
       if (seen.has(template.id)) return false;
       seen.add(template.id);
       return true;
     });
-  }, [templatesQuery.data]);
+  }, [feedParams, templatesQuery.data]);
 
   // If the active board disappears from the list (e.g. deleted), fall back to All.
   useEffect(() => {

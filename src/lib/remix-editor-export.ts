@@ -1253,6 +1253,7 @@ async function exportPostcard(
     layers.find((layer) => layer.id === id) as T | undefined;
 
   const photoLayer = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const detailLayer = byId<Extract<EditorLayer, { kind: "image" }>>("detail");
   const city = byId<TextLayer>("header");
   const subtitle = byId<TextLayer>("eyebrow");
   const country = byId<TextLayer>("cta");
@@ -2115,7 +2116,10 @@ async function exportOpenSpace(
     ctx.fillRect(geo.leftWash.x, geo.leftWash.y, geo.leftWash.w, geo.leftWash.h);
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(geo.frame.x, geo.frame.y, geo.frame.w, geo.frame.h);
-    drawImageCover(ctx, photo, geo.inset, imageTransform(photoLayer));
+    const insetLayer = detailLayer?.visible && detailLayer.src ? detailLayer : photoLayer;
+    const insetPhoto =
+      insetLayer === photoLayer ? photo : await loadImage(insetLayer.src).catch(() => photo);
+    drawImageCover(ctx, insetPhoto, geo.inset, imageTransform(insetLayer));
   }
 
   const headlineStyle = header ? resolveTextStyle(header) : null;

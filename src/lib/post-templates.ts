@@ -245,7 +245,7 @@ const LOCAL_POST_TEMPLATES: PostTemplate[] = [
     board_name: null,
     remix_id: null,
     description:
-      "A one-photo interior collage with a full-height living room backdrop, framed inset image, required headline and optional logo lockup.",
+      "An interior collage with a full-height living room backdrop, optional framed inset detail image, required headline and optional logo lockup.",
     tags: ["interior", "living room", "real estate", "architecture", "collage"],
     comments: [],
     created_at: "2026-07-06T00:00:00.000Z",
@@ -254,7 +254,7 @@ const LOCAL_POST_TEMPLATES: PostTemplate[] = [
     template_subtype: "interior_collage",
     aspect_ratio: "736 / 1308",
     slide_count: 1,
-    input_image_count: 1,
+    input_image_count: 2,
     render_engine: "client",
     render_mode: "editor",
     capabilities: {
@@ -271,11 +271,11 @@ const LOCAL_POST_TEMPLATES: PostTemplate[] = [
     input_requirements: {
       assets: [
         {
-          key: "living_room_image",
+          key: "living_room_images",
           type: "image",
           required: true,
           min_count: 1,
-          max_count: 1,
+          max_count: 2,
           accepted_mime_types: ["image/jpeg", "image/png", "image/webp"],
           preferred_aspect_ratios: ["4:5", "1:1", "3:4"],
           min_width: 736,
@@ -284,7 +284,8 @@ const LOCAL_POST_TEMPLATES: PostTemplate[] = [
           allow_background_extend: false,
           allow_background_removal: false,
           transparent_preferred: false,
-          description: "One living room or interior image used for both the backdrop and inset.",
+          description:
+            "One required living room or interior image. Add a second image to replace the framed inset detail.",
         },
         {
           key: "logo",
@@ -357,14 +358,18 @@ function localTemplateMatches(template: PostTemplate, search?: string): boolean 
     .some((value) => value?.toLowerCase().includes(needle));
 }
 
+export function localPostTemplatesForParams(params: PostTemplateFeedParams = {}): PostTemplate[] {
+  if (params.board || params.cursor) return [];
+  return LOCAL_POST_TEMPLATES.filter((template) => localTemplateMatches(template, params.search));
+}
+
 function mergeLocalTemplates(
   response: PostTemplateFeedResponse,
   params: PostTemplateFeedParams,
 ): PostTemplateFeedResponse {
-  if (params.board || params.cursor) return response;
   const existing = new Set(response.data.map((template) => template.id));
-  const local = LOCAL_POST_TEMPLATES.filter(
-    (template) => !existing.has(template.id) && localTemplateMatches(template, params.search),
+  const local = localPostTemplatesForParams(params).filter(
+    (template) => !existing.has(template.id),
   );
   if (local.length === 0) return response;
   return {
@@ -440,6 +445,13 @@ export async function fetchPostTemplates(
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
   if (!response.ok) {
+    const local = localPostTemplatesForParams(params);
+    if (local.length > 0) {
+      return {
+        data: local,
+        pagination: { limit: 20, next_cursor: null, has_more: false },
+      };
+    }
     throw new Error(`Post templates request failed with ${response.status}`);
   }
 
