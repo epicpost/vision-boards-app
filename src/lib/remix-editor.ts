@@ -130,6 +130,9 @@ export const EXPORT_FORMATS: Record<ExportFormat, ExportFormatMeta> = {
 // panel, mirroring the `template_relax.v2.html` render engine template;
 // "open-space" is a one-photo interior collage with a full-height backdrop,
 // framed inset image, headline and optional top logo lockup;
+// "interior-inspiration" is a one- or two-photo framed interior pin with a
+// blurred backdrop, rounded inset, required headline and handle, and optional
+// script subtitle;
 // "mosaic" is an 11-photo masonry moodboard grid (3 uneven columns, one tall
 // centre cell), with no text layers at all.
 export type TemplateLayout =
@@ -156,6 +159,7 @@ export type TemplateLayout =
   | "statement"
   | "brief"
   | "open-space"
+  | "interior-inspiration"
   | "mosaic";
 
 export interface RemixEditorTemplate {
@@ -3063,6 +3067,89 @@ const OPEN_SPACE_LIVING_ROOM: RemixEditorTemplate = {
 
 export const OPEN_SPACE_SOURCE_SRC = "/templates/shared/open-space-living-room-source.jpg";
 
+// Interior Inspiration — a Pinterest-style framed interior pin. Preview art
+// lives at public/templates/shared/67bb89ea872a6820d6fdb0790af0ad55.jpg
+// (564 x 1002): a blurred full-bleed interior backdrop, a sharp rounded inset
+// card, a small white handle tab, optional script subtitle, required serif
+// headline and required handle. The default editable photo is cropped from the
+// reference's inset so the generated layout can be remixed with one or two
+// replacement images.
+const INTERIOR_INSPIRATION: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000051",
+  title: "Interior Inspiration",
+  layout: "interior-inspiration",
+  aspectRatio: "564 / 1002",
+  background: "#eee9dc",
+  palette: [
+    { label: "White", value: "#ffffff" },
+    { label: "Warm cream", value: "#eee9dc" },
+    { label: "Soft taupe", value: "#9c8f7c" },
+    { label: "Slate teal", value: "#2f6673" },
+    { label: "Charcoal", value: "#1f2322" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Background photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/interior-inspiration-source.jpg",
+    },
+    {
+      id: "detail",
+      kind: "image",
+      label: "Inset photo",
+      visible: false,
+      hideable: true,
+      src: "/templates/shared/interior-inspiration-source.jpg",
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Subtitle",
+      visible: true,
+      hideable: true,
+      text: "interior design",
+      color: "#ffffff",
+      fontId: "alexbrush",
+      uppercase: false,
+      weight: 400,
+      align: "center",
+      suggestions: ["interior design", "studio notes", "home styling", ""],
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Headline",
+      visible: true,
+      hideable: false,
+      text: "/inspiration/",
+      color: "#ffffff",
+      fontId: "playfair",
+      uppercase: false,
+      weight: 700,
+      align: "center",
+      suggestions: ["/inspiration/", "/interior/", "/design ideas/", "/home mood/"],
+    },
+    {
+      id: "cta",
+      kind: "cta",
+      label: "Handle",
+      visible: true,
+      hideable: false,
+      text: "@reallygreatsite",
+      color: "#6c6a66",
+      fontId: "quicksand",
+      uppercase: false,
+      weight: 500,
+      align: "left",
+      suggestions: ["@reallygreatsite", "@yourbrand", "@studiohome", "@designco"],
+    },
+  ],
+};
+
 const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [TEMPLATE_28.id]: TEMPLATE_28,
   [TEMPLATE_205.id]: TEMPLATE_205,
@@ -3098,6 +3185,7 @@ const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [COASTAL_MOSAIC.id]: COASTAL_MOSAIC,
   [STONE_VILLA_MOSAIC.id]: STONE_VILLA_MOSAIC,
   [OPEN_SPACE_LIVING_ROOM.id]: OPEN_SPACE_LIVING_ROOM,
+  [INTERIOR_INSPIRATION.id]: INTERIOR_INSPIRATION,
 };
 
 export function getRemixEditorTemplate(id: string): RemixEditorTemplate | null {
@@ -5558,6 +5646,116 @@ export function openSpaceGeometry(width: number, height: number): OpenSpaceGeome
       centerX: L.lockup.centerX * width,
     },
     uploadedLogo: rect(L.uploadedLogo),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Interior Inspiration — measured from
+// public/templates/shared/67bb89ea872a6820d6fdb0790af0ad55.jpg (564 x 1002).
+// The same required image is used as a blurred full-canvas backdrop and, unless
+// the optional detail image is enabled, as the sharp image inside the rounded
+// white frame. Horizontal sizes and font sizes are width-relative; vertical
+// positions are height-relative.
+export const INTERIOR_INSPIRATION_LAYOUT = {
+  frame: {
+    x: 76 / 564,
+    y: 288 / 1002,
+    w: 414 / 564,
+    h: 412 / 1002,
+    radius: 24 / 564,
+    border: 12 / 564,
+  },
+  tab: {
+    x: 77 / 564,
+    y: 260 / 1002,
+    w: 137 / 564,
+    h: 38 / 1002,
+    radius: 12 / 564,
+  },
+  inset: {
+    x: 88 / 564,
+    y: 300 / 1002,
+    w: 390 / 564,
+    h: 388 / 1002,
+    radius: 17 / 564,
+  },
+  subtitle: {
+    centerX: 0.5,
+    baseline: 454 / 1002,
+    size: 20 / 564,
+    tracking: 0,
+  },
+  headline: {
+    centerX: 0.5,
+    baseline: 516 / 1002,
+    size: 52 / 564,
+    tracking: 0,
+  },
+  handle: {
+    x: 92 / 564,
+    baseline: 283 / 1002,
+    size: 15 / 564,
+  },
+  blur: 10 / 564,
+  backdropScale: 2.58,
+} as const;
+
+export interface InteriorInspirationGeometry {
+  frame: { x: number; y: number; w: number; h: number; radius: number; border: number };
+  tab: { x: number; y: number; w: number; h: number; radius: number };
+  inset: { x: number; y: number; w: number; h: number; radius: number };
+  subtitle: { centerX: number; baseline: number; size: number };
+  headline: { centerX: number; baseline: number; size: number };
+  handle: { x: number; baseline: number; size: number };
+  blur: number;
+  backdropScale: number;
+}
+
+export function interiorInspirationGeometry(
+  width: number,
+  height: number,
+): InteriorInspirationGeometry {
+  const L = INTERIOR_INSPIRATION_LAYOUT;
+  return {
+    frame: {
+      x: L.frame.x * width,
+      y: L.frame.y * height,
+      w: L.frame.w * width,
+      h: L.frame.h * height,
+      radius: L.frame.radius * width,
+      border: L.frame.border * width,
+    },
+    tab: {
+      x: L.tab.x * width,
+      y: L.tab.y * height,
+      w: L.tab.w * width,
+      h: L.tab.h * height,
+      radius: L.tab.radius * width,
+    },
+    inset: {
+      x: L.inset.x * width,
+      y: L.inset.y * height,
+      w: L.inset.w * width,
+      h: L.inset.h * height,
+      radius: L.inset.radius * width,
+    },
+    subtitle: {
+      centerX: L.subtitle.centerX * width,
+      baseline: L.subtitle.baseline * height,
+      size: L.subtitle.size * width,
+    },
+    headline: {
+      centerX: L.headline.centerX * width,
+      baseline: L.headline.baseline * height,
+      size: L.headline.size * width,
+    },
+    handle: {
+      x: L.handle.x * width,
+      baseline: L.handle.baseline * height,
+      size: L.handle.size * width,
+    },
+    blur: L.blur * width,
+    backdropScale: L.backdropScale,
   };
 }
 

@@ -119,6 +119,8 @@ import {
   statementTagLines,
   wovenGeometry,
   briefGeometry,
+  INTERIOR_INSPIRATION_LAYOUT,
+  interiorInspirationGeometry,
   OPEN_SPACE_LAYOUT,
   openSpaceGeometry,
   GRID_LAYOUT,
@@ -4571,6 +4573,201 @@ function OpenSpacePreview({
   );
 }
 
+// Interior Inspiration: blurred full-bleed backdrop, a rounded white frame with
+// a sharp inset photo, required headline/handle and optional script subtitle.
+// Mirrors `exportInteriorInspiration`.
+function InteriorInspirationPreview({
+  template,
+  layers,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const image = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.id === "image",
+  );
+  const detail = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.id === "detail",
+  );
+  const subtitle = layers.find((layer): layer is TextLayer => layer.id === "description");
+  const header = layers.find((layer): layer is TextLayer => layer.id === "header");
+  const handle = layers.find((layer): layer is TextLayer => layer.id === "cta");
+
+  const [rw, rh] = template.aspectRatio.split("/").map((part) => Number(part.trim()));
+  const ratio = rw && rh ? rw / rh : 564 / 1002;
+  const Wv = 1000;
+  const Hv = Math.round(Wv / ratio);
+  const geo = interiorInspirationGeometry(Wv, Hv);
+  const pct = (value: number) => `${value * 100}%`;
+  const cqi = (value: number) => `${value * 100}cqi`;
+  const vcqi = (value: number) => `${value * (rh / rw) * 100}cqi`;
+  const insetLayer = detail?.visible && detail.src ? detail : image;
+  const usesBakedDefaultText = Boolean(
+    insetLayer?.src.endsWith("/interior-inspiration-source.jpg") &&
+    !insetLayer.assetId &&
+    !insetLayer.assetUrl,
+  );
+
+  const textLayers = [subtitle, header, handle].filter((layer): layer is TextLayer =>
+    Boolean(layer),
+  );
+  const [, setFontTick] = useState(0);
+  const faces = textLayers
+    .map(
+      (layer) =>
+        `${resolveTextStyle(layer).weight} 64px ${fontById(layer.fontId).family.split(",")[0].trim()}`,
+    )
+    .join("|");
+  useEffect(() => {
+    if (typeof document === "undefined" || !document.fonts || !faces) return;
+    let live = true;
+    Promise.all(
+      faces.split("|").map((face) => document.fonts.load(face).catch(() => undefined)),
+    ).then(() => {
+      if (live) setFontTick((tick) => tick + 1);
+    });
+    return () => {
+      live = false;
+    };
+  }, [faces]);
+
+  const textStyle = (layer: TextLayer, size: number): React.CSSProperties => {
+    const style = resolveTextStyle(layer);
+    return {
+      color: layer.color,
+      fontFamily: fontById(layer.fontId).family,
+      fontWeight: style.weight,
+      fontSize: cqi(size * style.sizeScale),
+      letterSpacing: `${style.letterSpacing}em`,
+      lineHeight: 1,
+      textAlign: style.align,
+      textShadow: style.shadow ? TEXT_SHADOW_CSS : undefined,
+      textTransform: layer.uppercase ? "uppercase" : "none",
+      whiteSpace: "nowrap",
+    };
+  };
+  const skipBakedText = (layer: TextLayer) =>
+    usesBakedDefaultText &&
+    layer.color.toLowerCase() === "#ffffff" &&
+    ((layer.id === "description" &&
+      layer.text === "interior design" &&
+      layer.fontId === "alexbrush") ||
+      (layer.id === "header" && layer.text === "/inspiration/" && layer.fontId === "playfair"));
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+      }}
+    >
+      {image?.visible && image.src && (
+        <img
+          src={image.src}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{
+            filter: `blur(${cqi(INTERIOR_INSPIRATION_LAYOUT.blur)})`,
+            scale: INTERIOR_INSPIRATION_LAYOUT.backdropScale,
+          }}
+        />
+      )}
+
+      <div
+        className="absolute z-10 bg-white"
+        style={{
+          left: pct(geo.tab.x / Wv),
+          top: pct(geo.tab.y / Hv),
+          width: pct(geo.tab.w / Wv),
+          height: pct(geo.tab.h / Hv),
+          borderRadius: cqi(INTERIOR_INSPIRATION_LAYOUT.tab.radius),
+        }}
+      />
+      <div
+        className="absolute z-10 bg-white"
+        style={{
+          left: pct(geo.frame.x / Wv),
+          top: pct(geo.frame.y / Hv),
+          width: pct(geo.frame.w / Wv),
+          height: pct(geo.frame.h / Hv),
+          borderRadius: cqi(INTERIOR_INSPIRATION_LAYOUT.frame.radius),
+        }}
+      />
+
+      {insetLayer?.visible && (
+        <DraggableImage
+          layer={insetLayer}
+          fit="cover"
+          selected={selectedId === insetLayer.id}
+          onSelect={() => onSelect(insetLayer.id)}
+          onPan={(offsetX, offsetY) =>
+            updateLayer(
+              insetLayer.id,
+              { transform: { ...imageTransform(insetLayer), offsetX, offsetY } },
+              `pan-${insetLayer.id}`,
+            )
+          }
+          style={{
+            left: pct(geo.inset.x / Wv),
+            top: pct(geo.inset.y / Hv),
+            width: pct(geo.inset.w / Wv),
+            height: pct(geo.inset.h / Hv),
+            borderRadius: cqi(INTERIOR_INSPIRATION_LAYOUT.inset.radius),
+            zIndex: 20,
+          }}
+        />
+      )}
+
+      {handle?.visible && handle.text.trim() && (
+        <div
+          className="pointer-events-none absolute z-30"
+          style={{
+            left: pct(geo.handle.x / Wv),
+            top: `calc(${pct(geo.handle.baseline / Hv)} - ${vcqi(INTERIOR_INSPIRATION_LAYOUT.handle.size)})`,
+            ...textStyle(handle, INTERIOR_INSPIRATION_LAYOUT.handle.size),
+          }}
+        >
+          {handle.uppercase ? handle.text.toUpperCase() : handle.text}
+        </div>
+      )}
+
+      {subtitle?.visible && subtitle.text.trim() && !skipBakedText(subtitle) && (
+        <div
+          className="pointer-events-none absolute z-30 -translate-x-1/2"
+          style={{
+            left: pct(geo.subtitle.centerX / Wv),
+            top: `calc(${pct(geo.subtitle.baseline / Hv)} - ${vcqi(INTERIOR_INSPIRATION_LAYOUT.subtitle.size)})`,
+            ...textStyle(subtitle, INTERIOR_INSPIRATION_LAYOUT.subtitle.size),
+          }}
+        >
+          {subtitle.uppercase ? subtitle.text.toUpperCase() : subtitle.text}
+        </div>
+      )}
+
+      {header?.visible && header.text.trim() && !skipBakedText(header) && (
+        <div
+          className="pointer-events-none absolute z-30 -translate-x-1/2"
+          style={{
+            left: pct(geo.headline.centerX / Wv),
+            top: `calc(${pct(geo.headline.baseline / Hv)} - ${vcqi(INTERIOR_INSPIRATION_LAYOUT.headline.size)})`,
+            ...textStyle(header, INTERIOR_INSPIRATION_LAYOUT.headline.size),
+          }}
+        >
+          {header.uppercase ? header.text.toUpperCase() : header.text}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // FRANKOF editorial paper slides (1, 6, 8): an uppercase headline on top, a
 // flexible photo (contain or cover), and an optional footer caption + arrow disc.
 // Geometry resolved per template via `editorialGeometry`. Mirrors
@@ -5326,6 +5523,9 @@ function defaultOpenSections(template: RemixEditorTemplate): Record<string, bool
   if (template.layout === "brief") {
     return { image: true, header: true, description: true };
   }
+  if (template.layout === "interior-inspiration") {
+    return { image: true, detail: false, description: true, header: true, cta: true };
+  }
   if (template.layout === "grid") {
     return {
       background: true,
@@ -5913,6 +6113,7 @@ function EditorScreen({
                 template.layout === "woven" ||
                 template.layout === "drop" ||
                 template.layout === "open-space" ||
+                template.layout === "interior-inspiration" ||
                 template.layout === "mosaic"
                 ? "max-w-[300px]"
                 : "max-w-[360px]",
@@ -6076,6 +6277,14 @@ function EditorScreen({
               />
             ) : template.layout === "open-space" ? (
               <OpenSpacePreview
+                template={activeTemplate}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
+            ) : template.layout === "interior-inspiration" ? (
+              <InteriorInspirationPreview
                 template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
@@ -7513,6 +7722,147 @@ function EditorScreen({
               </>
             )}
 
+            {/* Interior Inspiration: one required background photo, optional inset
+                photo, optional subtitle, required headline and required handle. */}
+            {template.layout === "interior-inspiration" && (
+              <>
+                {[image, detailImage]
+                  .filter((photo): photo is Extract<EditorLayer, { kind: "image" }> =>
+                    Boolean(photo),
+                  )
+                  .map((photo) => (
+                    <EditorSection
+                      key={photo.id}
+                      title={photo.label}
+                      open={openSections[photo.id] ?? photo.id === "image"}
+                      onToggleOpen={() => toggleOpen(photo.id)}
+                      hideable={photo.hideable}
+                      visible={photo.visible}
+                      onToggleVisible={() => toggleVisible(photo.id)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+                          <img src={photo.src} alt="" className="h-full w-full object-cover" />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => openReplace(photo.id)}
+                          className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                        >
+                          <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                          Replace photo
+                        </button>
+                      </div>
+                      <ImageControls
+                        layer={photo}
+                        onChange={(transform, key) => updateLayer(photo.id, { transform }, key)}
+                        onReset={() =>
+                          updateLayer(photo.id, { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                        }
+                      />
+                    </EditorSection>
+                  ))}
+
+                {description && (
+                  <EditorSection
+                    title="Subtitle"
+                    open={openSections.description ?? true}
+                    onToggleOpen={() => toggleOpen("description")}
+                    hideable={description.hideable}
+                    visible={description.visible}
+                    onToggleVisible={() => toggleVisible("description")}
+                  >
+                    <TextField
+                      label="Subtitle text"
+                      value={description.text}
+                      onChange={(value) =>
+                        updateLayer("description", { text: value }, "description-text")
+                      }
+                      onSuggest={() => cycleSuggestion(description)}
+                    />
+                    <div className="mt-4">
+                      <FontDropdown
+                        value={description.fontId}
+                        color={description.color}
+                        onChange={(fontId) => changeFont("description", fontId)}
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <ColorSwatches
+                        palette={template.palette}
+                        value={description.color}
+                        onChange={(hex) => updateLayer("description", { color: hex })}
+                      />
+                    </div>
+                  </EditorSection>
+                )}
+
+                {header && (
+                  <EditorSection
+                    title="Headline"
+                    open={openSections.header ?? true}
+                    onToggleOpen={() => toggleOpen("header")}
+                    hideable={header.hideable}
+                    visible={header.visible}
+                    onToggleVisible={() => toggleVisible("header")}
+                  >
+                    <TextField
+                      label="Headline text"
+                      value={header.text}
+                      onChange={(value) => updateLayer("header", { text: value }, "header-text")}
+                      onSuggest={() => cycleSuggestion(header)}
+                    />
+                    <div className="mt-4">
+                      <FontDropdown
+                        value={header.fontId}
+                        color={header.color}
+                        onChange={(fontId) => changeFont("header", fontId)}
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <ColorSwatches
+                        palette={template.palette}
+                        value={header.color}
+                        onChange={(hex) => updateLayer("header", { color: hex })}
+                      />
+                    </div>
+                  </EditorSection>
+                )}
+
+                {cta && (
+                  <EditorSection
+                    title="Handle"
+                    open={openSections.cta ?? true}
+                    onToggleOpen={() => toggleOpen("cta")}
+                    hideable={cta.hideable}
+                    visible={cta.visible}
+                    onToggleVisible={() => toggleVisible("cta")}
+                  >
+                    <TextField
+                      label="Handle text"
+                      value={cta.text}
+                      onChange={(value) => updateLayer("cta", { text: value }, "cta-text")}
+                      onSuggest={() => cycleSuggestion(cta)}
+                    />
+                    <div className="mt-4">
+                      <FontDropdown
+                        value={cta.fontId}
+                        color={cta.color}
+                        onChange={(fontId) => changeFont("cta", fontId)}
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <ColorSwatches
+                        palette={template.palette}
+                        value={cta.color}
+                        onChange={(hex) => updateLayer("cta", { color: hex })}
+                      />
+                    </div>
+                  </EditorSection>
+                )}
+              </>
+            )}
+
             {/* Mono Grid: the background photo, up to 3 cell photos, the caption
                 (headline + hashtag) and the rotated side text (title + hashtag).
                 The logo uses the shared Logo section below. */}
@@ -7732,6 +8082,7 @@ function EditorScreen({
               template.layout !== "drop" &&
               template.layout !== "brief" &&
               template.layout !== "open-space" &&
+              template.layout !== "interior-inspiration" &&
               template.layout !== "mosaic" &&
               image && (
                 <EditorSection
@@ -7817,6 +8168,7 @@ function EditorScreen({
               template.layout !== "drop" &&
               template.layout !== "brief" &&
               template.layout !== "open-space" &&
+              template.layout !== "interior-inspiration" &&
               template.layout !== "mosaic" &&
               header && (
                 <EditorSection
@@ -7868,6 +8220,7 @@ function EditorScreen({
               template.layout !== "drop" &&
               template.layout !== "brief" &&
               template.layout !== "open-space" &&
+              template.layout !== "interior-inspiration" &&
               description && (
                 <EditorSection
                   title={
@@ -7932,6 +8285,7 @@ function EditorScreen({
               template.layout !== "grid" &&
               template.layout !== "drop" &&
               template.layout !== "open-space" &&
+              template.layout !== "interior-inspiration" &&
               cta && (
                 <EditorSection
                   title="Call to action"

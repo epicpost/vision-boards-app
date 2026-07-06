@@ -51,6 +51,8 @@ import {
   statementTagLines,
   wovenGeometry,
   briefGeometry,
+  INTERIOR_INSPIRATION_LAYOUT,
+  interiorInspirationGeometry,
   OPEN_SPACE_LAYOUT,
   openSpaceGeometry,
   GRID_LAYOUT,
@@ -2104,6 +2106,155 @@ async function exportOpenSpace(
   return canvasToBlob(canvas, format);
 }
 
+// Rasterize the Interior Inspiration pin: a blurred full-bleed background, a
+// rounded white frame with optional second inset photo, required headline and
+// handle, plus optional script subtitle. Mirrors `InteriorInspirationPreview`.
+async function exportInteriorInspiration(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+
+  const photoLayer = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const detailLayer = byId<Extract<EditorLayer, { kind: "image" }>>("detail");
+  const subtitle = byId<TextLayer>("description");
+  const header = byId<TextLayer>("header");
+  const handle = byId<TextLayer>("cta");
+  const insetLayer = detailLayer?.visible && detailLayer.src ? detailLayer : photoLayer;
+  const usesBakedDefaultText = Boolean(
+    insetLayer?.src.endsWith("/interior-inspiration-source.jpg") &&
+    !insetLayer.assetId &&
+    !insetLayer.assetUrl,
+  );
+  const textLayers = [subtitle, header, handle].filter((layer): layer is TextLayer =>
+    Boolean(layer?.visible && layer.text.trim()),
+  );
+
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      textLayers.map((layer) =>
+        document.fonts
+          .load(
+            `${resolveTextStyle(layer).weight} 64px ${primaryFamily(fontById(layer.fontId).family)}`,
+          )
+          .catch(() => undefined),
+      ),
+    ).catch(() => undefined);
+  }
+
+  const geo = interiorInspirationGeometry(width, height);
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  if (photoLayer?.visible && photoLayer.src) {
+    let photo: HTMLImageElement;
+    try {
+      photo = await loadImage(photoLayer.src);
+    } catch {
+      throw new ExportImageError(1);
+    }
+
+    ctx.save();
+    ctx.filter = `blur(${geo.blur}px)`;
+    const bleed = geo.blur * 3;
+    drawImageCover(
+      ctx,
+      photo,
+      { x: -bleed, y: -bleed, w: width + bleed * 2, h: height + bleed * 2 },
+      {
+        ...imageTransform(photoLayer),
+        scale: imageTransform(photoLayer).scale * geo.backdropScale,
+      },
+    );
+    ctx.restore();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.roundRect(geo.tab.x, geo.tab.y, geo.tab.w, geo.tab.h, geo.tab.radius);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.roundRect(geo.frame.x, geo.frame.y, geo.frame.w, geo.frame.h, geo.frame.radius);
+    ctx.fill();
+
+    const insetPhoto =
+      insetLayer === photoLayer ? photo : await loadImage(insetLayer.src).catch(() => photo);
+    drawRoundedImageCover(ctx, insetPhoto, geo.inset, geo.inset.radius, imageTransform(insetLayer));
+  }
+
+  const drawText = (
+    layer: TextLayer | undefined,
+    options: {
+      x: number;
+      y: number;
+      size: number;
+      textAlign: CanvasTextAlign;
+      tracking?: number;
+      skipDefaultBakedText?: boolean;
+    },
+  ) => {
+    if (!layer?.visible || !layer.text.trim()) return;
+    if (
+      options.skipDefaultBakedText &&
+      usesBakedDefaultText &&
+      layer.color.toLowerCase() === "#ffffff" &&
+      ((layer.id === "description" &&
+        layer.text === "interior design" &&
+        layer.fontId === "alexbrush") ||
+        (layer.id === "header" && layer.text === "/inspiration/" && layer.fontId === "playfair"))
+    ) {
+      return;
+    }
+    const style = resolveTextStyle(layer);
+    const text = layer.uppercase ? layer.text.toUpperCase() : layer.text;
+    ctx.save();
+    ctx.fillStyle = layer.color;
+    ctx.textAlign = options.textAlign;
+    ctx.textBaseline = "alphabetic";
+    ctx.font = `${style.weight} ${options.size * style.sizeScale}px ${fontById(layer.fontId).family}`;
+    ctx.letterSpacing = `${options.tracking ?? style.letterSpacing}em`;
+    applyTextShadow(ctx, Boolean(style.shadow), options.size * style.sizeScale);
+    ctx.fillText(text, options.x, options.y);
+    ctx.restore();
+  };
+
+  drawText(subtitle, {
+    x: geo.subtitle.centerX,
+    y: geo.subtitle.baseline,
+    size: geo.subtitle.size,
+    textAlign: "center",
+    tracking: INTERIOR_INSPIRATION_LAYOUT.subtitle.tracking,
+    skipDefaultBakedText: true,
+  });
+  drawText(header, {
+    x: geo.headline.centerX,
+    y: geo.headline.baseline,
+    size: geo.headline.size,
+    textAlign: "center",
+    tracking: INTERIOR_INSPIRATION_LAYOUT.headline.tracking,
+    skipDefaultBakedText: true,
+  });
+  drawText(handle, {
+    x: geo.handle.x,
+    y: geo.handle.baseline,
+    size: geo.handle.size,
+    textAlign: "left",
+  });
+
+  return canvasToBlob(canvas, format);
+}
+
 // Trace a rounded rectangle path (used to clip each relax photo panel).
 function roundRectPath(
   ctx: CanvasRenderingContext2D,
@@ -4002,6 +4153,9 @@ export async function exportCreative(
   }
   if (template.layout === "open-space") {
     return exportOpenSpace(template, layers, format, width);
+  }
+  if (template.layout === "interior-inspiration") {
+    return exportInteriorInspiration(template, layers, format, width);
   }
   if (template.layout === "mosaic") {
     return exportMosaic(template, layers, format, width);
