@@ -24,6 +24,7 @@ import {
   BUSINESS_CHOICE_LAYOUT,
   businessChoiceBackground,
   businessChoiceGeometry,
+  businessChoiceHeadlineFit,
   businessChoiceHeadlineFontIds,
   businessChoicePillFill,
   businessChoicePillTextColor,
@@ -628,16 +629,21 @@ async function exportBusinessChoice(
 
   const H = geometry.headline;
   const headlineColor = business?.color ?? BUSINESS_CHOICE_LAYOUT.colors.defaultText;
+  // When a custom (e.g. brand-kit) font replaces the default Anton/Poppins/
+  // italic-Playfair mix, its glyph widths can differ enough to overflow the
+  // layout's fixed per-word slots — rescale each word to the reference's
+  // proportion so the three never overlap.
+  const headlineFit = businessChoiceHeadlineFit(headlineFonts);
   ctx.save();
   ctx.fillStyle = headlineColor;
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
   ctx.letterSpacing = "0px";
-  ctx.font = `400 ${H.thisSize * width}px ${fontById(headlineFonts.thisFontId).family}`;
+  ctx.font = `400 ${H.thisSize * width * headlineFit.thisScale}px ${fontById(headlineFonts.thisFontId).family}`;
   ctx.fillText(BUSINESS_CHOICE_LAYOUT.headline.thisText, H.thisLeft * width, H.thisTop * height);
-  ctx.font = `400 ${H.orSize * width}px ${fontById(headlineFonts.orFontId).family}`;
+  ctx.font = `400 ${H.orSize * width * headlineFit.orScale}px ${fontById(headlineFonts.orFontId).family}`;
   ctx.fillText(BUSINESS_CHOICE_LAYOUT.headline.orText, H.orLeft * width, H.orTop * height);
-  ctx.font = `italic 400 ${H.thatSize * width}px ${fontById(headlineFonts.thatFontId).family}`;
+  ctx.font = `italic 400 ${H.thatSize * width * headlineFit.thatScale}px ${fontById(headlineFonts.thatFontId).family}`;
   ctx.fillText(BUSINESS_CHOICE_LAYOUT.headline.thatText, H.thatLeft * width, H.thatTop * height);
   ctx.restore();
 

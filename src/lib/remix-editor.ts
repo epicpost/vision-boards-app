@@ -4084,6 +4084,79 @@ export function businessChoiceHeadlineFontIds(layers: EditorLayer[]): {
   };
 }
 
+export interface BusinessChoiceHeadlineFit {
+  thisScale: number;
+  orScale: number;
+  thatScale: number;
+}
+
+const BUSINESS_CHOICE_HEADLINE_IDENTITY_FIT: BusinessChoiceHeadlineFit = {
+  thisScale: 1,
+  orScale: 1,
+  thatScale: 1,
+};
+
+// `businessChoiceHeadlineFontIds` lets one custom font (e.g. a brand-kit font)
+// replace the headline's fixed three-font mix (Anton / Poppins / italic
+// Playfair). The layout's `thisLeft`/`orLeft`/`thatLeft` positions and sizes
+// were measured against those specific fonts' glyph widths — swap in a font
+// with different metrics at the same size and a word can render far wider,
+// overflowing into the next word (the reference gives each word a fixed slot,
+// not a measured gap). This measures each word's width in its original font
+// vs. the applied one (both at the same reference size) and returns a
+// per-word multiplier that keeps the custom font's word the same rendered
+// width as the reference — i.e. the same proportion of the canvas — so the
+// three words never collide. Identity (no rescale) once the custom font
+// matches the default, or when canvas/font-load state isn't available yet
+// (SSR, or the custom face hasn't finished loading — the caller re-measures
+// once `document.fonts.ready` resolves).
+export function businessChoiceHeadlineFit(
+  headlineFonts: {
+    thisFontId: string;
+    orFontId: string;
+    thatFontId: string;
+  },
+  // The weight the headline is actually rendered at — export always draws it
+  // at 400, but the live preview can bump a custom font to a bolder weight,
+  // which widens its glyphs beyond what a 400 measurement would predict.
+  // Passing the real weight keeps the measurement (and so the rescale) accurate.
+  weight = 400,
+): BusinessChoiceHeadlineFit {
+  const ctx = getMeasureCtx();
+  if (!ctx || typeof document === "undefined" || !("fonts" in document)) {
+    return BUSINESS_CHOICE_HEADLINE_IDENTITY_FIT;
+  }
+  const H = BUSINESS_CHOICE_LAYOUT.headline;
+
+  const scaleFor = (text: string, defaultFontId: string, customFontId: string, italic: boolean) => {
+    if (customFontId === defaultFontId) return 1;
+    const defaultFont = fontById(defaultFontId);
+    const customFont = fontById(customFontId);
+    const style = italic ? "italic " : "";
+    // The reference (Anton/Poppins/italic-Playfair) is only ever measured at
+    // its natural 400 weight — that's the width the layout's slots were
+    // measured against. The custom font is measured at whatever weight it's
+    // actually rendered at, since that's what the caller needs to fit.
+    const defaultFace = `${style}400 100px ${fontPrimary(defaultFont)}`;
+    const customFace = `${style}${weight} 100px ${fontPrimary(customFont)}`;
+    if (!document.fonts.check(defaultFace) || !document.fonts.check(customFace)) return 1;
+    ctx.font = `${style}400 100px ${defaultFont.family}`;
+    const widthDefault = ctx.measureText(text).width;
+    ctx.font = `${style}${weight} 100px ${customFont.family}`;
+    const widthCustom = ctx.measureText(text).width;
+    if (!widthDefault || !widthCustom) return 1;
+    // Clamp so a pathological metric mismatch can't flip a word to
+    // vanishingly small or gigantic — same guard rail as `sizeScaleForFontChange`.
+    return Math.min(1.5, Math.max(0.35, widthDefault / widthCustom));
+  };
+
+  return {
+    thisScale: scaleFor(H.thisText, H.thisFont, headlineFonts.thisFontId, false),
+    orScale: scaleFor(H.orText, H.orFont, headlineFonts.orFontId, false),
+    thatScale: scaleFor(H.thatText, H.thatFont, headlineFonts.thatFontId, true),
+  };
+}
+
 // ── Olivia Testimonial geometry ──────────────────────────────────────────────
 // Measured from the 1200 × 1200 reference. The avatar image doubles as a blurred
 // full-canvas backdrop and the circular portrait clipped above the white card.

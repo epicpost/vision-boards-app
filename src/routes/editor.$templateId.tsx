@@ -92,6 +92,7 @@ import {
   BUSINESS_CHOICE_LAYOUT,
   businessChoiceBackground,
   businessChoiceGeometry,
+  businessChoiceHeadlineFit,
   businessChoiceHeadlineFontIds,
   businessChoicePillFill,
   businessChoicePillTextColor,
@@ -2212,6 +2213,25 @@ function BusinessChoicePreview({
   const headlineColor = business?.color ?? BUSINESS_CHOICE_LAYOUT.colors.defaultText;
   const headlineWeight =
     business && business.fontId !== "montserrat" && businessStyle ? businessStyle.weight : 400;
+  // A custom (e.g. brand-kit) font applied via the BUSINESS pill replaces the
+  // headline's fixed Anton/Poppins/italic-Playfair mix for all three words —
+  // rescale each so its custom-font width matches the reference proportion,
+  // otherwise a wider face overflows into the next word. Re-measured once the
+  // custom face finishes loading (Google Fonts loads on demand).
+  const [headlineFit, setHeadlineFit] = useState(() =>
+    businessChoiceHeadlineFit(headlineFonts, headlineWeight),
+  );
+  useEffect(() => {
+    let cancelled = false;
+    const measure = () => {
+      if (!cancelled) setHeadlineFit(businessChoiceHeadlineFit(headlineFonts, headlineWeight));
+    };
+    measure();
+    document.fonts?.ready.then(measure).catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [headlineFonts.thisFontId, headlineFonts.orFontId, headlineFonts.thatFontId, headlineWeight]);
   const cqi = (value: number) => `${value * 100}cqi`;
   const pct = (value: number) => `${value * 100}%`;
 
@@ -2252,7 +2272,7 @@ function BusinessChoicePreview({
           top: pct(geometry.headline.thisTop),
           fontFamily: fontById(headlineFonts.thisFontId).family,
           fontWeight: headlineWeight,
-          fontSize: cqi(geometry.headline.thisSize),
+          fontSize: cqi(geometry.headline.thisSize * headlineFit.thisScale),
           lineHeight: 0.86,
           color: headlineColor,
         }}
@@ -2266,7 +2286,7 @@ function BusinessChoicePreview({
           top: pct(geometry.headline.orTop),
           fontFamily: fontById(headlineFonts.orFontId).family,
           fontWeight: headlineWeight,
-          fontSize: cqi(geometry.headline.orSize),
+          fontSize: cqi(geometry.headline.orSize * headlineFit.orScale),
           lineHeight: 1,
           color: headlineColor,
         }}
@@ -2281,7 +2301,7 @@ function BusinessChoicePreview({
           fontFamily: fontById(headlineFonts.thatFontId).family,
           fontStyle: "italic",
           fontWeight: headlineWeight,
-          fontSize: cqi(geometry.headline.thatSize),
+          fontSize: cqi(geometry.headline.thatSize * headlineFit.thatScale),
           lineHeight: 1,
           color: headlineColor,
         }}
