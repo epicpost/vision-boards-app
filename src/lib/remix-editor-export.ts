@@ -53,6 +53,10 @@ import {
   briefGeometry,
   INTERIOR_INSPIRATION_LAYOUT,
   interiorInspirationGeometry,
+  fashionIconsGeometry,
+  showcaseGeometry,
+  showcaseVariant,
+  showcaseLookLabel,
   OPEN_SPACE_LAYOUT,
   openSpaceGeometry,
   GRID_LAYOUT,
@@ -3810,6 +3814,200 @@ async function exportGrid(
   return canvasToBlob(canvas, format);
 }
 
+// Rasterize the Everyday Icons fashion collage: six required images in a fixed
+// white grid, with a required title and two optional small copy blocks. Mirrors
+// `FashionIconsPreview`.
+async function exportFashionIcons(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+  const textLayers = ["header", "description", "cta"]
+    .map((id) => byId<TextLayer>(id))
+    .filter((layer): layer is TextLayer => Boolean(layer?.visible && layer.text.trim()));
+
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      textLayers.map((layer) =>
+        document.fonts
+          .load(
+            `${resolveTextStyle(layer).weight} 64px ${primaryFamily(fontById(layer.fontId).family)}`,
+          )
+          .catch(() => undefined),
+      ),
+    ).catch(() => undefined);
+  }
+
+  const geo = fashionIconsGeometry(width, height);
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  let failed = 0;
+  for (let index = 0; index < geo.cells.length; index++) {
+    const layer = byId<Extract<EditorLayer, { kind: "image" }>>(`cell-${index + 1}`);
+    if (!layer?.visible || !layer.src) continue;
+    try {
+      const img = await loadImage(layer.src);
+      drawImageCover(ctx, img, geo.cells[index], imageTransform(layer));
+    } catch {
+      failed += 1;
+    }
+  }
+  if (failed > 0) throw new ExportImageError(failed);
+
+  const drawTextBox = (
+    layer: TextLayer | undefined,
+    box: { x: number; y: number; w: number; size: number; lineHeight: number },
+  ) => {
+    if (!layer?.visible || !layer.text.trim()) return;
+    const style = resolveTextStyle(layer);
+    const fontSize = box.size * style.sizeScale;
+    const family = fontById(layer.fontId).family;
+    const text = layer.uppercase ? layer.text.toUpperCase() : layer.text;
+    ctx.save();
+    ctx.fillStyle = layer.color;
+    ctx.textAlign = style.align;
+    ctx.textBaseline = "top";
+    ctx.font = `${style.weight} ${fontSize}px ${family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    applyTextShadow(ctx, Boolean(style.shadow), fontSize);
+
+    const x = alignX(style.align, box.x, box.x + box.w);
+    const lines = text
+      .split(/\n/)
+      .flatMap((line) => (line.trim() ? wrapLines(ctx, line.trim(), box.w) : [""]));
+    lines.forEach((line, lineIndex) => {
+      ctx.fillText(line, x, box.y + lineIndex * fontSize * box.lineHeight);
+    });
+    ctx.restore();
+  };
+
+  drawTextBox(byId<TextLayer>("header"), geo.title);
+  drawTextBox(byId<TextLayer>("description"), geo.leftCopy);
+  drawTextBox(byId<TextLayer>("cta"), geo.rightCopy);
+
+  return canvasToBlob(canvas, format);
+}
+
+// Rasterize a showcase grid: eight required `cell-{n}` photos cover-fit their
+// SHOWCASE_PHOTO_CELLS rects around a centre panel of stacked live text (drop /
+// sale / lookbook — see SHOWCASE_VARIANTS). The lookbook variant also stamps a
+// fixed, non-editable "Look {n}" label on every photo cell. Mirrors
+// `ShowcasePreview`.
+async function exportShowcase(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  const byId = <T extends EditorLayer>(id: string) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+
+  const geo = showcaseGeometry(template.id, width, height);
+  const variant = showcaseVariant(template.id);
+  const textLayers = geo.slots
+    .map((slot) => byId<TextLayer>(slot.id))
+    .filter((layer): layer is TextLayer => Boolean(layer?.visible && layer.text.trim()));
+
+  if (typeof document !== "undefined" && document.fonts) {
+    const loads = textLayers.map((layer) =>
+      document.fonts
+        .load(
+          `${resolveTextStyle(layer).weight} 64px ${primaryFamily(fontById(layer.fontId).family)}`,
+        )
+        .catch(() => undefined),
+    );
+    if (variant.lookLabels) {
+      loads.push(
+        document.fonts
+          .load(`500 32px ${primaryFamily(fontById(variant.lookLabels.fontId).family)}`)
+          .catch(() => undefined),
+      );
+    }
+    await Promise.all(loads).catch(() => undefined);
+  }
+
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = geo.centerFill;
+  ctx.fillRect(geo.textCell.x, geo.textCell.y, geo.textCell.w, geo.textCell.h);
+
+  let failed = 0;
+  for (let index = 0; index < geo.photos.length; index++) {
+    const cell = geo.photos[index];
+    const layer = byId<Extract<EditorLayer, { kind: "image" }>>(`cell-${index + 1}`);
+    if (!layer?.visible || !layer.src) continue;
+    try {
+      const img = await loadImage(layer.src);
+      drawImageCover(ctx, img, cell.rect, imageTransform(layer));
+    } catch {
+      failed += 1;
+      continue;
+    }
+    if (cell.label && geo.lookLabels) {
+      ctx.save();
+      ctx.fillStyle = geo.lookLabels.color;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.font = `500 ${cell.label.size}px ${primaryFamily(fontById(geo.lookLabels.fontId).family)}`;
+      ctx.fillText(showcaseLookLabel(index), cell.label.x, cell.label.y);
+      ctx.restore();
+    }
+  }
+  if (failed > 0) throw new ExportImageError(failed);
+
+  for (const slot of geo.slots) {
+    const layer = byId<TextLayer>(slot.id);
+    if (!layer?.visible || !layer.text.trim()) continue;
+    const style = resolveTextStyle(layer);
+    const fontSize = slot.size * style.sizeScale;
+    const family = fontById(layer.fontId).family;
+    const text = layer.uppercase ? layer.text.toUpperCase() : layer.text;
+
+    ctx.save();
+    ctx.fillStyle = layer.color;
+    ctx.textAlign = style.align;
+    ctx.textBaseline = "middle";
+    ctx.font = `${slot.italic ? "italic " : ""}${style.weight} ${fontSize}px ${primaryFamily(family)}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    applyTextShadow(ctx, Boolean(style.shadow), fontSize);
+
+    const lines = slot.wrap ? wrapLines(ctx, text, slot.w) : [text];
+    const pitch = fontSize * slot.lineHeight;
+    const x = alignX(style.align, slot.x, slot.x + slot.w);
+    let y = slot.y - (lines.length * pitch) / 2;
+    lines.forEach((line) => {
+      ctx.fillText(line, x, y + pitch / 2);
+      y += pitch;
+    });
+    ctx.letterSpacing = "0px";
+    ctx.restore();
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
 // Rasterize a masonry moodboard: each `cell-{i+1}` image layer cover-fits its
 // `mosaicCells(template.id)[i]` rect — no text at all. Mirrors `MosaicPreview`.
 async function exportMosaic(
@@ -4156,6 +4354,12 @@ export async function exportCreative(
   }
   if (template.layout === "interior-inspiration") {
     return exportInteriorInspiration(template, layers, format, width);
+  }
+  if (template.layout === "fashion-icons") {
+    return exportFashionIcons(template, layers, format, width);
+  }
+  if (template.layout === "showcase") {
+    return exportShowcase(template, layers, format, width);
   }
   if (template.layout === "mosaic") {
     return exportMosaic(template, layers, format, width);

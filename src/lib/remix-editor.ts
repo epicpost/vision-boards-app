@@ -133,6 +133,12 @@ export const EXPORT_FORMATS: Record<ExportFormat, ExportFormatMeta> = {
 // "interior-inspiration" is a one- or two-photo framed interior pin with a
 // blurred backdrop, rounded inset, required headline and handle, and optional
 // script subtitle;
+// "fashion-icons" is a six-photo fashion collage with a required editorial
+// title and two optional small copy blocks;
+// "showcase" is an eight-photo 3×3 grid (the ninth, centre cell holds a
+// stacked block of live text) — used for drop announcements, sale banners and
+// numbered lookbooks; which text layers exist and how they're styled varies
+// per template via `SHOWCASE_VARIANTS`;
 // "mosaic" is an 11-photo masonry moodboard grid (3 uneven columns, one tall
 // centre cell), with no text layers at all.
 export type TemplateLayout =
@@ -160,6 +166,8 @@ export type TemplateLayout =
   | "brief"
   | "open-space"
   | "interior-inspiration"
+  | "fashion-icons"
+  | "showcase"
   | "mosaic";
 
 export interface RemixEditorTemplate {
@@ -3150,6 +3158,414 @@ const INTERIOR_INSPIRATION: RemixEditorTemplate = {
   ],
 };
 
+// Everyday Icons — a six-photo editorial fashion collage. Preview art lives at
+// public/templates/shared/5f0141e800d6ae18b904a5f4a4aefe2a.jpg (736 x 1034):
+// two top product/model images, one middle-left jacket image, three bottom
+// images, a required oversized title and two optional small copy blocks.
+const FASHION_ICONS: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000052",
+  title: "Everyday Icons",
+  layout: "fashion-icons",
+  aspectRatio: "736 / 1034",
+  background: "#ffffff",
+  palette: [
+    { label: "Black", value: "#000000" },
+    { label: "White", value: "#ffffff" },
+    { label: "Leather", value: "#2a1710" },
+    { label: "Camel", value: "#b58b62" },
+    { label: "Warm grey", value: "#8a8177" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "cell-1",
+      kind: "image",
+      label: "Top model",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/fashion-icons-01-top-model.jpg",
+    },
+    {
+      id: "cell-2",
+      kind: "image",
+      label: "Jacket detail",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/fashion-icons-02-jacket-detail.jpg",
+    },
+    {
+      id: "cell-3",
+      kind: "image",
+      label: "Hanging jacket",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/fashion-icons-03-hanging-coat.jpg",
+    },
+    {
+      id: "cell-4",
+      kind: "image",
+      label: "Portrait",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/fashion-icons-04-face-portrait.jpg",
+    },
+    {
+      id: "cell-5",
+      kind: "image",
+      label: "Full look",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/fashion-icons-05-full-look.jpg",
+    },
+    {
+      id: "cell-6",
+      kind: "image",
+      label: "Back detail",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/fashion-icons-06-back-detail.jpg",
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Title",
+      visible: true,
+      hideable: false,
+      text: "EVERYDAY\nICONS",
+      color: "#000000",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 800,
+      align: "left",
+      suggestions: ["EVERYDAY\nICONS", "WINTER\nICONS", "LEATHER\nEDIT", "DAILY\nUNIFORM"],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Left copy",
+      visible: true,
+      hideable: true,
+      text: "THE LEATHER JACKET: YOUR GO-TO PIECE\nTHIS WINTER.",
+      color: "#000000",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 500,
+      align: "left",
+      suggestions: [
+        "THE LEATHER JACKET: YOUR GO-TO PIECE\nTHIS WINTER.",
+        "THE OUTERWEAR EDIT: MADE FOR EVERYDAY\nLAYERING.",
+        "ONE JACKET. ENDLESS WINTER\nCOMBINATIONS.",
+      ],
+    },
+    {
+      id: "cta",
+      kind: "cta",
+      label: "Right copy",
+      visible: true,
+      hideable: true,
+      text: "YOUR EVERYDAY UNIFORM. THE LEATHER\nJACKET THAT FEELS COOL, EFFORTLESS,\nAND ALWAYS RIGHT.",
+      color: "#000000",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 500,
+      align: "left",
+      suggestions: [
+        "YOUR EVERYDAY UNIFORM. THE LEATHER\nJACKET THAT FEELS COOL, EFFORTLESS,\nAND ALWAYS RIGHT.",
+        "A CLEAN, CONFIDENT LAYER FOR COMMUTES,\nDINNERS, AND COLD-WEATHER DAYS.",
+        "BUILT FOR REPEAT WEAR WITH A SHARP,\nEFFORTLESS ATTITUDE.",
+      ],
+    },
+  ],
+};
+
+// Showcase grids share one geometry (see SHOWCASE_VARIANTS) across three
+// templates that only differ in default photos, palette and centre-cell copy.
+function showcasePhotoLayers(labelPrefix: string, srcPrefix: string): ImageLayer[] {
+  return Array.from({ length: 8 }, (_, i) => ({
+    id: `cell-${i + 1}`,
+    kind: "image" as const,
+    label: `${labelPrefix} ${i + 1}`,
+    visible: true,
+    hideable: false,
+    src: `/templates/shared/${srcPrefix}-${String(i + 1).padStart(2, "0")}.jpg`,
+  }));
+}
+
+// Cozy Drop — an eight-photo grid with a centre "drop announcement" panel.
+// Preview art lives at public/templates/shared/1a0141e800d6ae18b904a5f4a4aefe1a.jpg
+// (736 × 920): a small optional eyebrow, a required brand headline, a required
+// CTA and a required URL, tracked-caps sans over a warm grey panel.
+const SHOWCASE_DROP: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000053",
+  title: "Cozy Drop Grid",
+  layout: "showcase",
+  aspectRatio: "736 / 920",
+  background: "#fdfdfb",
+  palette: [
+    { label: "Charcoal", value: "#3f3f3d" },
+    { label: "White", value: "#ffffff" },
+    { label: "Taupe", value: "#8a8074" },
+    { label: "Warm grey", value: "#e3e2df" },
+    { label: "Black", value: "#000000" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    ...showcasePhotoLayers("Photo", "showcase-drop"),
+    {
+      id: "eyebrow",
+      kind: "eyebrow",
+      label: "Tagline",
+      visible: true,
+      hideable: true,
+      text: "DROP COZY",
+      color: "#3f3f3d",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 500,
+      align: "center",
+      letterSpacing: 0.18,
+      suggestions: ["DROP COZY", "NEW ARRIVAL", "JUST DROPPED", "LIMITED DROP"],
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Brand headline",
+      visible: true,
+      hideable: false,
+      text: "MADE ME",
+      color: "#3f3f3d",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 400,
+      align: "center",
+      letterSpacing: 0.18,
+      suggestions: ["MADE ME", "NEW SEASON", "COZY EDIT", "THE DROP"],
+    },
+    {
+      id: "cta",
+      kind: "cta",
+      label: "Call to action",
+      visible: true,
+      hideable: false,
+      text: "SHOP ONLINE",
+      color: "#3f3f3d",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 600,
+      align: "center",
+      letterSpacing: 0.14,
+      suggestions: ["SHOP ONLINE", "SHOP NOW", "SHOP THE DROP", "SHOP THE EDIT"],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Website",
+      visible: true,
+      hideable: false,
+      text: "www.mademeclothing.com.br",
+      color: "#3f3f3d",
+      fontId: "montserrat",
+      uppercase: false,
+      weight: 400,
+      align: "center",
+      letterSpacing: 0.02,
+      suggestions: ["www.mademeclothing.com.br", "www.yourbrand.com", "www.shopyourbrand.com"],
+    },
+  ],
+};
+
+// Sitewide Sale — an eight-photo grid with a centre sale-announcement panel.
+// Preview art lives at public/templates/shared/2b0141e800d6ae18b904a5f4a4aefe2b.jpg
+// (1000 × 1500): an optional serif wordmark, a required "limited time" line, a
+// required bold sale headline (wraps to 3 lines) and two optional fine-print
+// lines, over a cream panel.
+const SHOWCASE_SALE: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000054",
+  title: "Sitewide Sale Grid",
+  layout: "showcase",
+  aspectRatio: "1000 / 1500",
+  background: "#faf8f3",
+  palette: [
+    { label: "Black", value: "#000000" },
+    { label: "White", value: "#ffffff" },
+    { label: "Cream", value: "#faf8f3" },
+    { label: "Rust red", value: "#a4351f" },
+    { label: "Denim", value: "#2b3038" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    ...showcasePhotoLayers("Photo", "showcase-sale"),
+    {
+      id: "eyebrow",
+      kind: "eyebrow",
+      label: "Wordmark",
+      visible: true,
+      hideable: true,
+      text: "SHONAJOY",
+      color: "#161616",
+      fontId: "playfair",
+      uppercase: true,
+      weight: 600,
+      align: "center",
+      letterSpacing: 0.3,
+      suggestions: ["SHONAJOY", "LUNA & CO", "MAISON ROSE", "THE LABEL"],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Eyebrow line",
+      visible: true,
+      hideable: false,
+      text: "Limited Time Only",
+      color: "#161616",
+      fontId: "playfair",
+      uppercase: false,
+      weight: 500,
+      align: "center",
+      suggestions: [
+        "Limited Time Only",
+        "For A Limited Time",
+        "While Stocks Last",
+        "Ends Sunday Night",
+      ],
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Sale headline",
+      visible: true,
+      hideable: false,
+      text: "30% OFF SITEWIDE SALE",
+      color: "#000000",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 800,
+      align: "center",
+      suggestions: [
+        "30% OFF SITEWIDE SALE",
+        "40% OFF EVERYTHING",
+        "BUY MORE SAVE MORE",
+        "UP TO 50% OFF",
+      ],
+    },
+    {
+      id: "cta",
+      kind: "cta",
+      label: "Exclusion line",
+      visible: true,
+      hideable: true,
+      text: "Excludes Signatures",
+      color: "#161616",
+      fontId: "playfair",
+      uppercase: false,
+      weight: 500,
+      align: "center",
+      suggestions: [
+        "Excludes Signatures",
+        "Excludes New Arrivals",
+        "Full-Price Styles Only",
+        "Selected Styles Only",
+      ],
+    },
+    {
+      id: "finePrint",
+      kind: "eyebrow",
+      label: "Fine print",
+      visible: true,
+      hideable: true,
+      text: "T&Cs Apply",
+      color: "#161616",
+      fontId: "montserrat",
+      uppercase: false,
+      weight: 400,
+      align: "center",
+      suggestions: ["T&Cs Apply", "Terms Apply", "See Website For Details"],
+    },
+  ],
+};
+
+// Mid Year Lookbook — an eight-photo grid, each photo numbered "Look {n}", with
+// a centre sale panel. Preview art lives at
+// public/templates/shared/3c0141e800d6ae18b904a5f4a4aefe3c.jpg (1000 × 1500):
+// an optional fine-print line, a required italic serif headline + required
+// sub-headline, and a required serif wordmark, over a light grey card.
+const SHOWCASE_LOOKBOOK: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000055",
+  title: "Mid Year Lookbook Grid",
+  layout: "showcase",
+  aspectRatio: "1000 / 1500",
+  background: "#ffffff",
+  palette: [
+    { label: "Black", value: "#000000" },
+    { label: "White", value: "#ffffff" },
+    { label: "Grey", value: "#f0f0f0" },
+    { label: "Crimson", value: "#7a1f1f" },
+    { label: "Burgundy", value: "#5c2430" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    ...showcasePhotoLayers("Look", "showcase-lookbook"),
+    {
+      id: "eyebrow",
+      kind: "eyebrow",
+      label: "Fine print",
+      visible: true,
+      hideable: true,
+      text: "+ T&C'S Apply",
+      color: "#1a1a1a",
+      fontId: "montserrat",
+      uppercase: false,
+      weight: 500,
+      align: "center",
+      letterSpacing: 0.06,
+      suggestions: ["+ T&C'S Apply", "* Terms Apply", "+ Exclusions Apply"],
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Headline",
+      visible: true,
+      hideable: false,
+      text: "Up to 60% off™",
+      color: "#1a1a1a",
+      fontId: "playfair",
+      uppercase: false,
+      weight: 600,
+      align: "center",
+      suggestions: ["Up to 60% off™", "Up to 50% off™", "Up to 70% off™", "Final Reductions"],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Sub-headline",
+      visible: true,
+      hideable: false,
+      text: "Mid Year Sale",
+      color: "#1a1a1a",
+      fontId: "playfair",
+      uppercase: false,
+      weight: 500,
+      align: "center",
+      suggestions: ["Mid Year Sale", "End Of Season Sale", "Winter Sale", "Flash Sale"],
+    },
+    {
+      id: "cta",
+      kind: "cta",
+      label: "Wordmark",
+      visible: true,
+      hideable: false,
+      text: "MESHKI",
+      color: "#1a1a1a",
+      fontId: "playfair",
+      uppercase: true,
+      weight: 600,
+      align: "center",
+      letterSpacing: 0.28,
+      suggestions: ["MESHKI", "LUXE STUDIO", "ATELIER NOIR", "THE EDIT CO"],
+    },
+  ],
+};
+
 const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [TEMPLATE_28.id]: TEMPLATE_28,
   [TEMPLATE_205.id]: TEMPLATE_205,
@@ -3186,6 +3602,10 @@ const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [STONE_VILLA_MOSAIC.id]: STONE_VILLA_MOSAIC,
   [OPEN_SPACE_LIVING_ROOM.id]: OPEN_SPACE_LIVING_ROOM,
   [INTERIOR_INSPIRATION.id]: INTERIOR_INSPIRATION,
+  [FASHION_ICONS.id]: FASHION_ICONS,
+  [SHOWCASE_DROP.id]: SHOWCASE_DROP,
+  [SHOWCASE_SALE.id]: SHOWCASE_SALE,
+  [SHOWCASE_LOOKBOOK.id]: SHOWCASE_LOOKBOOK,
 };
 
 export function getRemixEditorTemplate(id: string): RemixEditorTemplate | null {
@@ -5245,6 +5665,215 @@ export function gridTextLines(text: string, uppercase: boolean): string[] {
     .filter(Boolean);
 }
 
+// ── "Showcase" grid geometry ─────────────────────────────────────────────────
+// An eight-photo 3×3 grid — every cell but the centre holds a `cell-{n}` photo
+// (n = 1..8, row-major, skipping the centre); the centre cell holds a
+// vertically stacked block of live text, one line (or wrapped paragraph) per
+// configured slot. Every cell is inset from its exact-thirds bounds by half the
+// gutter, so the template background shows through as a thin (or, for the
+// "matted" lookbook variant, wider) rule between cells — generalises
+// GRID_LAYOUT's hairline to a full 3×3 of photos. Shared by the DOM preview
+// (ShowcasePreview) and the canvas export (exportShowcase). Measured from the
+// 736×920 / 1000×1500 references (public/templates/shared/{1a01…, 2b01…,
+// 3c01…}.jpg).
+export interface ShowcaseTextSlot {
+  // Matches a TextLayer id in the template's `layers`.
+  id: string;
+  // Vertical centre of this (possibly multi-line) block, as a fraction of the
+  // *centre cell's* height — captures each reference's uneven gaps exactly
+  // without needing cumulative gap math.
+  midY: number;
+  // Font size, a fraction of canvas *width*.
+  size: number;
+  // Line pitch ÷ font size (standard CSS line-height convention).
+  lineHeight: number;
+  // Word-wrap width, a fraction of the centre cell's width. Omitted for the
+  // short single-line fields that never wrap in the reference.
+  wrap?: number;
+  italic?: boolean;
+}
+
+export interface ShowcaseLookLabels {
+  size: number; // fraction of canvas width
+  color: string;
+  fontId: string;
+  padX: number; // fraction of cell width, from the cell's top-left corner
+  padY: number; // fraction of cell height
+}
+
+export interface ShowcaseVariant {
+  // Gutter thickness between cells, a fraction of canvas width. "clean"
+  // templates (drop/sale) use a hairline; the "matted" lookbook uses a wider
+  // rule that shows more of the surrounding card colour.
+  gutter: number;
+  // The centre (text) cell's background fill.
+  centerFill: string;
+  // The fixed "Look {n}" corner label drawn on every photo cell — lookbook only.
+  lookLabels?: ShowcaseLookLabels;
+  textSlots: ShowcaseTextSlot[];
+}
+
+export const SHOWCASE_VARIANTS: Record<string, ShowcaseVariant> = {
+  // Cozy Drop (1a01…): eyebrow / wordmark / CTA + URL, warm grey centre panel.
+  "11000000-0000-0000-0000-000000000053": {
+    gutter: 0.01,
+    centerFill: "#e3e2df",
+    textSlots: [
+      { id: "eyebrow", midY: 0.144, size: 0.021, lineHeight: 1.2 },
+      { id: "header", midY: 0.507, size: 0.044, lineHeight: 1.1 },
+      { id: "cta", midY: 0.853, size: 0.023, lineHeight: 1.2 },
+      { id: "description", midY: 0.907, size: 0.017, lineHeight: 1.2 },
+    ],
+  },
+  // Sitewide Sale (2b01…): serif wordmark + bold sale headline, cream panel.
+  "11000000-0000-0000-0000-000000000054": {
+    gutter: 0.01,
+    centerFill: "#faf8f3",
+    textSlots: [
+      { id: "eyebrow", midY: 0.121, size: 0.022, lineHeight: 1.2 },
+      { id: "description", midY: 0.322, size: 0.026, lineHeight: 1.2 },
+      { id: "header", midY: 0.509, size: 0.048, lineHeight: 0.94, wrap: 0.86 },
+      { id: "cta", midY: 0.802, size: 0.025, lineHeight: 1.2 },
+      { id: "finePrint", midY: 0.865, size: 0.015, lineHeight: 1.2 },
+    ],
+  },
+  // Mid Year Lookbook (3c01…): numbered "Look" cells, grey card, serif sale copy.
+  "11000000-0000-0000-0000-000000000055": {
+    gutter: 0.011,
+    centerFill: "#f0f0f0",
+    lookLabels: { size: 0.019, color: "#1a1a1a", fontId: "montserrat", padX: 0.07, padY: 0.045 },
+    textSlots: [
+      { id: "eyebrow", midY: 0.077, size: 0.013, lineHeight: 1.2 },
+      { id: "header", midY: 0.474, size: 0.046, lineHeight: 1.0, italic: true },
+      { id: "description", midY: 0.552, size: 0.023, lineHeight: 1.2 },
+      { id: "cta", midY: 0.919, size: 0.019, lineHeight: 1.2 },
+    ],
+  },
+};
+
+const SHOWCASE_DEFAULT_VARIANT: ShowcaseVariant =
+  SHOWCASE_VARIANTS["11000000-0000-0000-0000-000000000053"];
+
+export function showcaseVariant(templateId: string): ShowcaseVariant {
+  return SHOWCASE_VARIANTS[templateId] ?? SHOWCASE_DEFAULT_VARIANT;
+}
+
+// 3×3 positions of the eight photo cells, row-major with the centre skipped —
+// array index i is `cell-{i+1}`.
+export const SHOWCASE_PHOTO_CELLS: GridCell[] = [
+  { c: 0, r: 0 },
+  { c: 1, r: 0 },
+  { c: 2, r: 0 },
+  { c: 0, r: 1 },
+  { c: 2, r: 1 },
+  { c: 0, r: 2 },
+  { c: 1, r: 2 },
+  { c: 2, r: 2 },
+];
+const SHOWCASE_TEXT_CELL: GridCell = { c: 1, r: 1 };
+
+export interface ShowcaseRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface ShowcasePhotoCell {
+  rect: ShowcaseRect;
+  label?: { x: number; y: number; size: number };
+}
+
+// A resolved text slot: an anchor point (x, y = the block's *vertical centre*,
+// w) plus the font size/pitch/wrap needed to lay out however many lines the
+// text resolves to. Centring a variable-height block on `y` — rather than
+// anchoring its top — is what lets the table above give the sale headline's
+// whole 3-line block the reference's measured centre directly, without
+// hand-computing where its first line starts.
+//
+// `wrap: false` fields (the wide-tracked wordmarks/headlines) are rendered as
+// a single line that is never broken, even if it runs close to `w` — tracking
+// that wide is the reference's own design, not an overflow to guard against.
+// `wrap: true` fields word-wrap to `w` and centre the resulting block on `y`.
+export interface ShowcaseSlotBox {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  size: number;
+  lineHeight: number;
+  wrap: boolean;
+  italic: boolean;
+}
+
+export interface ShowcaseGeometry {
+  gutter: number;
+  centerFill: string;
+  lookLabels?: ShowcaseLookLabels;
+  photos: ShowcasePhotoCell[];
+  textCell: ShowcaseRect;
+  slots: ShowcaseSlotBox[];
+}
+
+export function showcaseGeometry(
+  templateId: string,
+  width: number,
+  height: number,
+): ShowcaseGeometry {
+  const variant = showcaseVariant(templateId);
+  const gutter = variant.gutter * width;
+  const inset = (rect: ShowcaseRect): ShowcaseRect => ({
+    x: rect.x + gutter / 2,
+    y: rect.y + gutter / 2,
+    w: rect.w - gutter,
+    h: rect.h - gutter,
+  });
+  const photos: ShowcasePhotoCell[] = SHOWCASE_PHOTO_CELLS.map((cell) => {
+    const rect = inset(gridCellRect(cell, width, height));
+    const label = variant.lookLabels
+      ? {
+          x: rect.x + variant.lookLabels.padX * rect.w,
+          y: rect.y + variant.lookLabels.padY * rect.h,
+          size: variant.lookLabels.size * width,
+        }
+      : undefined;
+    return { rect, label };
+  });
+  const textCell = inset(gridCellRect(SHOWCASE_TEXT_CELL, width, height));
+  const slots: ShowcaseSlotBox[] = variant.textSlots.map((slot) => {
+    // A wrapping slot's box narrows to `wrap` and stays centred within the
+    // full cell; a single-line slot keeps the full cell width (only used to
+    // centre-align the text — it is never used as a break constraint).
+    const w = slot.wrap ? slot.wrap * textCell.w : textCell.w;
+    const x = textCell.x + (textCell.w - w) / 2;
+    return {
+      id: slot.id,
+      x,
+      y: textCell.y + slot.midY * textCell.h,
+      w,
+      size: slot.size * width,
+      lineHeight: slot.lineHeight,
+      wrap: Boolean(slot.wrap),
+      italic: slot.italic ?? false,
+    };
+  });
+  return {
+    gutter,
+    centerFill: variant.centerFill,
+    lookLabels: variant.lookLabels,
+    photos,
+    textCell,
+    slots,
+  };
+}
+
+// The fixed "Look {n}" label (1-based) for photo cell index i (i = 0..7) — a
+// named helper so call sites (the preview and the export) read intention-first
+// and can't drift on the label's wording.
+export function showcaseLookLabel(photoIndex: number): string {
+  return `Look ${photoIndex + 1}`;
+}
+
 // ── "New Drop" geometry ──────────────────────────────────────────────────────
 // A tilted Polaroid-style photo card sits between two giant fixed headline
 // words ("NEW" behind its top edge, "DROP" behind its bottom); the required
@@ -5756,6 +6385,87 @@ export function interiorInspirationGeometry(
     },
     blur: L.blur * width,
     backdropScale: L.backdropScale,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Everyday Icons — measured from
+// public/templates/shared/5f0141e800d6ae18b904a5f4a4aefe2a.jpg (736 x 1034).
+// The six cells stay hard-edged on a white canvas; text is live so brand colour
+// and brand font adaptation can be applied by swapping the text layer styles.
+export const FASHION_ICONS_LAYOUT = {
+  cells: [
+    { x: 258 / 736, y: 18 / 1034, w: 220 / 736, h: 330 / 1034 },
+    { x: 478 / 736, y: 18 / 1034, w: 222 / 736, h: 330 / 1034 },
+    { x: 37 / 736, y: 348 / 1034, w: 221 / 736, h: 330 / 1034 },
+    { x: 37 / 736, y: 678 / 1034, w: 221 / 736, h: 331 / 1034 },
+    { x: 258 / 736, y: 678 / 1034, w: 220 / 736, h: 331 / 1034 },
+    { x: 478 / 736, y: 678 / 1034, w: 222 / 736, h: 331 / 1034 },
+  ],
+  title: {
+    x: 270 / 736,
+    y: 362 / 1034,
+    w: 390 / 736,
+    size: 70 / 736,
+    lineHeight: 0.9,
+  },
+  leftCopy: {
+    x: 264 / 736,
+    y: 625 / 1034,
+    w: 176 / 736,
+    size: 9 / 736,
+    lineHeight: 1.25,
+  },
+  rightCopy: {
+    x: 486 / 736,
+    y: 625 / 1034,
+    w: 190 / 736,
+    size: 9 / 736,
+    lineHeight: 1.25,
+  },
+} as const;
+
+export interface FashionIconsRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface FashionIconsTextBox {
+  x: number;
+  y: number;
+  w: number;
+  size: number;
+  lineHeight: number;
+}
+
+export interface FashionIconsGeometry {
+  cells: FashionIconsRect[];
+  title: FashionIconsTextBox;
+  leftCopy: FashionIconsTextBox;
+  rightCopy: FashionIconsTextBox;
+}
+
+export function fashionIconsGeometry(width: number, height: number): FashionIconsGeometry {
+  const rect = (r: { x: number; y: number; w: number; h: number }) => ({
+    x: r.x * width,
+    y: r.y * height,
+    w: r.w * width,
+    h: r.h * height,
+  });
+  const textBox = (box: { x: number; y: number; w: number; size: number; lineHeight: number }) => ({
+    x: box.x * width,
+    y: box.y * height,
+    w: box.w * width,
+    size: box.size * width,
+    lineHeight: box.lineHeight,
+  });
+  return {
+    cells: FASHION_ICONS_LAYOUT.cells.map(rect),
+    title: textBox(FASHION_ICONS_LAYOUT.title),
+    leftCopy: textBox(FASHION_ICONS_LAYOUT.leftCopy),
+    rightCopy: textBox(FASHION_ICONS_LAYOUT.rightCopy),
   };
 }
 

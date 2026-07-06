@@ -121,6 +121,10 @@ import {
   briefGeometry,
   INTERIOR_INSPIRATION_LAYOUT,
   interiorInspirationGeometry,
+  fashionIconsGeometry,
+  showcaseGeometry,
+  showcaseVariant,
+  showcaseLookLabel,
   OPEN_SPACE_LAYOUT,
   openSpaceGeometry,
   GRID_LAYOUT,
@@ -3872,6 +3876,246 @@ function MosaicPreview({
   );
 }
 
+// Everyday Icons fashion collage: six hard-edged photo cells plus live editorial
+// type. Mirrors `exportFashionIcons`.
+function FashionIconsPreview({
+  layers,
+  template,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  layers: EditorLayer[];
+  template: RemixEditorTemplate;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const [rw, rh] = template.aspectRatio.split("/").map((part) => Number(part.trim()));
+  const ratio = rw && rh ? rw / rh : 736 / 1034;
+  const Wv = 1000;
+  const Hv = Math.round(Wv / ratio);
+  const geo = fashionIconsGeometry(Wv, Hv);
+  const pctX = (value: number) => `${(value / Wv) * 100}%`;
+  const pctY = (value: number) => `${(value / Hv) * 100}%`;
+  const cqi = (value: number) => `${value * 100}cqi`;
+
+  const title = layers.find((layer): layer is TextLayer => layer.id === "header");
+  const leftCopy = layers.find((layer): layer is TextLayer => layer.id === "description");
+  const rightCopy = layers.find((layer): layer is TextLayer => layer.id === "cta");
+
+  const renderText = (
+    layer: TextLayer | undefined,
+    box: { x: number; y: number; w: number; size: number; lineHeight: number },
+  ) => {
+    if (!layer?.visible || !layer.text.trim()) return null;
+    const style = resolveTextStyle(layer);
+    return (
+      <div
+        className="pointer-events-none absolute z-20 whitespace-pre-line"
+        style={{
+          left: pctX(box.x),
+          top: pctY(box.y),
+          width: pctX(box.w),
+          color: layer.color,
+          fontFamily: fontById(layer.fontId).family,
+          fontWeight: style.weight,
+          fontSize: cqi((box.size / Wv) * style.sizeScale),
+          lineHeight: box.lineHeight,
+          letterSpacing: `${style.letterSpacing}em`,
+          textAlign: style.align,
+          textTransform: layer.uppercase ? "uppercase" : "none",
+          textShadow: style.shadow ? TEXT_SHADOW_CSS : "none",
+        }}
+      >
+        {layer.text}
+      </div>
+    );
+  };
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+      }}
+    >
+      {geo.cells.map((rect, index) => {
+        const layer = layers.find(
+          (candidate): candidate is Extract<EditorLayer, { kind: "image" }> =>
+            candidate.id === `cell-${index + 1}` && candidate.kind === "image",
+        );
+        if (!layer?.visible || !layer.src) return null;
+        return (
+          <DraggableImage
+            key={layer.id}
+            layer={layer}
+            fit="cover"
+            selected={selectedId === layer.id}
+            onSelect={() => onSelect(layer.id)}
+            onPan={(offsetX, offsetY) =>
+              updateLayer(
+                layer.id,
+                { transform: { ...imageTransform(layer), offsetX, offsetY } },
+                `pan-${layer.id}`,
+              )
+            }
+            style={{
+              left: pctX(rect.x),
+              top: pctY(rect.y),
+              width: pctX(rect.w),
+              height: pctY(rect.h),
+              zIndex: 10,
+            }}
+          />
+        );
+      })}
+
+      {renderText(title, geo.title)}
+      {renderText(leftCopy, geo.leftCopy)}
+      {renderText(rightCopy, geo.rightCopy)}
+    </div>
+  );
+}
+
+// Showcase grid: eight photo cells around a centre panel of stacked live text
+// (drop / sale / lookbook — see SHOWCASE_VARIANTS). The lookbook variant also
+// draws a fixed, non-editable "Look {n}" label on every photo cell. Mirrors
+// `exportShowcase`.
+function ShowcasePreview({
+  layers,
+  template,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  layers: EditorLayer[];
+  template: RemixEditorTemplate;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const [rw, rh] = template.aspectRatio.split("/").map((part) => Number(part.trim()));
+  const ratio = rw && rh ? rw / rh : 4 / 5;
+  const Wv = 1000;
+  const Hv = Math.round(Wv / ratio);
+  const geo = showcaseGeometry(template.id, Wv, Hv);
+  const pctX = (value: number) => `${(value / Wv) * 100}%`;
+  const pctY = (value: number) => `${(value / Hv) * 100}%`;
+  const cqi = (value: number) => `${value * 100}cqi`;
+
+  const textLayer = (id: string) =>
+    layers.find(
+      (layer): layer is TextLayer =>
+        layer.id === id && layer.kind !== "image" && layer.kind !== "logo",
+    );
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+      }}
+    >
+      {/* Centre panel fill, beneath the photos and text. */}
+      <div
+        className="pointer-events-none absolute"
+        style={{
+          left: pctX(geo.textCell.x),
+          top: pctY(geo.textCell.y),
+          width: pctX(geo.textCell.w),
+          height: pctY(geo.textCell.h),
+          background: geo.centerFill,
+        }}
+      />
+
+      {geo.photos.map((cell, index) => {
+        const id = `cell-${index + 1}`;
+        const layer = layers.find(
+          (candidate): candidate is Extract<EditorLayer, { kind: "image" }> =>
+            candidate.id === id && candidate.kind === "image",
+        );
+        return (
+          <div key={id} className="contents">
+            {layer?.visible && layer.src && (
+              <DraggableImage
+                layer={layer}
+                fit="cover"
+                selected={selectedId === layer.id}
+                onSelect={() => onSelect(layer.id)}
+                onPan={(offsetX, offsetY) =>
+                  updateLayer(
+                    layer.id,
+                    { transform: { ...imageTransform(layer), offsetX, offsetY } },
+                    `pan-${layer.id}`,
+                  )
+                }
+                style={{
+                  left: pctX(cell.rect.x),
+                  top: pctY(cell.rect.y),
+                  width: pctX(cell.rect.w),
+                  height: pctY(cell.rect.h),
+                  zIndex: 10,
+                }}
+              />
+            )}
+            {cell.label && geo.lookLabels && (
+              <div
+                className="pointer-events-none absolute z-20 whitespace-nowrap"
+                style={{
+                  left: pctX(cell.label.x),
+                  top: pctY(cell.label.y),
+                  fontSize: cqi(cell.label.size / Wv),
+                  fontFamily: fontById(geo.lookLabels.fontId).family,
+                  color: geo.lookLabels.color,
+                  fontWeight: 500,
+                }}
+              >
+                {showcaseLookLabel(index)}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {geo.slots.map((slot) => {
+        const layer = textLayer(slot.id);
+        if (!layer?.visible || !layer.text.trim()) return null;
+        const style = resolveTextStyle(layer);
+        return (
+          <div
+            key={slot.id}
+            className="pointer-events-none absolute z-20"
+            style={{
+              left: pctX(slot.x),
+              top: pctY(slot.y),
+              width: pctX(slot.w),
+              transform: "translateY(-50%)",
+              whiteSpace: slot.wrap ? "normal" : "nowrap",
+              color: layer.color,
+              fontFamily: fontById(layer.fontId).family,
+              fontWeight: style.weight,
+              fontSize: cqi((slot.size / Wv) * style.sizeScale),
+              lineHeight: slot.lineHeight,
+              letterSpacing: `${style.letterSpacing}em`,
+              textAlign: style.align,
+              textTransform: layer.uppercase ? "uppercase" : "none",
+              fontStyle: slot.italic ? "italic" : "normal",
+              textShadow: style.shadow ? TEXT_SHADOW_CSS : "none",
+            }}
+          >
+            {layer.text}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // "New Drop" poster: a tilted Polaroid-style photo card between two giant
 // fixed headline words, a script caption in the card's caption strip, optional
 // corner labels and an optional footer pill ("DISCOVER MORE AT @handle").
@@ -5451,7 +5695,8 @@ function defaultOpenSections(template: RemixEditorTemplate): Record<string, bool
     template.layout === "relax" ||
     template.layout === "cover" ||
     template.layout === "verticals" ||
-    template.layout === "mosaic"
+    template.layout === "mosaic" ||
+    template.layout === "showcase"
   ) {
     const open: Record<string, boolean> = {};
     template.layers.forEach((layer, index) => {
@@ -5525,6 +5770,19 @@ function defaultOpenSections(template: RemixEditorTemplate): Record<string, bool
   }
   if (template.layout === "interior-inspiration") {
     return { image: true, detail: false, description: true, header: true, cta: true };
+  }
+  if (template.layout === "fashion-icons") {
+    return {
+      "cell-1": true,
+      "cell-2": false,
+      "cell-3": false,
+      "cell-4": false,
+      "cell-5": false,
+      "cell-6": false,
+      header: true,
+      description: false,
+      cta: false,
+    };
   }
   if (template.layout === "grid") {
     return {
@@ -6114,6 +6372,8 @@ function EditorScreen({
                 template.layout === "drop" ||
                 template.layout === "open-space" ||
                 template.layout === "interior-inspiration" ||
+                template.layout === "fashion-icons" ||
+                template.layout === "showcase" ||
                 template.layout === "mosaic"
                 ? "max-w-[300px]"
                 : "max-w-[360px]",
@@ -6301,6 +6561,22 @@ function EditorScreen({
               />
             ) : template.layout === "drop" ? (
               <DropPreview
+                template={activeTemplate}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
+            ) : template.layout === "fashion-icons" ? (
+              <FashionIconsPreview
+                template={activeTemplate}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
+            ) : template.layout === "showcase" ? (
+              <ShowcasePreview
                 template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
@@ -6509,6 +6785,180 @@ function EditorScreen({
                     />
                   </EditorSection>
                 )}
+              </>
+            )}
+
+            {/* Everyday Icons: six required photos, required title, and two
+                optional editorial copy blocks. */}
+            {template.layout === "fashion-icons" && (
+              <>
+                {photos.map((photo) => (
+                  <EditorSection
+                    key={photo.id}
+                    title={photo.label}
+                    open={openSections[photo.id] ?? false}
+                    onToggleOpen={() => toggleOpen(photo.id)}
+                    hideable={photo.hideable}
+                    visible={photo.visible}
+                    onToggleVisible={() => toggleVisible(photo.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+                        <img src={photo.src} alt="" className="h-full w-full object-cover" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openReplace(photo.id)}
+                        className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                      >
+                        <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                        Replace photo
+                      </button>
+                    </div>
+                    <ImageControls
+                      layer={photo}
+                      onChange={(transform, key) => updateLayer(photo.id, { transform }, key)}
+                      onReset={() =>
+                        updateLayer(photo.id, { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                      }
+                    />
+                  </EditorSection>
+                ))}
+
+                {[
+                  { layer: header, title: "Title", label: "Title text" },
+                  { layer: description, title: "Left copy", label: "Left copy text" },
+                  { layer: cta, title: "Right copy", label: "Right copy text" },
+                ].map(({ layer, title, label }) =>
+                  layer ? (
+                    <EditorSection
+                      key={layer.id}
+                      title={title}
+                      open={openSections[layer.id] ?? layer.id === "header"}
+                      onToggleOpen={() => toggleOpen(layer.id)}
+                      hideable={layer.hideable}
+                      visible={layer.visible}
+                      onToggleVisible={() => toggleVisible(layer.id)}
+                    >
+                      <TextField
+                        label={label}
+                        value={layer.text}
+                        multiline
+                        onChange={(value) =>
+                          updateLayer(layer.id, { text: value }, `${layer.id}-text`)
+                        }
+                        onSuggest={() => cycleSuggestion(layer)}
+                      />
+                      <div className="mt-4">
+                        <FontDropdown
+                          value={layer.fontId}
+                          color={layer.color}
+                          onChange={(fontId) => changeFont(layer.id, fontId)}
+                        />
+                      </div>
+                      <div className="mt-4">
+                        <ColorSwatches
+                          palette={template.palette}
+                          value={layer.color}
+                          onChange={(hex) => updateLayer(layer.id, { color: hex })}
+                        />
+                      </div>
+                      <TextStyleControls
+                        layer={layer}
+                        onChange={(patch, key) => updateLayer(layer.id, patch, key)}
+                      />
+                    </EditorSection>
+                  ) : null,
+                )}
+              </>
+            )}
+
+            {/* Showcase grid: eight required photos (numbered "Look {n}" on the
+                lookbook variant — a fixed label, not a text field) + whichever
+                text layers that template variant defines. */}
+            {template.layout === "showcase" && (
+              <>
+                {showcaseVariant(template.id).lookLabels && (
+                  <p className="px-1 text-xs text-muted-foreground">
+                    Each photo is numbered "Look 1"–"Look 8" automatically — that label isn't
+                    editable.
+                  </p>
+                )}
+                {photos.map((photo) => (
+                  <EditorSection
+                    key={photo.id}
+                    title={photo.label}
+                    open={openSections[photo.id] ?? false}
+                    onToggleOpen={() => toggleOpen(photo.id)}
+                    hideable={photo.hideable}
+                    visible={photo.visible}
+                    onToggleVisible={() => toggleVisible(photo.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+                        <img src={photo.src} alt="" className="h-full w-full object-cover" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openReplace(photo.id)}
+                        className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                      >
+                        <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                        Replace photo
+                      </button>
+                    </div>
+                    <ImageControls
+                      layer={photo}
+                      onChange={(transform, key) => updateLayer(photo.id, { transform }, key)}
+                      onReset={() =>
+                        updateLayer(photo.id, { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                      }
+                    />
+                  </EditorSection>
+                ))}
+
+                {layers
+                  .filter(
+                    (layer): layer is TextLayer => layer.kind !== "image" && layer.kind !== "logo",
+                  )
+                  .map((layer) => (
+                    <EditorSection
+                      key={layer.id}
+                      title={layer.label}
+                      open={openSections[layer.id] ?? layer.id === "header"}
+                      onToggleOpen={() => toggleOpen(layer.id)}
+                      hideable={layer.hideable}
+                      visible={layer.visible}
+                      onToggleVisible={() => toggleVisible(layer.id)}
+                    >
+                      <TextField
+                        label={layer.label}
+                        value={layer.text}
+                        onChange={(value) =>
+                          updateLayer(layer.id, { text: value }, `${layer.id}-text`)
+                        }
+                        onSuggest={() => cycleSuggestion(layer)}
+                      />
+                      <div className="mt-4">
+                        <FontDropdown
+                          value={layer.fontId}
+                          color={layer.color}
+                          onChange={(fontId) => changeFont(layer.id, fontId)}
+                        />
+                      </div>
+                      <div className="mt-4">
+                        <ColorSwatches
+                          palette={template.palette}
+                          value={layer.color}
+                          onChange={(hex) => updateLayer(layer.id, { color: hex })}
+                        />
+                      </div>
+                      <TextStyleControls
+                        layer={layer}
+                        onChange={(patch, key) => updateLayer(layer.id, patch, key)}
+                      />
+                    </EditorSection>
+                  ))}
               </>
             )}
 
@@ -8083,6 +8533,8 @@ function EditorScreen({
               template.layout !== "brief" &&
               template.layout !== "open-space" &&
               template.layout !== "interior-inspiration" &&
+              template.layout !== "fashion-icons" &&
+              template.layout !== "showcase" &&
               template.layout !== "mosaic" &&
               image && (
                 <EditorSection
@@ -8169,6 +8621,8 @@ function EditorScreen({
               template.layout !== "brief" &&
               template.layout !== "open-space" &&
               template.layout !== "interior-inspiration" &&
+              template.layout !== "fashion-icons" &&
+              template.layout !== "showcase" &&
               template.layout !== "mosaic" &&
               header && (
                 <EditorSection
@@ -8221,6 +8675,8 @@ function EditorScreen({
               template.layout !== "brief" &&
               template.layout !== "open-space" &&
               template.layout !== "interior-inspiration" &&
+              template.layout !== "fashion-icons" &&
+              template.layout !== "showcase" &&
               description && (
                 <EditorSection
                   title={
@@ -8286,6 +8742,8 @@ function EditorScreen({
               template.layout !== "drop" &&
               template.layout !== "open-space" &&
               template.layout !== "interior-inspiration" &&
+              template.layout !== "fashion-icons" &&
+              template.layout !== "showcase" &&
               cta && (
                 <EditorSection
                   title="Call to action"
