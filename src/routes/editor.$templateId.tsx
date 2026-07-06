@@ -1556,9 +1556,6 @@ function CoverPreview({
   const image = layers.find(
     (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.id === "image",
   );
-  const detail = layers.find(
-    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.id === "detail",
-  );
   const header = layers.find((layer): layer is TextLayer => layer.kind === "header");
   const description = layers.find((layer): layer is TextLayer => layer.kind === "description");
   const headerStyle = header ? resolveTextStyle(header) : null;
@@ -4388,6 +4385,9 @@ function OpenSpacePreview({
 }) {
   const image = layers.find(
     (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image",
+  );
+  const detail = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.id === "detail",
   );
   const header = layers.find((layer): layer is TextLayer => layer.kind === "header");
   const wordmark = layers.find((layer): layer is TextLayer => layer.kind === "eyebrow");

@@ -1253,7 +1253,6 @@ async function exportPostcard(
     layers.find((layer) => layer.id === id) as T | undefined;
 
   const photoLayer = byId<Extract<EditorLayer, { kind: "image" }>>("image");
-  const detailLayer = byId<Extract<EditorLayer, { kind: "image" }>>("detail");
   const city = byId<TextLayer>("header");
   const subtitle = byId<TextLayer>("eyebrow");
   const country = byId<TextLayer>("cta");
@@ -2075,6 +2074,7 @@ async function exportOpenSpace(
     layers.find((layer) => layer.id === id) as T | undefined;
 
   const photoLayer = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const detailLayer = byId<Extract<EditorLayer, { kind: "image" }>>("detail");
   const header = byId<TextLayer>("header");
   const wordmark = byId<TextLayer>("eyebrow");
   const subline = byId<TextLayer>("description");
