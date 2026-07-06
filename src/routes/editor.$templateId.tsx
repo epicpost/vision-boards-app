@@ -118,6 +118,10 @@ import {
   statementTagLines,
   wovenGeometry,
   briefGeometry,
+  OPEN_SPACE_LAYOUT,
+  OPEN_SPACE_REFERENCE_SRC,
+  isDefaultOpenSpaceState,
+  openSpaceGeometry,
   GRID_LAYOUT,
   gridVariant,
   gridCellRect,
@@ -2641,7 +2645,9 @@ function TestimonialArcPreview({
   };
 
   const arcStyle = title ? resolveTextStyle(title) : null;
-  const arcChars = title ? testimonialArcChars(title.uppercase ? title.text.toUpperCase() : title.text) : [];
+  const arcChars = title
+    ? testimonialArcChars(title.uppercase ? title.text.toUpperCase() : title.text)
+    : [];
   const arcMid = (arcChars.length - 1) / 2;
 
   return (
@@ -2768,7 +2774,8 @@ function TestimonialArcPreview({
           <span
             className="absolute inset-0 rotate-45 bg-white"
             style={{
-              clipPath: "polygon(50% 0, 63% 37%, 100% 50%, 63% 63%, 50% 100%, 37% 63%, 0 50%, 37% 37%)",
+              clipPath:
+                "polygon(50% 0, 63% 37%, 100% 50%, 63% 63%, 50% 100%, 37% 63%, 0 50%, 37% 37%)",
             }}
           />
         </span>
@@ -4360,6 +4367,272 @@ function BriefPreview({
   );
 }
 
+// Open Space Living Room: a single required photo is used twice — as the
+// right-side full-height backdrop and as a framed inset — with the required
+// headline and optional logo lockup above. Mirrors `exportOpenSpace`.
+function OpenSpacePreview({
+  template,
+  layers,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const image = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.kind === "image",
+  );
+  const header = layers.find((layer): layer is TextLayer => layer.kind === "header");
+  const wordmark = layers.find((layer): layer is TextLayer => layer.kind === "eyebrow");
+  const subline = layers.find((layer): layer is TextLayer => layer.kind === "description");
+  const logo = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "logo" }> => layer.kind === "logo",
+  );
+
+  const [rw, rh] = template.aspectRatio.split("/").map((part) => Number(part.trim()));
+  const ratio = rw && rh ? rw / rh : 736 / 1308;
+  const Wv = 1000;
+  const Hv = Math.round(Wv / ratio);
+  const geo = openSpaceGeometry(Wv, Hv);
+  const pct = (value: number) => `${value * 100}%`;
+
+  const headlineStyle = header ? resolveTextStyle(header) : null;
+  const wordmarkStyle = wordmark ? resolveTextStyle(wordmark) : null;
+  const sublineStyle = subline ? resolveTextStyle(subline) : null;
+  const rawLines = (header?.text ?? "")
+    .split(/\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const firstLine = rawLines[0] ?? "";
+  const secondLine = rawLines.slice(1).join(" ");
+
+  const [, setFontTick] = useState(0);
+  const faces = [header, wordmark, subline]
+    .filter((layer): layer is TextLayer => Boolean(layer))
+    .map(
+      (layer) =>
+        `${resolveTextStyle(layer).weight} 64px ${fontById(layer.fontId).family.split(",")[0].trim()}`,
+    )
+    .join("|");
+  useEffect(() => {
+    if (typeof document === "undefined" || !document.fonts || !faces) return;
+    let live = true;
+    Promise.all(
+      faces.split("|").map((face) => document.fonts.load(face).catch(() => undefined)),
+    ).then(() => {
+      if (live) setFontTick((tick) => tick + 1);
+    });
+    return () => {
+      live = false;
+    };
+  }, [faces]);
+
+  if (isDefaultOpenSpaceState(layers)) {
+    return (
+      <div
+        className="relative w-full overflow-hidden shadow-2xl"
+        style={{
+          aspectRatio: template.aspectRatio,
+          background: template.background,
+        }}
+      >
+        <img src={OPEN_SPACE_REFERENCE_SRC} alt="" className="absolute inset-0 h-full w-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+      }}
+    >
+      {image?.visible && image.src && (
+        <img
+          src={image.src}
+          alt=""
+          className="absolute h-full w-full object-cover"
+          style={{
+            left: pct(geo.backdrop.x / Wv),
+            top: 0,
+            width: pct(geo.backdrop.w / Wv),
+            height: "100%",
+          }}
+        />
+      )}
+      <div
+        className="absolute"
+        style={{
+          left: pct(geo.leftWash.x / Wv),
+          top: 0,
+          width: pct(geo.leftWash.w / Wv),
+          height: "100%",
+          background: template.background,
+        }}
+      />
+
+      <svg
+        className="pointer-events-none absolute inset-0 z-10 h-full w-full"
+        viewBox={`0 0 ${Wv} ${Hv}`}
+        preserveAspectRatio="none"
+      >
+        {!logo?.visible && (
+          <path
+            d={`M ${geo.lockup.centerX - geo.lockup.markW * 0.08} ${geo.lockup.markTop}
+              C ${geo.lockup.centerX - geo.lockup.markW * 0.36} ${geo.lockup.markTop + geo.lockup.markH * 0.09}
+                ${geo.lockup.centerX - geo.lockup.markW * 0.32} ${geo.lockup.markTop + geo.lockup.markH * 0.38}
+                ${geo.lockup.centerX - geo.lockup.markW * 0.46} ${geo.lockup.markTop + geo.lockup.markH * 0.58}
+              C ${geo.lockup.centerX - geo.lockup.markW * 0.54} ${geo.lockup.markTop + geo.lockup.markH * 0.7}
+                ${geo.lockup.centerX - geo.lockup.markW * 0.61} ${geo.lockup.markTop + geo.lockup.markH * 0.79}
+                ${geo.lockup.centerX - geo.lockup.markW * 0.66} ${geo.lockup.markTop + geo.lockup.markH * 0.94}
+              C ${geo.lockup.centerX - geo.lockup.markW * 0.46} ${geo.lockup.markTop + geo.lockup.markH * 0.84}
+                ${geo.lockup.centerX - geo.lockup.markW * 0.24} ${geo.lockup.markTop + geo.lockup.markH * 0.73}
+                ${geo.lockup.centerX - geo.lockup.markW * 0.11} ${geo.lockup.markTop + geo.lockup.markH * 0.52}
+              C ${geo.lockup.centerX + geo.lockup.markW * 0.07} ${geo.lockup.markTop + geo.lockup.markH * 0.24}
+                ${geo.lockup.centerX + geo.lockup.markW * 0.3} ${geo.lockup.markTop + geo.lockup.markH * 0.19}
+                ${geo.lockup.centerX + geo.lockup.markW * 0.34} ${geo.lockup.markTop + geo.lockup.markH * 0.04}
+              C ${geo.lockup.centerX + geo.lockup.markW * 0.2} ${geo.lockup.markTop + geo.lockup.markH * 0.08}
+                ${geo.lockup.centerX + geo.lockup.markW * 0.06} ${geo.lockup.markTop + geo.lockup.markH * 0.05}
+                ${geo.lockup.centerX - geo.lockup.markW * 0.08} ${geo.lockup.markTop} Z`}
+            fill={wordmark?.color ?? header?.color ?? "#ffffff"}
+          />
+        )}
+
+        {wordmark?.visible && wordmarkStyle && (
+          <>
+            <line
+              x1={geo.lockup.centerX - geo.lockup.ruleW / 2}
+              x2={geo.lockup.centerX + geo.lockup.ruleW / 2}
+              y1={geo.lockup.ruleY}
+              y2={geo.lockup.ruleY}
+              stroke={wordmark.color}
+              strokeWidth={geo.lockup.ruleStroke}
+            />
+            <text
+              x={geo.lockup.centerX}
+              y={geo.lockup.wordmarkBaseline}
+              textAnchor="middle"
+              fill={wordmark.color}
+              style={{
+                fontFamily: fontById(wordmark.fontId).family,
+                fontWeight: wordmarkStyle.weight,
+                fontSize: `${geo.lockup.wordmarkSize * wordmarkStyle.sizeScale}px`,
+                letterSpacing: `${wordmarkStyle.letterSpacing}em`,
+              }}
+            >
+              {wordmark.uppercase ? wordmark.text.toUpperCase() : wordmark.text}
+            </text>
+          </>
+        )}
+
+        {subline?.visible && sublineStyle && (
+          <text
+            x={geo.lockup.centerX}
+            y={geo.lockup.sublineBaseline}
+            textAnchor="middle"
+            fill={subline.color}
+            style={{
+              fontFamily: fontById(subline.fontId).family,
+              fontWeight: sublineStyle.weight,
+              fontSize: `${geo.lockup.sublineSize * sublineStyle.sizeScale}px`,
+              letterSpacing: `${sublineStyle.letterSpacing}em`,
+            }}
+          >
+            {subline.uppercase ? subline.text.toUpperCase() : subline.text}
+          </text>
+        )}
+
+        {header?.visible && headlineStyle && (
+          <>
+            <text
+              x={geo.headline.centerX}
+              y={geo.headline.firstBaseline}
+              textAnchor="middle"
+              fill={header.color}
+              style={{
+                fontFamily: fontById(header.fontId).family,
+                fontWeight: OPEN_SPACE_LAYOUT.headline.firstWeight,
+                fontSize: `${geo.headline.firstSize * headlineStyle.sizeScale}px`,
+                letterSpacing: `${OPEN_SPACE_LAYOUT.headline.firstTracking}em`,
+              }}
+            >
+              {header.uppercase ? firstLine.toUpperCase() : firstLine}
+            </text>
+            <text
+              x={geo.headline.centerX}
+              y={geo.headline.secondBaseline}
+              textAnchor="middle"
+              fill={header.color}
+              style={{
+                fontFamily: fontById(header.fontId).family,
+                fontWeight: headlineStyle.weight,
+                fontSize: `${geo.headline.secondSize * headlineStyle.sizeScale}px`,
+                letterSpacing: `${OPEN_SPACE_LAYOUT.headline.secondTracking}em`,
+              }}
+            >
+              {header.uppercase ? secondLine.toUpperCase() : secondLine}
+            </text>
+          </>
+        )}
+      </svg>
+
+      {logo?.visible && (
+        <img
+          src={logo.src}
+          alt=""
+          className="absolute z-20 object-contain"
+          style={{
+            left: pct(geo.uploadedLogo.x / Wv),
+            top: pct(geo.uploadedLogo.y / Hv),
+            width: pct(geo.uploadedLogo.w / Wv),
+            height: pct(geo.uploadedLogo.h / Hv),
+          }}
+        />
+      )}
+
+      <div
+        className="absolute z-20 bg-white"
+        style={{
+          left: pct(geo.frame.x / Wv),
+          top: pct(geo.frame.y / Hv),
+          width: pct(geo.frame.w / Wv),
+          height: pct(geo.frame.h / Hv),
+        }}
+      />
+
+      {image?.visible && (
+        <DraggableImage
+          layer={image}
+          fit="cover"
+          selected={selectedId === image.id}
+          onSelect={() => onSelect(image.id)}
+          onPan={(offsetX, offsetY) =>
+            updateLayer(
+              image.id,
+              { transform: { ...imageTransform(image), offsetX, offsetY } },
+              `pan-${image.id}`,
+            )
+          }
+          style={{
+            left: pct(geo.inset.x / Wv),
+            top: pct(geo.inset.y / Hv),
+            width: pct(geo.inset.w / Wv),
+            height: pct(geo.inset.h / Hv),
+            zIndex: 30,
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 // FRANKOF editorial paper slides (1, 6, 8): an uppercase headline on top, a
 // flexible photo (contain or cover), and an optional footer caption + arrow disc.
 // Geometry resolved per template via `editorialGeometry`. Mirrors
@@ -5698,6 +5971,7 @@ function EditorScreen({
                 template.layout === "statement" ||
                 template.layout === "woven" ||
                 template.layout === "drop" ||
+                template.layout === "open-space" ||
                 template.layout === "mosaic"
                 ? "max-w-[300px]"
                 : "max-w-[360px]",
@@ -5853,6 +6127,14 @@ function EditorScreen({
               />
             ) : template.layout === "brief" ? (
               <BriefPreview
+                template={activeTemplate}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
+            ) : template.layout === "open-space" ? (
+              <OpenSpacePreview
                 template={activeTemplate}
                 layers={layers}
                 selectedId={selectedImageId}
@@ -7182,6 +7464,144 @@ function EditorScreen({
               </>
             )}
 
+            {/* Open Space Living Room: one required photo, one required headline,
+                and optional wordmark/subline text beneath the decorative logo
+                mark. The uploaded logo itself uses the shared Logo section. */}
+            {template.layout === "open-space" && (
+              <>
+                {image && (
+                  <EditorSection
+                    title={image.label}
+                    open={openSections.image ?? true}
+                    onToggleOpen={() => toggleOpen("image")}
+                    hideable={image.hideable}
+                    visible={image.visible}
+                    onToggleVisible={() => toggleVisible("image")}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+                        <img src={image.src} alt="" className="h-full w-full object-cover" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openReplace("image")}
+                        className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                      >
+                        <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                        Replace photo
+                      </button>
+                    </div>
+                    <ImageControls
+                      layer={image}
+                      onChange={(transform, key) => updateLayer("image", { transform }, key)}
+                      onReset={() =>
+                        updateLayer("image", { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                      }
+                    />
+                  </EditorSection>
+                )}
+
+                {header && (
+                  <EditorSection
+                    title="Headline"
+                    open={openSections.header ?? true}
+                    onToggleOpen={() => toggleOpen("header")}
+                    hideable={header.hideable}
+                    visible={header.visible}
+                    onToggleVisible={() => toggleVisible("header")}
+                  >
+                    <TextField
+                      label="Headline text"
+                      value={header.text}
+                      onChange={(value) => updateLayer("header", { text: value }, "header-text")}
+                      onSuggest={() => cycleSuggestion(header)}
+                      multiline
+                    />
+                    <div className="mt-4">
+                      <FontDropdown
+                        value={header.fontId}
+                        color={header.color}
+                        onChange={(fontId) => changeFont("header", fontId)}
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <ColorSwatches
+                        palette={template.palette}
+                        value={header.color}
+                        onChange={(hex) => updateLayer("header", { color: hex })}
+                      />
+                    </div>
+                  </EditorSection>
+                )}
+
+                {eyebrow && (
+                  <EditorSection
+                    title="Wordmark"
+                    open={openSections.eyebrow ?? false}
+                    onToggleOpen={() => toggleOpen("eyebrow")}
+                    hideable={eyebrow.hideable}
+                    visible={eyebrow.visible}
+                    onToggleVisible={() => toggleVisible("eyebrow")}
+                  >
+                    <TextField
+                      label="Wordmark text"
+                      value={eyebrow.text}
+                      onChange={(value) => updateLayer("eyebrow", { text: value }, "eyebrow-text")}
+                      onSuggest={() => cycleSuggestion(eyebrow)}
+                    />
+                    <div className="mt-4">
+                      <FontDropdown
+                        value={eyebrow.fontId}
+                        color={eyebrow.color}
+                        onChange={(fontId) => changeFont("eyebrow", fontId)}
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <ColorSwatches
+                        palette={template.palette}
+                        value={eyebrow.color}
+                        onChange={(hex) => updateLayer("eyebrow", { color: hex })}
+                      />
+                    </div>
+                  </EditorSection>
+                )}
+
+                {description && (
+                  <EditorSection
+                    title="Logo subline"
+                    open={openSections.description ?? false}
+                    onToggleOpen={() => toggleOpen("description")}
+                    hideable={description.hideable}
+                    visible={description.visible}
+                    onToggleVisible={() => toggleVisible("description")}
+                  >
+                    <TextField
+                      label="Logo subline text"
+                      value={description.text}
+                      onChange={(value) =>
+                        updateLayer("description", { text: value }, "description-text")
+                      }
+                      onSuggest={() => cycleSuggestion(description)}
+                    />
+                    <div className="mt-4">
+                      <FontDropdown
+                        value={description.fontId}
+                        color={description.color}
+                        onChange={(fontId) => changeFont("description", fontId)}
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <ColorSwatches
+                        palette={template.palette}
+                        value={description.color}
+                        onChange={(hex) => updateLayer("description", { color: hex })}
+                      />
+                    </div>
+                  </EditorSection>
+                )}
+              </>
+            )}
+
             {/* Mono Grid: the background photo, up to 3 cell photos, the caption
                 (headline + hashtag) and the rotated side text (title + hashtag).
                 The logo uses the shared Logo section below. */}
@@ -7400,6 +7820,7 @@ function EditorScreen({
               template.layout !== "grid" &&
               template.layout !== "drop" &&
               template.layout !== "brief" &&
+              template.layout !== "open-space" &&
               template.layout !== "mosaic" &&
               image && (
                 <EditorSection
@@ -7484,6 +7905,7 @@ function EditorScreen({
               template.layout !== "grid" &&
               template.layout !== "drop" &&
               template.layout !== "brief" &&
+              template.layout !== "open-space" &&
               template.layout !== "mosaic" &&
               header && (
                 <EditorSection
@@ -7534,6 +7956,7 @@ function EditorScreen({
               template.layout !== "grid" &&
               template.layout !== "drop" &&
               template.layout !== "brief" &&
+              template.layout !== "open-space" &&
               description && (
                 <EditorSection
                   title={
@@ -7597,6 +8020,7 @@ function EditorScreen({
               template.layout !== "statement" &&
               template.layout !== "grid" &&
               template.layout !== "drop" &&
+              template.layout !== "open-space" &&
               cta && (
                 <EditorSection
                   title="Call to action"

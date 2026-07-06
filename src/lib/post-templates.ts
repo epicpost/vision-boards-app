@@ -217,7 +217,166 @@ export const postTemplatesQueryKey = ({ search, board }: PostTemplateFeedParams 
 
 export const postTemplateQueryKey = (id: string) => ["post-template", id] as const;
 
+const OPEN_SPACE_LIVING_ROOM_ID = "11000000-0000-0000-0000-000000000050";
+
+const LOCAL_POST_TEMPLATES: PostTemplate[] = [
+  {
+    id: OPEN_SPACE_LIVING_ROOM_ID,
+    title: "Open Space Living Room",
+    preview: "/templates/shared/bd99b4086a779e897c606c7a58c7c06c.jpg",
+    preview_type: "image",
+    preview_width: 736,
+    preview_height: 1308,
+    likes_count: 0,
+    is_saved: false,
+    is_liked: false,
+    is_remixed: false,
+    assets: [
+      {
+        id: `${OPEN_SPACE_LIVING_ROOM_ID}-preview`,
+        url: "/templates/shared/bd99b4086a779e897c606c7a58c7c06c.jpg",
+        type: "image",
+        order: 0,
+        width: 736,
+        height: 1308,
+      },
+    ],
+    board_id: null,
+    board_name: null,
+    remix_id: null,
+    description:
+      "A one-photo interior collage with a full-height living room backdrop, framed inset image, required headline and optional logo lockup.",
+    tags: ["interior", "living room", "real estate", "architecture", "collage"],
+    comments: [],
+    created_at: "2026-07-06T00:00:00.000Z",
+    updated_at: "2026-07-06T00:00:00.000Z",
+    template_type: "image",
+    template_subtype: "interior_collage",
+    aspect_ratio: "736 / 1308",
+    slide_count: 1,
+    input_image_count: 1,
+    render_engine: "client",
+    render_mode: "editor",
+    capabilities: {
+      supports_ai_generation: false,
+      supports_remix: true,
+      supports_asset_replacement: true,
+      supports_text_rewrite: true,
+      supports_brand_adaptation: true,
+      supports_aspect_ratio_conversion: false,
+      supports_language_adaptation: true,
+      supports_batch_generation: false,
+      supports_variants: false,
+    },
+    input_requirements: {
+      assets: [
+        {
+          key: "living_room_image",
+          type: "image",
+          required: true,
+          min_count: 1,
+          max_count: 1,
+          accepted_mime_types: ["image/jpeg", "image/png", "image/webp"],
+          preferred_aspect_ratios: ["4:5", "1:1", "3:4"],
+          min_width: 736,
+          min_height: 920,
+          allow_crop: true,
+          allow_background_extend: false,
+          allow_background_removal: false,
+          transparent_preferred: false,
+          description: "One living room or interior image used for both the backdrop and inset.",
+        },
+        {
+          key: "logo",
+          type: "logo",
+          required: false,
+          min_count: 0,
+          max_count: 1,
+          accepted_mime_types: ["image/png", "image/svg+xml", "image/webp"],
+          preferred_aspect_ratios: ["1:1", "4:3", "3:1"],
+          min_width: 128,
+          min_height: 128,
+          allow_crop: false,
+          allow_background_extend: false,
+          allow_background_removal: false,
+          transparent_preferred: true,
+          description: "Optional logo placed in the top lockup.",
+        },
+      ],
+      text_requirements: [
+        {
+          key: "headline",
+          label: "Headline",
+          required: true,
+          max_chars: 44,
+          recommended_chars: 24,
+          visible_on_asset: true,
+          ai_can_generate: true,
+          ai_can_rewrite: true,
+          allowed_values: [],
+          description: 'Required headline. Default: "OPEN SPACE LIVING ROOM".',
+        },
+      ],
+      text_density: "low",
+      text_overflow_strategy: "wrap",
+    },
+    output_spec: {
+      supported_aspect_ratios: ["736 / 1308"],
+      default_aspect_ratio: "736 / 1308",
+      supported_formats: ["png", "jpeg", "webp"],
+      default_format: "png",
+      resolution_presets: [{ aspect_ratio: "736 / 1308", width: 736, height: 1308 }],
+      has_safe_area: true,
+      has_transparent_background: false,
+      contains_text_overlay: true,
+      contains_branding_slot: true,
+    },
+    video_output_spec: null,
+    video_requirements: null,
+    carousel_requirements: null,
+    agent_hints: {
+      render_template: "client:open-space",
+      render_defaults: {
+        caption_color: "#ffffff",
+        caption_color_options: [
+          { label: "White", value: "#ffffff" },
+          { label: "Concrete", value: "#aaa49c" },
+          { label: "Charcoal", value: "#202020" },
+          { label: "Forest", value: "#263f32" },
+        ],
+      },
+    },
+  },
+];
+
+function localTemplateMatches(template: PostTemplate, search?: string): boolean {
+  const needle = search?.trim().toLowerCase();
+  if (!needle) return true;
+  return [template.title, template.description, ...template.tags]
+    .filter(Boolean)
+    .some((value) => value?.toLowerCase().includes(needle));
+}
+
+function mergeLocalTemplates(
+  response: PostTemplateFeedResponse,
+  params: PostTemplateFeedParams,
+): PostTemplateFeedResponse {
+  if (params.board || params.cursor) return response;
+  const existing = new Set(response.data.map((template) => template.id));
+  const local = LOCAL_POST_TEMPLATES.filter(
+    (template) => !existing.has(template.id) && localTemplateMatches(template, params.search),
+  );
+  if (local.length === 0) return response;
+  return {
+    ...response,
+    data: [...local, ...response.data],
+  };
+}
+
 export async function fetchPostTemplate(id: string): Promise<PostTemplate> {
+  const local = LOCAL_POST_TEMPLATES.find((template) => template.id === id);
+  if (local) return local;
+
   const url = new URL(`/api/v1/post-templates/${id}`, API_BASE_URL);
 
   // Optional auth: signed-in callers also get per-user state (is_saved / board).
@@ -284,5 +443,6 @@ export async function fetchPostTemplates(
     throw new Error(`Post templates request failed with ${response.status}`);
   }
 
-  return response.json() as Promise<PostTemplateFeedResponse>;
+  const payload = (await response.json()) as PostTemplateFeedResponse;
+  return mergeLocalTemplates(payload, params);
 }

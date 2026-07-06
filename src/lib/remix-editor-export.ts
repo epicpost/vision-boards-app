@@ -50,6 +50,10 @@ import {
   statementTagLines,
   wovenGeometry,
   briefGeometry,
+  OPEN_SPACE_LAYOUT,
+  OPEN_SPACE_REFERENCE_SRC,
+  isDefaultOpenSpaceState,
+  openSpaceGeometry,
   GRID_LAYOUT,
   gridVariant,
   gridCellRect,
@@ -1052,20 +1056,18 @@ async function exportTestimonialArc(
   );
 
   if (typeof document !== "undefined" && document.fonts) {
-    await Promise.all(
-      [
-        ...textLayers.map((layer) =>
-          document.fonts
-            .load(
-              `${resolveTextStyle(layer).weight} 64px ${primaryFamily(fontById(layer.fontId).family)}`,
-            )
-            .catch(() => undefined),
-        ),
+    await Promise.all([
+      ...textLayers.map((layer) =>
         document.fonts
-          .load(`700 64px ${primaryFamily(fontById("poppins").family)}`)
+          .load(
+            `${resolveTextStyle(layer).weight} 64px ${primaryFamily(fontById(layer.fontId).family)}`,
+          )
           .catch(() => undefined),
-      ],
-    ).catch(() => undefined);
+      ),
+      document.fonts
+        .load(`700 64px ${primaryFamily(fontById("poppins").family)}`)
+        .catch(() => undefined),
+    ]).catch(() => undefined);
   }
 
   ctx.fillStyle = template.background;
@@ -1141,12 +1143,7 @@ async function exportTestimonialArc(
   ctx.save();
   ctx.fillStyle = TESTIMONIAL_ARC_LAYOUT.sparkle.fill;
   geometry.sparkles.forEach((sparkle) => {
-    drawTestimonialArcSparkle(
-      ctx,
-      sparkle.x * width,
-      sparkle.y * height,
-      sparkle.size * width,
-    );
+    drawTestimonialArcSparkle(ctx, sparkle.x * width, sparkle.y * height, sparkle.size * width);
   });
   ctx.restore();
 
@@ -1990,6 +1987,225 @@ async function exportBrief(
     for (const line of geo.bodyLines) {
       ctx.fillText(line.text, geo.colLeft, line.baseline);
     }
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
+function drawOpenSpaceMark(
+  ctx: CanvasRenderingContext2D,
+  centerX: number,
+  top: number,
+  width: number,
+  height: number,
+  fill: string,
+) {
+  const x = centerX - width / 2;
+  const y = top;
+  ctx.save();
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.moveTo(x + width * 0.58, y);
+  ctx.bezierCurveTo(
+    x + width * 0.3,
+    y + height * 0.09,
+    x + width * 0.34,
+    y + height * 0.38,
+    x + width * 0.2,
+    y + height * 0.58,
+  );
+  ctx.bezierCurveTo(
+    x + width * 0.12,
+    y + height * 0.7,
+    x + width * 0.05,
+    y + height * 0.79,
+    x,
+    y + height * 0.94,
+  );
+  ctx.bezierCurveTo(
+    x + width * 0.2,
+    y + height * 0.84,
+    x + width * 0.42,
+    y + height * 0.73,
+    x + width * 0.55,
+    y + height * 0.52,
+  );
+  ctx.bezierCurveTo(
+    x + width * 0.73,
+    y + height * 0.24,
+    x + width * 0.96,
+    y + height * 0.19,
+    x + width,
+    y + height * 0.04,
+  );
+  ctx.bezierCurveTo(
+    x + width * 0.86,
+    y + height * 0.08,
+    x + width * 0.72,
+    y + height * 0.05,
+    x + width * 0.58,
+    y,
+  );
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+// Rasterize the Open Space Living Room template: one required image is drawn as
+// a right-side full-height backdrop and again in the white inset frame, with
+// the required headline and optional logo lockup above. Mirrors
+// `OpenSpacePreview`.
+async function exportOpenSpace(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+
+  const photoLayer = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const header = byId<TextLayer>("header");
+  const wordmark = byId<TextLayer>("eyebrow");
+  const subline = byId<TextLayer>("description");
+  const logo = byId<Extract<EditorLayer, { kind: "logo" }>>("logo");
+
+  if (isDefaultOpenSpaceState(layers)) {
+    const reference = await loadImage(OPEN_SPACE_REFERENCE_SRC);
+    ctx.drawImage(reference, 0, 0, width, height);
+    return canvasToBlob(canvas, format);
+  }
+
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      [header, wordmark, subline]
+        .filter((layer): layer is TextLayer => Boolean(layer?.visible && layer.text.trim()))
+        .map((layer) =>
+          document.fonts
+            .load(
+              `${resolveTextStyle(layer).weight} 64px ${primaryFamily(fontById(layer.fontId).family)}`,
+            )
+            .catch(() => undefined),
+        ),
+    );
+  }
+
+  const geo = openSpaceGeometry(width, height);
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  if (photoLayer?.visible && photoLayer.src) {
+    let photo: HTMLImageElement;
+    try {
+      photo = await loadImage(photoLayer.src);
+    } catch {
+      throw new ExportImageError(1);
+    }
+    drawImageCover(ctx, photo, geo.backdrop);
+    ctx.fillStyle = template.background;
+    ctx.fillRect(geo.leftWash.x, geo.leftWash.y, geo.leftWash.w, geo.leftWash.h);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(geo.frame.x, geo.frame.y, geo.frame.w, geo.frame.h);
+    drawImageCover(ctx, photo, geo.inset, imageTransform(photoLayer));
+  }
+
+  const headlineStyle = header ? resolveTextStyle(header) : null;
+  if (header?.visible && headlineStyle) {
+    const rawLines = header.text
+      .split(/\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const first = rawLines[0] ?? "";
+    const second = rawLines.slice(1).join(" ");
+    ctx.save();
+    ctx.fillStyle = header.color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    const family = fontById(header.fontId).family;
+    if (first) {
+      ctx.font = `${OPEN_SPACE_LAYOUT.headline.firstWeight} ${geo.headline.firstSize * headlineStyle.sizeScale}px ${family}`;
+      ctx.letterSpacing = `${OPEN_SPACE_LAYOUT.headline.firstTracking}em`;
+      ctx.fillText(
+        header.uppercase ? first.toUpperCase() : first,
+        geo.headline.centerX,
+        geo.headline.firstBaseline,
+      );
+    }
+    if (second) {
+      ctx.font = `${headlineStyle.weight} ${geo.headline.secondSize * headlineStyle.sizeScale}px ${family}`;
+      ctx.letterSpacing = `${OPEN_SPACE_LAYOUT.headline.secondTracking}em`;
+      ctx.fillText(
+        header.uppercase ? second.toUpperCase() : second,
+        geo.headline.centerX,
+        geo.headline.secondBaseline,
+      );
+    }
+    ctx.restore();
+  }
+
+  if (logo?.visible && logo.src) {
+    try {
+      const logoImage = await loadImage(logo.src);
+      drawImageContain(ctx, logoImage, geo.uploadedLogo);
+    } catch {
+      // Optional logo: skip if it cannot be loaded.
+    }
+  } else {
+    drawOpenSpaceMark(
+      ctx,
+      geo.lockup.centerX,
+      geo.lockup.markTop,
+      geo.lockup.markW,
+      geo.lockup.markH,
+      wordmark?.color ?? header?.color ?? "#ffffff",
+    );
+  }
+
+  if (wordmark?.visible) {
+    const style = resolveTextStyle(wordmark);
+    ctx.save();
+    ctx.fillStyle = wordmark.color;
+    ctx.strokeStyle = wordmark.color;
+    ctx.lineWidth = geo.lockup.ruleStroke;
+    ctx.beginPath();
+    ctx.moveTo(geo.lockup.centerX - geo.lockup.ruleW / 2, geo.lockup.ruleY);
+    ctx.lineTo(geo.lockup.centerX + geo.lockup.ruleW / 2, geo.lockup.ruleY);
+    ctx.stroke();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.font = `${style.weight} ${geo.lockup.wordmarkSize * style.sizeScale}px ${fontById(wordmark.fontId).family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    ctx.fillText(
+      wordmark.uppercase ? wordmark.text.toUpperCase() : wordmark.text,
+      geo.lockup.centerX,
+      geo.lockup.wordmarkBaseline,
+    );
+    ctx.restore();
+  }
+
+  if (subline?.visible) {
+    const style = resolveTextStyle(subline);
+    ctx.save();
+    ctx.fillStyle = subline.color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.font = `${style.weight} ${geo.lockup.sublineSize * style.sizeScale}px ${fontById(subline.fontId).family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    ctx.fillText(
+      subline.uppercase ? subline.text.toUpperCase() : subline.text,
+      geo.lockup.centerX,
+      geo.lockup.sublineBaseline,
+    );
+    ctx.restore();
   }
 
   return canvasToBlob(canvas, format);
@@ -3864,6 +4080,9 @@ export async function exportCreative(
     const square = template.aspectRatio.replace(/\s/g, "") === "1/1";
     return exportTestimonial(template, layers, format, square && width === 1080 ? 1200 : width);
   }
+  if (template.layout === "testimonial-arc") {
+    return exportTestimonialArc(template, layers, format, width);
+  }
   if (template.layout === "postcard") {
     return exportPostcard(template, layers, format, width);
   }
@@ -3887,6 +4106,9 @@ export async function exportCreative(
   }
   if (template.layout === "brief") {
     return exportBrief(template, layers, format, width);
+  }
+  if (template.layout === "open-space") {
+    return exportOpenSpace(template, layers, format, width);
   }
   if (template.layout === "mosaic") {
     return exportMosaic(template, layers, format, width);

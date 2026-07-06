@@ -128,6 +128,8 @@ export const EXPORT_FORMATS: Record<ExportFormat, ExportFormatMeta> = {
 // reproduces the measured Porto travel poster reference; "relax" is a stack of
 // rounded photo panels (with gaps) and a caption + subcaption over the middle
 // panel, mirroring the `template_relax.v2.html` render engine template;
+// "open-space" is a one-photo interior collage with a full-height backdrop,
+// framed inset image, headline and optional top logo lockup;
 // "mosaic" is an 11-photo masonry moodboard grid (3 uneven columns, one tall
 // centre cell), with no text layers at all.
 export type TemplateLayout =
@@ -153,6 +155,7 @@ export type TemplateLayout =
   | "woven"
   | "statement"
   | "brief"
+  | "open-space"
   | "mosaic";
 
 export interface RemixEditorTemplate {
@@ -2990,6 +2993,98 @@ const STONE_VILLA_MOSAIC: RemixEditorTemplate = {
   ],
 };
 
+// Open Space Living Room — a one-photo interior-design collage. Preview art
+// lives at public/templates/shared/bd99b4086a779e897c606c7a58c7c06c.jpg
+// (736 x 1308): a pale left wash, the same required photo cover-fit as a
+// full-height right backdrop, a white framed inset of that photo, and a top
+// headline/lockup. The editable source image is cropped from the reference's
+// inset so the default render recreates the composition without baked-in text.
+const OPEN_SPACE_LIVING_ROOM: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000050",
+  title: "Open Space Living Room",
+  layout: "open-space",
+  aspectRatio: "736 / 1308",
+  background: "#efeeee",
+  palette: [
+    { label: "White", value: "#ffffff" },
+    { label: "Warm white", value: "#efeeee" },
+    { label: "Concrete", value: "#aaa49c" },
+    { label: "Charcoal", value: "#202020" },
+    { label: "Forest", value: "#263f32" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Living room photo",
+      visible: true,
+      hideable: false,
+      src: "/templates/shared/open-space-living-room-source.jpg",
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Headline",
+      visible: true,
+      hideable: false,
+      text: "OPEN SPACE\nLIVING ROOM",
+      color: "#ffffff",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 800,
+      align: "center",
+      letterSpacing: 0.11,
+      suggestions: [
+        "OPEN SPACE\nLIVING ROOM",
+        "MODERN LOFT\nLIVING ROOM",
+        "BRIGHT SPACE\nINTERIOR DESIGN",
+        "SOFT LIGHT\nLIVING ROOM",
+      ],
+    },
+    {
+      id: "eyebrow",
+      kind: "eyebrow",
+      label: "Wordmark",
+      visible: true,
+      hideable: true,
+      text: "Boca do Lobo",
+      color: "#ffffff",
+      fontId: "playfair",
+      uppercase: false,
+      weight: 700,
+      align: "center",
+      suggestions: ["Boca do Lobo", "EpicPost Studio", "Interior Atelier", "Design House"],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Logo subline",
+      visible: true,
+      hideable: true,
+      text: "EXCLUSIVE DESIGN",
+      color: "#ffffff",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 500,
+      align: "center",
+      letterSpacing: 0.14,
+      suggestions: ["EXCLUSIVE DESIGN", "INTERIOR DESIGN", "LIVING CONCEPTS", "DESIGN STUDIO"],
+    },
+    {
+      id: "logo",
+      kind: "logo",
+      label: "Logo",
+      visible: false,
+      hideable: true,
+      src: "/transparent-logo.png",
+    },
+  ],
+};
+
+export const OPEN_SPACE_REFERENCE_SRC = "/templates/shared/bd99b4086a779e897c606c7a58c7c06c.jpg";
+export const OPEN_SPACE_SOURCE_SRC = "/templates/shared/open-space-living-room-source.jpg";
+
 const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [TEMPLATE_28.id]: TEMPLATE_28,
   [TEMPLATE_205.id]: TEMPLATE_205,
@@ -3024,6 +3119,7 @@ const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [RESIDENCE_MOSAIC.id]: RESIDENCE_MOSAIC,
   [COASTAL_MOSAIC.id]: COASTAL_MOSAIC,
   [STONE_VILLA_MOSAIC.id]: STONE_VILLA_MOSAIC,
+  [OPEN_SPACE_LIVING_ROOM.id]: OPEN_SPACE_LIVING_ROOM,
 };
 
 export function getRemixEditorTemplate(id: string): RemixEditorTemplate | null {
@@ -5340,6 +5436,136 @@ export function briefGeometry(
   }));
 
   return { photo, marker, colLeft, colWidth, titleFontSize, bodyFontSize, titleLines, bodyLines };
+}
+
+// ---------------------------------------------------------------------------
+// Open Space Living Room — the one-photo interior collage. All geometry is
+// measured from public/templates/shared/bd99b4086a779e897c606c7a58c7c06c.jpg
+// (736 x 1308), then scaled to the target canvas. The same photo layer is drawn
+// twice: cover-fit as the full-height right backdrop and cover-fit in the white
+// inset frame.
+export const OPEN_SPACE_LAYOUT = {
+  backdrop: { x: 184 / 736, y: 0, w: 552 / 736, h: 1 },
+  leftWash: { x: 0, y: 0, w: 184 / 736, h: 1 },
+  frame: { x: 29 / 736, y: 360 / 1308, w: 489 / 736, h: 589 / 1308 },
+  inset: { x: 60 / 736, y: 388 / 1308, w: 428 / 736, h: 532 / 1308 },
+  headline: {
+    centerX: 387 / 736,
+    firstBaseline: 302 / 1308,
+    secondBaseline: 351 / 1308,
+    firstSize: 33 / 736,
+    secondSize: 35 / 736,
+    firstTracking: 0.16,
+    secondTracking: 0.095,
+    firstWeight: 300,
+  },
+  lockup: {
+    centerX: 329 / 736,
+    markTop: 39 / 1308,
+    markW: 78 / 736,
+    markH: 91 / 1308,
+    ruleY: 154 / 1308,
+    ruleW: 101 / 736,
+    ruleStroke: 1 / 736,
+    wordmarkBaseline: 177 / 1308,
+    wordmarkSize: 15 / 736,
+    sublineBaseline: 187 / 1308,
+    sublineSize: 5.5 / 736,
+  },
+  uploadedLogo: { x: 289 / 736, y: 41 / 1308, w: 82 / 736, h: 82 / 1308 },
+} as const;
+
+export interface OpenSpaceGeometry {
+  backdrop: { x: number; y: number; w: number; h: number };
+  leftWash: { x: number; y: number; w: number; h: number };
+  frame: { x: number; y: number; w: number; h: number };
+  inset: { x: number; y: number; w: number; h: number };
+  headline: {
+    centerX: number;
+    firstBaseline: number;
+    secondBaseline: number;
+    firstSize: number;
+    secondSize: number;
+  };
+  lockup: {
+    centerX: number;
+    markTop: number;
+    markW: number;
+    markH: number;
+    ruleY: number;
+    ruleW: number;
+    ruleStroke: number;
+    wordmarkBaseline: number;
+    wordmarkSize: number;
+    sublineBaseline: number;
+    sublineSize: number;
+  };
+  uploadedLogo: { x: number; y: number; w: number; h: number };
+}
+
+export function openSpaceGeometry(width: number, height: number): OpenSpaceGeometry {
+  const L = OPEN_SPACE_LAYOUT;
+  const rect = (r: { x: number; y: number; w: number; h: number }) => ({
+    x: r.x * width,
+    y: r.y * height,
+    w: r.w * width,
+    h: r.h * height,
+  });
+  return {
+    backdrop: rect(L.backdrop),
+    leftWash: rect(L.leftWash),
+    frame: rect(L.frame),
+    inset: rect(L.inset),
+    headline: {
+      centerX: L.headline.centerX * width,
+      firstBaseline: L.headline.firstBaseline * height,
+      secondBaseline: L.headline.secondBaseline * height,
+      firstSize: L.headline.firstSize * width,
+      secondSize: L.headline.secondSize * width,
+    },
+    lockup: {
+      centerX: L.lockup.centerX * width,
+      markTop: L.lockup.markTop * height,
+      markW: L.lockup.markW * width,
+      markH: L.lockup.markH * height,
+      ruleY: L.lockup.ruleY * height,
+      ruleW: L.lockup.ruleW * width,
+      ruleStroke: L.lockup.ruleStroke * width,
+      wordmarkBaseline: L.lockup.wordmarkBaseline * height,
+      wordmarkSize: L.lockup.wordmarkSize * width,
+      sublineBaseline: L.lockup.sublineBaseline * height,
+      sublineSize: L.lockup.sublineSize * width,
+    },
+    uploadedLogo: rect(L.uploadedLogo),
+  };
+}
+
+export function isDefaultOpenSpaceState(layers: EditorLayer[]): boolean {
+  const image = layers.find((layer): layer is ImageLayer => layer.id === "image");
+  const header = layers.find((layer): layer is TextLayer => layer.id === "header");
+  const wordmark = layers.find((layer): layer is TextLayer => layer.id === "eyebrow");
+  const subline = layers.find((layer): layer is TextLayer => layer.id === "description");
+  const logo = layers.find((layer): layer is LogoLayer => layer.id === "logo");
+  const t = image ? imageTransform(image) : DEFAULT_IMAGE_TRANSFORM;
+  return Boolean(
+    image?.visible &&
+    image.src === OPEN_SPACE_SOURCE_SRC &&
+    t.offsetX === 0 &&
+    t.offsetY === 0 &&
+    t.scale === 1 &&
+    t.rotation === 0 &&
+    header?.visible &&
+    header.text === "OPEN SPACE\nLIVING ROOM" &&
+    header.color.toLowerCase() === "#ffffff" &&
+    header.fontId === "montserrat" &&
+    wordmark?.visible &&
+    wordmark.text === "Boca do Lobo" &&
+    wordmark.color.toLowerCase() === "#ffffff" &&
+    subline?.visible &&
+    subline.text === "EXCLUSIVE DESIGN" &&
+    subline.color.toLowerCase() === "#ffffff" &&
+    !logo?.visible,
+  );
 }
 
 // ---------------------------------------------------------------------------
