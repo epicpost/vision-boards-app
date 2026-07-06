@@ -119,8 +119,6 @@ import {
   wovenGeometry,
   briefGeometry,
   OPEN_SPACE_LAYOUT,
-  OPEN_SPACE_REFERENCE_SRC,
-  isDefaultOpenSpaceState,
   openSpaceGeometry,
   GRID_LAYOUT,
   gridVariant,
@@ -4369,7 +4367,7 @@ function BriefPreview({
 
 // Open Space Living Room: a single required photo is used twice — as the
 // right-side full-height backdrop and as a framed inset — with the required
-// headline and optional logo lockup above. Mirrors `exportOpenSpace`.
+// headline and optional logo mark above. Mirrors `exportOpenSpace`.
 function OpenSpacePreview({
   template,
   layers,
@@ -4390,8 +4388,6 @@ function OpenSpacePreview({
     (layer): layer is Extract<EditorLayer, { kind: "image" }> => layer.id === "detail",
   );
   const header = layers.find((layer): layer is TextLayer => layer.kind === "header");
-  const wordmark = layers.find((layer): layer is TextLayer => layer.kind === "eyebrow");
-  const subline = layers.find((layer): layer is TextLayer => layer.kind === "description");
   const logo = layers.find(
     (layer): layer is Extract<EditorLayer, { kind: "logo" }> => layer.kind === "logo",
   );
@@ -4404,8 +4400,6 @@ function OpenSpacePreview({
   const pct = (value: number) => `${value * 100}%`;
 
   const headlineStyle = header ? resolveTextStyle(header) : null;
-  const wordmarkStyle = wordmark ? resolveTextStyle(wordmark) : null;
-  const sublineStyle = subline ? resolveTextStyle(subline) : null;
   const rawLines = (header?.text ?? "")
     .split(/\n/)
     .map((line) => line.trim())
@@ -4415,7 +4409,7 @@ function OpenSpacePreview({
   const insetLayer = detail?.visible && detail.src ? detail : image;
 
   const [, setFontTick] = useState(0);
-  const faces = [header, wordmark, subline]
+  const faces = [header]
     .filter((layer): layer is TextLayer => Boolean(layer))
     .map(
       (layer) =>
@@ -4434,20 +4428,6 @@ function OpenSpacePreview({
       live = false;
     };
   }, [faces]);
-
-  if (isDefaultOpenSpaceState(layers)) {
-    return (
-      <div
-        className="relative w-full overflow-hidden shadow-2xl"
-        style={{
-          aspectRatio: template.aspectRatio,
-          background: template.background,
-        }}
-      >
-        <img src={OPEN_SPACE_REFERENCE_SRC} alt="" className="absolute inset-0 h-full w-full" />
-      </div>
-    );
-  }
 
   return (
     <div
@@ -4487,72 +4467,6 @@ function OpenSpacePreview({
         viewBox={`0 0 ${Wv} ${Hv}`}
         preserveAspectRatio="none"
       >
-        {!logo?.visible && (
-          <path
-            d={`M ${geo.lockup.centerX - geo.lockup.markW * 0.08} ${geo.lockup.markTop}
-              C ${geo.lockup.centerX - geo.lockup.markW * 0.36} ${geo.lockup.markTop + geo.lockup.markH * 0.09}
-                ${geo.lockup.centerX - geo.lockup.markW * 0.32} ${geo.lockup.markTop + geo.lockup.markH * 0.38}
-                ${geo.lockup.centerX - geo.lockup.markW * 0.46} ${geo.lockup.markTop + geo.lockup.markH * 0.58}
-              C ${geo.lockup.centerX - geo.lockup.markW * 0.54} ${geo.lockup.markTop + geo.lockup.markH * 0.7}
-                ${geo.lockup.centerX - geo.lockup.markW * 0.61} ${geo.lockup.markTop + geo.lockup.markH * 0.79}
-                ${geo.lockup.centerX - geo.lockup.markW * 0.66} ${geo.lockup.markTop + geo.lockup.markH * 0.94}
-              C ${geo.lockup.centerX - geo.lockup.markW * 0.46} ${geo.lockup.markTop + geo.lockup.markH * 0.84}
-                ${geo.lockup.centerX - geo.lockup.markW * 0.24} ${geo.lockup.markTop + geo.lockup.markH * 0.73}
-                ${geo.lockup.centerX - geo.lockup.markW * 0.11} ${geo.lockup.markTop + geo.lockup.markH * 0.52}
-              C ${geo.lockup.centerX + geo.lockup.markW * 0.07} ${geo.lockup.markTop + geo.lockup.markH * 0.24}
-                ${geo.lockup.centerX + geo.lockup.markW * 0.3} ${geo.lockup.markTop + geo.lockup.markH * 0.19}
-                ${geo.lockup.centerX + geo.lockup.markW * 0.34} ${geo.lockup.markTop + geo.lockup.markH * 0.04}
-              C ${geo.lockup.centerX + geo.lockup.markW * 0.2} ${geo.lockup.markTop + geo.lockup.markH * 0.08}
-                ${geo.lockup.centerX + geo.lockup.markW * 0.06} ${geo.lockup.markTop + geo.lockup.markH * 0.05}
-                ${geo.lockup.centerX - geo.lockup.markW * 0.08} ${geo.lockup.markTop} Z`}
-            fill={wordmark?.color ?? header?.color ?? "#ffffff"}
-          />
-        )}
-
-        {wordmark?.visible && wordmarkStyle && (
-          <>
-            <line
-              x1={geo.lockup.centerX - geo.lockup.ruleW / 2}
-              x2={geo.lockup.centerX + geo.lockup.ruleW / 2}
-              y1={geo.lockup.ruleY}
-              y2={geo.lockup.ruleY}
-              stroke={wordmark.color}
-              strokeWidth={geo.lockup.ruleStroke}
-            />
-            <text
-              x={geo.lockup.centerX}
-              y={geo.lockup.wordmarkBaseline}
-              textAnchor="middle"
-              fill={wordmark.color}
-              style={{
-                fontFamily: fontById(wordmark.fontId).family,
-                fontWeight: wordmarkStyle.weight,
-                fontSize: `${geo.lockup.wordmarkSize * wordmarkStyle.sizeScale}px`,
-                letterSpacing: `${wordmarkStyle.letterSpacing}em`,
-              }}
-            >
-              {wordmark.uppercase ? wordmark.text.toUpperCase() : wordmark.text}
-            </text>
-          </>
-        )}
-
-        {subline?.visible && sublineStyle && (
-          <text
-            x={geo.lockup.centerX}
-            y={geo.lockup.sublineBaseline}
-            textAnchor="middle"
-            fill={subline.color}
-            style={{
-              fontFamily: fontById(subline.fontId).family,
-              fontWeight: sublineStyle.weight,
-              fontSize: `${geo.lockup.sublineSize * sublineStyle.sizeScale}px`,
-              letterSpacing: `${sublineStyle.letterSpacing}em`,
-            }}
-          >
-            {subline.uppercase ? subline.text.toUpperCase() : subline.text}
-          </text>
-        )}
-
         {header?.visible && headlineStyle && (
           <>
             <text
@@ -7508,9 +7422,8 @@ function EditorScreen({
               </>
             )}
 
-            {/* Open Space Living Room: one required photo, one required headline,
-                and optional wordmark/subline text beneath the decorative logo
-                mark. The uploaded logo itself uses the shared Logo section. */}
+            {/* Open Space Living Room: one required photo and one required headline.
+                The uploaded logo itself uses the shared Logo section. */}
             {template.layout === "open-space" && (
               <>
                 {image && (
@@ -7573,72 +7486,6 @@ function EditorScreen({
                         palette={template.palette}
                         value={header.color}
                         onChange={(hex) => updateLayer("header", { color: hex })}
-                      />
-                    </div>
-                  </EditorSection>
-                )}
-
-                {eyebrow && (
-                  <EditorSection
-                    title="Wordmark"
-                    open={openSections.eyebrow ?? false}
-                    onToggleOpen={() => toggleOpen("eyebrow")}
-                    hideable={eyebrow.hideable}
-                    visible={eyebrow.visible}
-                    onToggleVisible={() => toggleVisible("eyebrow")}
-                  >
-                    <TextField
-                      label="Wordmark text"
-                      value={eyebrow.text}
-                      onChange={(value) => updateLayer("eyebrow", { text: value }, "eyebrow-text")}
-                      onSuggest={() => cycleSuggestion(eyebrow)}
-                    />
-                    <div className="mt-4">
-                      <FontDropdown
-                        value={eyebrow.fontId}
-                        color={eyebrow.color}
-                        onChange={(fontId) => changeFont("eyebrow", fontId)}
-                      />
-                    </div>
-                    <div className="mt-4">
-                      <ColorSwatches
-                        palette={template.palette}
-                        value={eyebrow.color}
-                        onChange={(hex) => updateLayer("eyebrow", { color: hex })}
-                      />
-                    </div>
-                  </EditorSection>
-                )}
-
-                {description && (
-                  <EditorSection
-                    title="Logo subline"
-                    open={openSections.description ?? false}
-                    onToggleOpen={() => toggleOpen("description")}
-                    hideable={description.hideable}
-                    visible={description.visible}
-                    onToggleVisible={() => toggleVisible("description")}
-                  >
-                    <TextField
-                      label="Logo subline text"
-                      value={description.text}
-                      onChange={(value) =>
-                        updateLayer("description", { text: value }, "description-text")
-                      }
-                      onSuggest={() => cycleSuggestion(description)}
-                    />
-                    <div className="mt-4">
-                      <FontDropdown
-                        value={description.fontId}
-                        color={description.color}
-                        onChange={(fontId) => changeFont("description", fontId)}
-                      />
-                    </div>
-                    <div className="mt-4">
-                      <ColorSwatches
-                        palette={template.palette}
-                        value={description.color}
-                        onChange={(hex) => updateLayer("description", { color: hex })}
                       />
                     </div>
                   </EditorSection>

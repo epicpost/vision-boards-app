@@ -2997,7 +2997,7 @@ const STONE_VILLA_MOSAIC: RemixEditorTemplate = {
 // lives at public/templates/shared/bd99b4086a779e897c606c7a58c7c06c.jpg
 // (736 x 1308): a pale left wash, the same required photo cover-fit as a
 // full-height right backdrop, a white framed inset of that photo, and a top
-// headline/lockup. The editable source image is cropped from the reference's
+// headline/mark. The editable source image is cropped from the reference's
 // inset so the default render recreates the composition without baked-in text.
 const OPEN_SPACE_LIVING_ROOM: RemixEditorTemplate = {
   id: "11000000-0000-0000-0000-000000000050",
@@ -3051,35 +3051,6 @@ const OPEN_SPACE_LIVING_ROOM: RemixEditorTemplate = {
       ],
     },
     {
-      id: "eyebrow",
-      kind: "eyebrow",
-      label: "Wordmark",
-      visible: true,
-      hideable: true,
-      text: "Boca do Lobo",
-      color: "#ffffff",
-      fontId: "playfair",
-      uppercase: false,
-      weight: 700,
-      align: "center",
-      suggestions: ["Boca do Lobo", "EpicPost Studio", "Interior Atelier", "Design House"],
-    },
-    {
-      id: "description",
-      kind: "description",
-      label: "Logo subline",
-      visible: true,
-      hideable: true,
-      text: "EXCLUSIVE DESIGN",
-      color: "#ffffff",
-      fontId: "montserrat",
-      uppercase: true,
-      weight: 500,
-      align: "center",
-      letterSpacing: 0.14,
-      suggestions: ["EXCLUSIVE DESIGN", "INTERIOR DESIGN", "LIVING CONCEPTS", "DESIGN STUDIO"],
-    },
-    {
       id: "logo",
       kind: "logo",
       label: "Logo",
@@ -3090,7 +3061,6 @@ const OPEN_SPACE_LIVING_ROOM: RemixEditorTemplate = {
   ],
 };
 
-export const OPEN_SPACE_REFERENCE_SRC = "/templates/shared/bd99b4086a779e897c606c7a58c7c06c.jpg";
 export const OPEN_SPACE_SOURCE_SRC = "/templates/shared/open-space-living-room-source.jpg";
 
 const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
@@ -5469,16 +5439,6 @@ export const OPEN_SPACE_LAYOUT = {
   },
   lockup: {
     centerX: 329 / 736,
-    markTop: 39 / 1308,
-    markW: 78 / 736,
-    markH: 91 / 1308,
-    ruleY: 154 / 1308,
-    ruleW: 101 / 736,
-    ruleStroke: 1 / 736,
-    wordmarkBaseline: 177 / 1308,
-    wordmarkSize: 15 / 736,
-    sublineBaseline: 187 / 1308,
-    sublineSize: 5.5 / 736,
   },
   uploadedLogo: { x: 289 / 736, y: 41 / 1308, w: 82 / 736, h: 82 / 1308 },
 } as const;
@@ -5497,16 +5457,6 @@ export interface OpenSpaceGeometry {
   };
   lockup: {
     centerX: number;
-    markTop: number;
-    markW: number;
-    markH: number;
-    ruleY: number;
-    ruleW: number;
-    ruleStroke: number;
-    wordmarkBaseline: number;
-    wordmarkSize: number;
-    sublineBaseline: number;
-    sublineSize: number;
   };
   uploadedLogo: { x: number; y: number; w: number; h: number };
 }
@@ -5533,55 +5483,9 @@ export function openSpaceGeometry(width: number, height: number): OpenSpaceGeome
     },
     lockup: {
       centerX: L.lockup.centerX * width,
-      markTop: L.lockup.markTop * height,
-      markW: L.lockup.markW * width,
-      markH: L.lockup.markH * height,
-      ruleY: L.lockup.ruleY * height,
-      ruleW: L.lockup.ruleW * width,
-      ruleStroke: L.lockup.ruleStroke * width,
-      wordmarkBaseline: L.lockup.wordmarkBaseline * height,
-      wordmarkSize: L.lockup.wordmarkSize * width,
-      sublineBaseline: L.lockup.sublineBaseline * height,
-      sublineSize: L.lockup.sublineSize * width,
     },
     uploadedLogo: rect(L.uploadedLogo),
   };
-}
-
-export function isDefaultOpenSpaceState(layers: EditorLayer[]): boolean {
-  const image = layers.find((layer): layer is ImageLayer => layer.id === "image");
-  const detail = layers.find((layer): layer is ImageLayer => layer.id === "detail");
-  const header = layers.find((layer): layer is TextLayer => layer.id === "header");
-  const wordmark = layers.find((layer): layer is TextLayer => layer.id === "eyebrow");
-  const subline = layers.find((layer): layer is TextLayer => layer.id === "description");
-  const logo = layers.find((layer): layer is LogoLayer => layer.id === "logo");
-  const t = image ? imageTransform(image) : DEFAULT_IMAGE_TRANSFORM;
-  const detailTransform = detail ? imageTransform(detail) : DEFAULT_IMAGE_TRANSFORM;
-  return Boolean(
-    image?.visible &&
-    image.src === OPEN_SPACE_SOURCE_SRC &&
-    t.offsetX === 0 &&
-    t.offsetY === 0 &&
-    t.scale === 1 &&
-    t.rotation === 0 &&
-    (!detail?.visible ||
-      (detail.src === OPEN_SPACE_SOURCE_SRC &&
-        detailTransform.offsetX === 0 &&
-        detailTransform.offsetY === 0 &&
-        detailTransform.scale === 1 &&
-        detailTransform.rotation === 0)) &&
-    header?.visible &&
-    header.text === "OPEN SPACE\nLIVING ROOM" &&
-    header.color.toLowerCase() === "#ffffff" &&
-    header.fontId === "montserrat" &&
-    wordmark?.visible &&
-    wordmark.text === "Boca do Lobo" &&
-    wordmark.color.toLowerCase() === "#ffffff" &&
-    subline?.visible &&
-    subline.text === "EXCLUSIVE DESIGN" &&
-    subline.color.toLowerCase() === "#ffffff" &&
-    !logo?.visible,
-  );
 }
 
 // ---------------------------------------------------------------------------

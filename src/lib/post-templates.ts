@@ -223,7 +223,7 @@ const LOCAL_POST_TEMPLATES: PostTemplate[] = [
   {
     id: OPEN_SPACE_LIVING_ROOM_ID,
     title: "Open Space Living Room",
-    preview: "/templates/shared/bd99b4086a779e897c606c7a58c7c06c.jpg",
+    preview: "/templates/shared/open-space-living-room-preview.jpg",
     preview_type: "image",
     preview_width: 736,
     preview_height: 1308,
@@ -234,7 +234,7 @@ const LOCAL_POST_TEMPLATES: PostTemplate[] = [
     assets: [
       {
         id: `${OPEN_SPACE_LIVING_ROOM_ID}-preview`,
-        url: "/templates/shared/bd99b4086a779e897c606c7a58c7c06c.jpg",
+        url: "/templates/shared/open-space-living-room-preview.jpg",
         type: "image",
         order: 0,
         width: 736,

@@ -51,8 +51,6 @@ import {
   wovenGeometry,
   briefGeometry,
   OPEN_SPACE_LAYOUT,
-  OPEN_SPACE_REFERENCE_SRC,
-  isDefaultOpenSpaceState,
   openSpaceGeometry,
   GRID_LAYOUT,
   gridVariant,
@@ -1992,69 +1990,9 @@ async function exportBrief(
   return canvasToBlob(canvas, format);
 }
 
-function drawOpenSpaceMark(
-  ctx: CanvasRenderingContext2D,
-  centerX: number,
-  top: number,
-  width: number,
-  height: number,
-  fill: string,
-) {
-  const x = centerX - width / 2;
-  const y = top;
-  ctx.save();
-  ctx.fillStyle = fill;
-  ctx.beginPath();
-  ctx.moveTo(x + width * 0.58, y);
-  ctx.bezierCurveTo(
-    x + width * 0.3,
-    y + height * 0.09,
-    x + width * 0.34,
-    y + height * 0.38,
-    x + width * 0.2,
-    y + height * 0.58,
-  );
-  ctx.bezierCurveTo(
-    x + width * 0.12,
-    y + height * 0.7,
-    x + width * 0.05,
-    y + height * 0.79,
-    x,
-    y + height * 0.94,
-  );
-  ctx.bezierCurveTo(
-    x + width * 0.2,
-    y + height * 0.84,
-    x + width * 0.42,
-    y + height * 0.73,
-    x + width * 0.55,
-    y + height * 0.52,
-  );
-  ctx.bezierCurveTo(
-    x + width * 0.73,
-    y + height * 0.24,
-    x + width * 0.96,
-    y + height * 0.19,
-    x + width,
-    y + height * 0.04,
-  );
-  ctx.bezierCurveTo(
-    x + width * 0.86,
-    y + height * 0.08,
-    x + width * 0.72,
-    y + height * 0.05,
-    x + width * 0.58,
-    y,
-  );
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-}
-
 // Rasterize the Open Space Living Room template: one required image is drawn as
 // a right-side full-height backdrop and again in the white inset frame, with
-// the required headline and optional logo lockup above. Mirrors
-// `OpenSpacePreview`.
+// the required headline and optional logo mark above. Mirrors `OpenSpacePreview`.
 async function exportOpenSpace(
   template: RemixEditorTemplate,
   layers: EditorLayer[],
@@ -2076,19 +2014,11 @@ async function exportOpenSpace(
   const photoLayer = byId<Extract<EditorLayer, { kind: "image" }>>("image");
   const detailLayer = byId<Extract<EditorLayer, { kind: "image" }>>("detail");
   const header = byId<TextLayer>("header");
-  const wordmark = byId<TextLayer>("eyebrow");
-  const subline = byId<TextLayer>("description");
   const logo = byId<Extract<EditorLayer, { kind: "logo" }>>("logo");
-
-  if (isDefaultOpenSpaceState(layers)) {
-    const reference = await loadImage(OPEN_SPACE_REFERENCE_SRC);
-    ctx.drawImage(reference, 0, 0, width, height);
-    return canvasToBlob(canvas, format);
-  }
 
   if (typeof document !== "undefined" && document.fonts) {
     await Promise.all(
-      [header, wordmark, subline]
+      [header]
         .filter((layer): layer is TextLayer => Boolean(layer?.visible && layer.text.trim()))
         .map((layer) =>
           document.fonts
@@ -2163,53 +2093,6 @@ async function exportOpenSpace(
     } catch {
       // Optional logo: skip if it cannot be loaded.
     }
-  } else {
-    drawOpenSpaceMark(
-      ctx,
-      geo.lockup.centerX,
-      geo.lockup.markTop,
-      geo.lockup.markW,
-      geo.lockup.markH,
-      wordmark?.color ?? header?.color ?? "#ffffff",
-    );
-  }
-
-  if (wordmark?.visible) {
-    const style = resolveTextStyle(wordmark);
-    ctx.save();
-    ctx.fillStyle = wordmark.color;
-    ctx.strokeStyle = wordmark.color;
-    ctx.lineWidth = geo.lockup.ruleStroke;
-    ctx.beginPath();
-    ctx.moveTo(geo.lockup.centerX - geo.lockup.ruleW / 2, geo.lockup.ruleY);
-    ctx.lineTo(geo.lockup.centerX + geo.lockup.ruleW / 2, geo.lockup.ruleY);
-    ctx.stroke();
-    ctx.textAlign = "center";
-    ctx.textBaseline = "alphabetic";
-    ctx.font = `${style.weight} ${geo.lockup.wordmarkSize * style.sizeScale}px ${fontById(wordmark.fontId).family}`;
-    ctx.letterSpacing = `${style.letterSpacing}em`;
-    ctx.fillText(
-      wordmark.uppercase ? wordmark.text.toUpperCase() : wordmark.text,
-      geo.lockup.centerX,
-      geo.lockup.wordmarkBaseline,
-    );
-    ctx.restore();
-  }
-
-  if (subline?.visible) {
-    const style = resolveTextStyle(subline);
-    ctx.save();
-    ctx.fillStyle = subline.color;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "alphabetic";
-    ctx.font = `${style.weight} ${geo.lockup.sublineSize * style.sizeScale}px ${fontById(subline.fontId).family}`;
-    ctx.letterSpacing = `${style.letterSpacing}em`;
-    ctx.fillText(
-      subline.uppercase ? subline.text.toUpperCase() : subline.text,
-      geo.lockup.centerX,
-      geo.lockup.sublineBaseline,
-    );
-    ctx.restore();
   }
 
   return canvasToBlob(canvas, format);
