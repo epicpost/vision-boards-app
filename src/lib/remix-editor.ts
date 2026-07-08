@@ -3161,7 +3161,7 @@ const INTERIOR_INSPIRATION: RemixEditorTemplate = {
       visible: true,
       hideable: false,
       text: "@reallygreatsite",
-      color: "#6c6a66",
+      color: "#1f2322",
       fontId: "quicksand",
       uppercase: false,
       weight: 500,
@@ -3173,6 +3173,14 @@ const INTERIOR_INSPIRATION: RemixEditorTemplate = {
 
 export const BEAUTY_COLLECTION_SOURCE_SRC =
   "/templates/shared/e876c2ccf4cffd6d1513713ce8f2e7f5.jpg";
+
+// Alpha mask traced pixel-for-pixel from the reference JPG's flowing tile shape
+// (connected rounded cells with the weaving white channels between them). Edited
+// photos are clipped through this single mask so the mosaic reproduces the
+// reference exactly — the rounded-rect `cells` below can't render the bridges
+// that link adjacent tiles, so they're kept only for legacy geometry.
+export const BEAUTY_COLLECTION_MASK_SRC =
+  "/templates/shared/beauty-collection-mask.png";
 
 // Full-bleed paper/leaf-shadow backdrop behind the reference photo. Used to
 // repaint the eyebrow/title/cta zones when live text replaces the baked-in
@@ -6737,7 +6745,7 @@ export const INTERIOR_INSPIRATION_LAYOUT = {
     y: 300 / 1002,
     w: 390 / 564,
     h: 388 / 1002,
-    radius: 17 / 564,
+    radius: 0,
   },
   subtitle: {
     centerX: 0.5,

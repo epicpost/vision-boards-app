@@ -125,6 +125,7 @@ import {
   interiorInspirationGeometry,
   BEAUTY_COLLECTION_SOURCE_SRC,
   BEAUTY_COLLECTION_BACKGROUND_SRC,
+  BEAUTY_COLLECTION_MASK_SRC,
   beautyCollectionGeometry,
   beautyCollectionUsesLiveText,
   fashionIconsGeometry,
@@ -4123,47 +4124,45 @@ function BeautyCollectionPreview({
         className="pointer-events-none absolute inset-0 h-full w-full object-cover"
       />
 
-      {image &&
-        geo.cells.map((cell, index) => (
-          <div
-            key={index}
-            className={cn("absolute touch-none select-none overflow-hidden", {
-              "cursor-grabbing": dragging,
-              "cursor-grab": !dragging,
-            })}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerEnd}
-            onPointerCancel={handlePointerEnd}
+      {/* Edited photos are clipped through the traced tile mask (with its flowing,
+          bridged channels) so the mosaic reproduces the reference exactly. The
+          untouched default keeps the reference JPG's baked-in mosaic. */}
+      {image && photoEdited && image.visible && image.src && (
+        <div
+          className={cn("absolute inset-0 touch-none select-none", {
+            "cursor-grabbing": dragging,
+            "cursor-grab": !dragging,
+          })}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerEnd}
+          onPointerCancel={handlePointerEnd}
+          style={{
+            zIndex: 10,
+            WebkitMaskImage: `url(${BEAUTY_COLLECTION_MASK_SRC})`,
+            maskImage: `url(${BEAUTY_COLLECTION_MASK_SRC})`,
+            WebkitMaskSize: "100% 100%",
+            maskSize: "100% 100%",
+            WebkitMaskRepeat: "no-repeat",
+            maskRepeat: "no-repeat",
+            boxShadow:
+              selectedId === image.id ? "inset 0 0 0 2px hsl(var(--destructive))" : undefined,
+          }}
+        >
+          <img
+            src={image.src}
+            alt=""
+            draggable={false}
+            className="pointer-events-none absolute inset-0 max-w-none object-cover"
             style={{
-              left: pctX(cell.x),
-              top: pctY(cell.y),
-              width: pctX(cell.w),
-              height: pctY(cell.h),
-              borderRadius: cqi(cell.r / Wv),
-              zIndex: 10,
-              boxShadow:
-                selectedId === image.id ? "inset 0 0 0 2px hsl(var(--destructive))" : undefined,
+              width: "100cqi",
+              height: cqi(Hv / Wv),
+              transform: `translate(${cqi(t.offsetX)}, ${cqi(t.offsetY * (Hv / Wv))}) scale(${t.scale}) rotate(${t.rotation}deg)`,
+              transformOrigin: "center",
             }}
-          >
-            {photoEdited && image.visible && image.src && (
-              <img
-                src={image.src}
-                alt=""
-                draggable={false}
-                className="pointer-events-none absolute max-w-none object-cover"
-                style={{
-                  left: cqi(-cell.x / Wv),
-                  top: cqi(-cell.y / Wv),
-                  width: "100cqi",
-                  height: cqi(Hv / Wv),
-                  transform: `translate(${cqi(t.offsetX)}, ${cqi(t.offsetY * (Hv / Wv))}) scale(${t.scale}) rotate(${t.rotation}deg)`,
-                  transformOrigin: "center",
-                }}
-              />
-            )}
-          </div>
-        ))}
+          />
+        </div>
+      )}
 
       {drawText && (
         <>

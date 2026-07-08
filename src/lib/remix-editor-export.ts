@@ -56,6 +56,7 @@ import {
   interiorInspirationGeometry,
   BEAUTY_COLLECTION_SOURCE_SRC,
   BEAUTY_COLLECTION_BACKGROUND_SRC,
+  BEAUTY_COLLECTION_MASK_SRC,
   beautyCollectionGeometry,
   beautyCollectionUsesLiveText,
   fashionIconsGeometry,
@@ -3897,15 +3898,22 @@ async function exportBeautyCollection(
 
   if (shouldDrawPhoto && photo?.src) {
     try {
-      const image = await loadImage(photo.src);
-      for (const cell of geo.cells) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.roundRect(cell.x, cell.y, cell.w, cell.h, cell.r);
-        ctx.clip();
-        drawImageCoverCanvas(ctx, image, width, height, transform);
-        ctx.restore();
-      }
+      const [image, mask] = await Promise.all([
+        loadImage(photo.src),
+        loadImage(BEAUTY_COLLECTION_MASK_SRC),
+      ]);
+      // Clip through the traced tile mask (with its bridged, flowing channels)
+      // instead of separate rounded rects. Compose on an offscreen canvas so the
+      // destination-in only erases the photo, not the base plate underneath.
+      const off = document.createElement("canvas");
+      off.width = width;
+      off.height = height;
+      const octx = off.getContext("2d");
+      if (!octx) throw new ExportImageError(1);
+      drawImageCoverCanvas(octx, image, width, height, transform);
+      octx.globalCompositeOperation = "destination-in";
+      octx.drawImage(mask, 0, 0, width, height);
+      ctx.drawImage(off, 0, 0);
     } catch {
       throw new ExportImageError(1);
     }
