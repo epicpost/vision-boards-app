@@ -39,6 +39,7 @@ import {
 import type { PostTemplate } from "@/lib/post-templates";
 import {
   cloneLayers,
+  DEFAULT_IMAGE_TRANSFORM,
   EXPORT_FORMATS,
   getRemixEditorTemplate,
   hasRemixEditorTemplate,
@@ -449,6 +450,9 @@ export function RemixComposer({
                 ...layer,
                 ...(asset ? { assetId: asset.asset_id, assetUrl: asset.url } : {}),
                 ...(preview ? { src: preview } : {}),
+                ...(asset && editorTemplate.layout === "summer-mood"
+                  ? { transform: { ...DEFAULT_IMAGE_TRANSFORM } }
+                  : {}),
                 visible: Boolean(asset) || layer.visible,
               };
             });
@@ -708,11 +712,7 @@ export function RemixComposer({
         }}
       />
 
-      {(images.length > 0 ||
-        showLogoCard ||
-        showFontsCard ||
-        showWebsiteCard ||
-        showColorCard) && (
+      {(images.length > 0 || showLogoCard || showFontsCard || showWebsiteCard || showColorCard) && (
         <div className="mb-2 flex flex-wrap items-center gap-2">
           {showLogoCard && (
             <div className="group relative h-14 w-14 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">

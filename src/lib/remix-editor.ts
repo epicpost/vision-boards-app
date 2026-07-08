@@ -135,16 +135,18 @@ export const EXPORT_FORMATS: Record<ExportFormat, ExportFormatMeta> = {
 // script subtitle;
 // "fashion-icons" is a six-photo fashion collage with a required editorial
 // title and two optional small copy blocks;
-// "beauty-collection" is a single-photo rounded cutout beauty poster with a
-// required top label, required collection headline and optional footer wordmark;
+// "beauty-collection" is a single-photo rounded cutout beauty poster with an
+// optional top label, required collection headline and optional footer wordmark;
 // "showcase" is an eight-photo 3×3 grid (the ninth, centre cell holds a
 // stacked block of live text) — used for drop announcements, sale banners and
 // numbered lookbooks; which text layers exist and how they're styled varies
 // per template via `SHOWCASE_VARIANTS`;
-// "summer-mood" is a fixed pool collage with three diagonal white caption
+// "summer-mood" is a four-photo pool collage with three diagonal white caption
 // strips; one editable text input repeats along each strip.
 // "mosaic" is an 11-photo masonry moodboard grid (3 uneven columns, one tall
 // centre cell), with no text layers at all.
+// "breaking-news" is a news-card layout with a red label badge, oversized
+// headline, rounded story image and required bottom-right logo.
 export type TemplateLayout =
   | "poster"
   | "moodboard"
@@ -174,7 +176,8 @@ export type TemplateLayout =
   | "beauty-collection"
   | "showcase"
   | "summer-mood"
-  | "mosaic";
+  | "mosaic"
+  | "breaking-news";
 
 export interface RemixEditorTemplate {
   id: string;
@@ -3168,6 +3171,21 @@ const INTERIOR_INSPIRATION: RemixEditorTemplate = {
       align: "left",
       suggestions: ["@reallygreatsite", "@yourbrand", "@studiohome", "@designco"],
     },
+    {
+      id: "website",
+      kind: "eyebrow",
+      label: "Website",
+      visible: true,
+      hideable: true,
+      text: "www.reallygreatsite.com",
+      color: "#ffffff",
+      fontId: "quicksand",
+      uppercase: false,
+      weight: 500,
+      align: "center",
+      letterSpacing: 0.02,
+      suggestions: ["www.reallygreatsite.com", "www.yourbrand.com", "www.shopyourbrand.com", ""],
+    },
   ],
 };
 
@@ -3179,8 +3197,7 @@ export const BEAUTY_COLLECTION_SOURCE_SRC =
 // photos are clipped through this single mask so the mosaic reproduces the
 // reference exactly — the rounded-rect `cells` below can't render the bridges
 // that link adjacent tiles, so they're kept only for legacy geometry.
-export const BEAUTY_COLLECTION_MASK_SRC =
-  "/templates/shared/beauty-collection-mask.png";
+export const BEAUTY_COLLECTION_MASK_SRC = "/templates/shared/beauty-collection-mask.png";
 
 // Full-bleed paper/leaf-shadow backdrop behind the reference photo. Used to
 // repaint the eyebrow/title/cta zones when live text replaces the baked-in
@@ -3221,7 +3238,7 @@ const BEAUTY_COLLECTION: RemixEditorTemplate = {
       kind: "eyebrow",
       label: "Top label",
       visible: true,
-      hideable: false,
+      hideable: true,
       text: "BEAUTY 2025",
       color: "#111111",
       fontId: "montserrat",
@@ -3265,8 +3282,85 @@ const BEAUTY_COLLECTION: RemixEditorTemplate = {
 
 export const SUMMER_MOOD_SOURCE_SRC = "/templates/shared/12c6a594683063dc41ed8a5cd2e9c08a.jpg";
 
-// Summer Mood — fixed pool collage with three diagonal white text strips. The
-// editor exposes one caption value; the renderer repeats it along every strip.
+const SUMMER_MOOD_CELLS = [
+  {
+    id: "photo-1",
+    label: "Top left image",
+    points: [
+      [0, 0],
+      [0.36, 0],
+      [0.48, 0.53],
+      [0, 0.6],
+    ],
+    zIndex: 1,
+  },
+  {
+    id: "photo-2",
+    label: "Top right image",
+    points: [
+      [0.36, 0],
+      [1, 0],
+      [1, 0.43],
+      [0.48, 0.56],
+    ],
+    zIndex: 2,
+  },
+  {
+    id: "photo-3",
+    label: "Bottom left image",
+    points: [
+      [0, 0.58],
+      [0.48, 0.51],
+      [0.47, 1],
+      [0, 1],
+    ],
+    zIndex: 1,
+  },
+  {
+    id: "photo-4",
+    label: "Bottom right image",
+    points: [
+      [0.47, 0.52],
+      [1, 0.43],
+      [1, 1],
+      [0.47, 1],
+    ],
+    zIndex: 2,
+  },
+] as const;
+
+type SummerMoodCellDefinition = (typeof SUMMER_MOOD_CELLS)[number];
+
+function summerMoodCellBounds(
+  cell: SummerMoodCellDefinition,
+  width = 1,
+  height = 1,
+): { x: number; y: number; w: number; h: number } {
+  const xs = cell.points.map(([x]) => x * width);
+  const ys = cell.points.map(([, y]) => y * height);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  const maxX = Math.max(...xs);
+  const maxY = Math.max(...ys);
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+}
+
+function summerMoodReferenceTransform(cell: SummerMoodCellDefinition): ImageTransform {
+  const width = 900;
+  const height = 1600;
+  const bounds = summerMoodCellBounds(cell, width, height);
+  const baseScale = Math.max(bounds.w / width, bounds.h / height);
+  return {
+    offsetX: (width / 2 - (bounds.x + bounds.w / 2)) / bounds.w,
+    offsetY: (height / 2 - (bounds.y + bounds.h / 2)) / bounds.h,
+    scale: 1 / baseScale,
+    rotation: 0,
+  };
+}
+
+// Summer Mood — four replaceable pool collage cells with three diagonal white
+// text strips. The editor exposes one caption value; the renderer repeats it
+// along every strip.
 const SUMMER_MOOD: RemixEditorTemplate = {
   id: "11000000-0000-0000-0000-000000000057",
   title: "Summer Mood",
@@ -3282,14 +3376,15 @@ const SUMMER_MOOD: RemixEditorTemplate = {
   ],
   formats: ["png", "jpeg", "webp"],
   layers: [
-    {
-      id: "image",
-      kind: "image",
-      label: "Pool collage",
+    ...SUMMER_MOOD_CELLS.map((cell) => ({
+      id: cell.id,
+      kind: "image" as const,
+      label: cell.label,
       visible: true,
       hideable: false,
       src: SUMMER_MOOD_SOURCE_SRC,
-    },
+      transform: summerMoodReferenceTransform(cell),
+    })),
     {
       id: "header",
       kind: "header",
@@ -3303,6 +3398,81 @@ const SUMMER_MOOD: RemixEditorTemplate = {
       weight: 700,
       align: "left",
       suggestions: ["summer mood", "pool day", "sunny state", "vacation mood"],
+    },
+  ],
+};
+
+export const BREAKING_NEWS_REFERENCE_SRC =
+  "/templates/shared/53c6a231711063dc41ed8a5cd2e9c08a.jpg";
+export const BREAKING_NEWS_PHOTO_SRC = "/templates/shared/breaking-news-photo-source.png";
+export const BREAKING_NEWS_LOGO_SRC = "/templates/shared/breaking-news-logo-source.png";
+
+// Breaking News — measured from
+// public/templates/shared/53c6a231711063dc41ed8a5cd2e9c08a.jpg (1080 x 1350).
+// The untouched editor uses the reference JPG as its plate. Once any text,
+// photo crop, or logo changes, the renderer switches to these live layers.
+const BREAKING_NEWS: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000058",
+  title: "Breaking News",
+  layout: "breaking-news",
+  aspectRatio: "1080 / 1350",
+  background: "#f8f8f8",
+  palette: [
+    { label: "Ink", value: "#0d111b" },
+    { label: "Paper", value: "#f8f8f8" },
+    { label: "Breaking red", value: "#cc0001" },
+    { label: "White", value: "#ffffff" },
+    { label: "Logo grey", value: "#777777" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Story image",
+      visible: true,
+      hideable: false,
+      src: BREAKING_NEWS_PHOTO_SRC,
+    },
+    {
+      id: "eyebrow",
+      kind: "eyebrow",
+      label: "Breaking label",
+      visible: true,
+      hideable: false,
+      text: "BREAKING",
+      color: "#ffffff",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 800,
+      align: "center",
+      suggestions: ["BREAKING", "LIVE", "UPDATE", "ALERT"],
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Title / caption",
+      visible: true,
+      hideable: false,
+      text: "TRUMP SAYS MEMORANDUM\nOF UNDERSTANDING WITH\nIRAN ‘IS OVER’",
+      color: "#0d111b",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 800,
+      align: "left",
+      suggestions: [
+        "TRUMP SAYS MEMORANDUM\nOF UNDERSTANDING WITH\nIRAN ‘IS OVER’",
+        "BREAKING DEVELOPMENT\nRESHAPES GLOBAL TALKS",
+        "LEADERS RESPOND AS\nSUMMIT AGREEMENT ENDS",
+      ],
+    },
+    {
+      id: "logo",
+      kind: "logo",
+      label: "Logo",
+      visible: true,
+      hideable: false,
+      src: BREAKING_NEWS_LOGO_SRC,
     },
   ],
 };
@@ -3753,6 +3923,7 @@ const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [INTERIOR_INSPIRATION.id]: INTERIOR_INSPIRATION,
   [BEAUTY_COLLECTION.id]: BEAUTY_COLLECTION,
   [SUMMER_MOOD.id]: SUMMER_MOOD,
+  [BREAKING_NEWS.id]: BREAKING_NEWS,
   [FASHION_ICONS.id]: FASHION_ICONS,
   [SHOWCASE_DROP.id]: SHOWCASE_DROP,
   [SHOWCASE_SALE.id]: SHOWCASE_SALE,
@@ -3878,15 +4049,26 @@ export function backfillTemplateLayers(
   template: RemixEditorTemplate,
   layers: EditorLayer[],
 ): EditorLayer[] {
-  const presentIds = new Set(layers.map((layer) => layer.id));
-  const missing = cloneLayers(template).filter(
+  const templateLayers = cloneLayers(template);
+  const templateLayerById = new Map(templateLayers.map((layer) => [layer.id, layer]));
+  const refreshed = layers.map((layer) => {
+    const templateLayer = templateLayerById.get(layer.id);
+    if (!templateLayer || templateLayer.kind !== layer.kind) return layer;
+    const base = { ...layer, label: templateLayer.label, hideable: templateLayer.hideable };
+    if ("suggestions" in layer && "suggestions" in templateLayer) {
+      return { ...base, suggestions: [...templateLayer.suggestions] };
+    }
+    return base;
+  });
+  const presentIds = new Set(refreshed.map((layer) => layer.id));
+  const missing = templateLayers.filter(
     (layer) =>
       !presentIds.has(layer.id) &&
       // Verticals strips are user-add/removable, so a saved set with fewer
       // photos than the template is intentional — don't resurrect them.
       !(template.layout === "verticals" && layer.kind === "image"),
   );
-  if (missing.length === 0) return layers;
+  if (missing.length === 0) return refreshed;
   const templateOrder = template.layers.map((layer) => layer.id);
   const rank = (id: string) => {
     const index = templateOrder.indexOf(id);
@@ -3894,7 +4076,7 @@ export function backfillTemplateLayers(
     // the end rather than jumping to the front.
     return index === -1 ? Number.MAX_SAFE_INTEGER : index;
   };
-  return [...layers, ...missing].sort((a, b) => rank(a.id) - rank(b.id));
+  return [...refreshed, ...missing].sort((a, b) => rank(a.id) - rank(b.id));
 }
 
 // Reconstruct the editor's working layers for a saved remix: prefer the saved
@@ -3927,7 +4109,17 @@ export function layersFromRemix(
   return cloneLayers(template).map((layer) => {
     if (layer.kind === "image") {
       const asset = orderedAssets[imageCursor++];
-      return asset ? { ...layer, assetId: asset.asset_id, src: asset.url } : layer;
+      return asset
+        ? {
+            ...layer,
+            assetId: asset.asset_id,
+            assetUrl: asset.url,
+            src: asset.url,
+            ...(template.layout === "summer-mood"
+              ? { transform: { ...DEFAULT_IMAGE_TRANSFORM } }
+              : {}),
+          }
+        : layer;
     }
     if (layer.kind === "header" && remix.state?.caption?.trim()) {
       return { ...layer, text: remix.state.caption.trim() };
@@ -3987,6 +4179,7 @@ export const MOODBOARD_LAYOUT = {
 // type preserve their thickness on any 9:16 export size.
 export const SUMMER_MOOD_LAYOUT = {
   stripColor: "#ffffff",
+  cells: SUMMER_MOOD_CELLS,
   bands: [
     {
       id: "top",
@@ -4025,6 +4218,29 @@ export const SUMMER_MOOD_LAYOUT = {
 } as const;
 
 export type SummerMoodBand = (typeof SUMMER_MOOD_LAYOUT.bands)[number];
+export type SummerMoodCell = (typeof SUMMER_MOOD_LAYOUT.cells)[number];
+
+export function summerMoodCellGeometry(
+  cell: SummerMoodCell,
+  width: number,
+  height: number,
+): {
+  rect: { x: number; y: number; w: number; h: number };
+  points: { x: number; y: number }[];
+  clipPath: string;
+  zIndex: number;
+} {
+  const rect = summerMoodCellBounds(cell, width, height);
+  const points = cell.points.map(([x, y]) => ({ x: x * width, y: y * height }));
+  const clipPath = `polygon(${points
+    .map((point) => {
+      const x = rect.w ? ((point.x - rect.x) / rect.w) * 100 : 0;
+      const y = rect.h ? ((point.y - rect.y) / rect.h) * 100 : 0;
+      return `${x}% ${y}%`;
+    })
+    .join(", ")})`;
+  return { rect, points, clipPath, zIndex: cell.zIndex };
+}
 
 export function summerMoodRepeatedText(text: string): string {
   const clean = text.trim() || "summer mood";
@@ -6152,10 +6368,7 @@ const SHOWCASE_SLOT_MAX_WIDTH = 0.86;
 // canvas/font-load state isn't available yet (SSR, or the face hasn't
 // finished loading — the caller re-measures once `document.fonts.ready`
 // resolves).
-export function showcaseSlotFit(
-  layer: TextLayer | undefined,
-  slot: ShowcaseSlotBox,
-): number {
+export function showcaseSlotFit(layer: TextLayer | undefined, slot: ShowcaseSlotBox): number {
   if (!layer || slot.wrap || !layer.text.trim()) return 1;
   const ctx = getMeasureCtx();
   if (!ctx || typeof document === "undefined" || !("fonts" in document)) return 1;
@@ -6718,6 +6931,143 @@ export function beautyCollectionUsesLiveText(layers: readonly EditorLayer[]): bo
 }
 
 // ---------------------------------------------------------------------------
+// Breaking News — measured from
+// public/templates/shared/53c6a231711063dc41ed8a5cd2e9c08a.jpg (1080 x 1350).
+// The editor/export use the reference JPG untouched until any editable input is
+// changed. These measurements then rebuild the same composition with live
+// text, image and logo layers.
+export const BREAKING_NEWS_LAYOUT = {
+  background: "#f8f8f8",
+  badge: {
+    x: 58 / 1080,
+    y: 56 / 1350,
+    w: 248 / 1080,
+    h: 91 / 1350,
+    fill: "#cc0001",
+    size: 35 / 1080,
+    lineHeight: 1,
+  },
+  title: {
+    x: 58 / 1080,
+    y: 188 / 1350,
+    w: 968 / 1080,
+    size: 59 / 1080,
+    lineHeight: 1.08,
+    maxHeight: 190 / 1350,
+  },
+  image: {
+    x: 59 / 1080,
+    y: 424 / 1350,
+    w: 962 / 1080,
+    h: 796 / 1350,
+    radius: 42 / 1080,
+  },
+  logo: {
+    x: 927 / 1080,
+    y: 1247 / 1350,
+    w: 98 / 1080,
+    h: 50 / 1350,
+  },
+} as const;
+
+export interface BreakingNewsGeometry {
+  badge: { x: number; y: number; w: number; h: number; size: number };
+  title: { x: number; y: number; w: number; size: number; maxHeight: number };
+  image: { x: number; y: number; w: number; h: number; radius: number };
+  logo: { x: number; y: number; w: number; h: number };
+}
+
+export function breakingNewsGeometry(width: number, height: number): BreakingNewsGeometry {
+  const rect = (r: { x: number; y: number; w: number; h: number }) => ({
+    x: r.x * width,
+    y: r.y * height,
+    w: r.w * width,
+    h: r.h * height,
+  });
+  return {
+    badge: {
+      ...rect(BREAKING_NEWS_LAYOUT.badge),
+      size: BREAKING_NEWS_LAYOUT.badge.size * width,
+    },
+    title: {
+      x: BREAKING_NEWS_LAYOUT.title.x * width,
+      y: BREAKING_NEWS_LAYOUT.title.y * height,
+      w: BREAKING_NEWS_LAYOUT.title.w * width,
+      size: BREAKING_NEWS_LAYOUT.title.size * width,
+      maxHeight: BREAKING_NEWS_LAYOUT.title.maxHeight * height,
+    },
+    image: {
+      ...rect(BREAKING_NEWS_LAYOUT.image),
+      radius: BREAKING_NEWS_LAYOUT.image.radius * width,
+    },
+    logo: rect(BREAKING_NEWS_LAYOUT.logo),
+  };
+}
+
+function matchesBreakingNewsTextDefault(
+  layer: TextLayer | undefined,
+  fallback: TextLayer,
+): boolean {
+  if (!layer) return false;
+  return (
+    layer.visible === fallback.visible &&
+    layer.text === fallback.text &&
+    layer.color.toLowerCase() === fallback.color.toLowerCase() &&
+    layer.fontId === fallback.fontId &&
+    layer.uppercase === fallback.uppercase &&
+    (layer.weight ?? null) === (fallback.weight ?? null) &&
+    (layer.letterSpacing ?? 0) === (fallback.letterSpacing ?? 0) &&
+    (layer.align ?? "center") === (fallback.align ?? "center") &&
+    (layer.sizeScale ?? 1) === (fallback.sizeScale ?? 1) &&
+    (layer.shadow ?? false) === (fallback.shadow ?? false)
+  );
+}
+
+function isIdentityImageTransform(transform: ImageTransform): boolean {
+  return (
+    transform.offsetX === 0 &&
+    transform.offsetY === 0 &&
+    transform.scale === 1 &&
+    transform.rotation === 0
+  );
+}
+
+export function breakingNewsUsesLiveLayers(layers: readonly EditorLayer[]): boolean {
+  const layerById = <T extends EditorLayer>(id: string) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+  const fallbackById = <T extends EditorLayer>(id: string) =>
+    BREAKING_NEWS.layers.find((layer) => layer.id === id) as T | undefined;
+
+  const image = layerById<ImageLayer>("image");
+  const imageFallback = fallbackById<ImageLayer>("image");
+  if (
+    !image ||
+    !imageFallback ||
+    image.visible !== imageFallback.visible ||
+    image.src !== imageFallback.src ||
+    !isIdentityImageTransform(imageTransform(image))
+  ) {
+    return true;
+  }
+
+  const logo = layerById<LogoLayer>("logo");
+  const logoFallback = fallbackById<LogoLayer>("logo");
+  if (
+    !logo ||
+    !logoFallback ||
+    logo.visible !== logoFallback.visible ||
+    logo.src !== logoFallback.src
+  ) {
+    return true;
+  }
+
+  return ["eyebrow", "header"].some((id) => {
+    const fallback = fallbackById<TextLayer>(id);
+    return !fallback || !matchesBreakingNewsTextDefault(layerById<TextLayer>(id), fallback);
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Interior Inspiration — measured from
 // public/templates/shared/67bb89ea872a6820d6fdb0790af0ad55.jpg (564 x 1002).
 // The same required image is used as a blurred full-canvas backdrop and, unless
@@ -6759,6 +7109,12 @@ export const INTERIOR_INSPIRATION_LAYOUT = {
     size: 52 / 564,
     tracking: 0,
   },
+  website: {
+    centerX: 0.5,
+    baseline: 578 / 1002,
+    size: 12 / 564,
+    tracking: 0.02,
+  },
   handle: {
     x: 92 / 564,
     baseline: 283 / 1002,
@@ -6774,6 +7130,7 @@ export interface InteriorInspirationGeometry {
   inset: { x: number; y: number; w: number; h: number; radius: number };
   subtitle: { centerX: number; baseline: number; size: number };
   headline: { centerX: number; baseline: number; size: number };
+  website: { centerX: number; baseline: number; size: number };
   handle: { x: number; baseline: number; size: number };
   blur: number;
   backdropScale: number;
@@ -6817,6 +7174,11 @@ export function interiorInspirationGeometry(
       baseline: L.headline.baseline * height,
       size: L.headline.size * width,
     },
+    website: {
+      centerX: L.website.centerX * width,
+      baseline: L.website.baseline * height,
+      size: L.website.size * width,
+    },
     handle: {
       x: L.handle.x * width,
       baseline: L.handle.baseline * height,
@@ -6825,6 +7187,36 @@ export function interiorInspirationGeometry(
     blur: L.blur * width,
     backdropScale: L.backdropScale,
   };
+}
+
+// The headline always reads as "/word/" — whatever the layer's raw text is,
+// leading/trailing slashes are stripped and exactly one is put back on each
+// side, so a custom edit like "interior design" (no slashes) renders the same
+// slash-bracketed style as the "/inspiration/" default. Shared by the preview
+// and export so both draw the identical label.
+export function interiorInspirationHeaderLabel(header: TextLayer): string {
+  const raw = header.uppercase ? header.text.toUpperCase() : header.text;
+  const trimmed = raw.trim().replace(/^\/+/, "").replace(/\/+$/, "");
+  return trimmed ? `/${trimmed}/` : "";
+}
+
+// The headline's fitted font size (px at `canvasWidth`): shrinks the base
+// size only when the slash-wrapped label would overflow past a safe margin —
+// the default "/inspiration/" already fits at the base size (this is a no-op
+// for it), so a longer custom headline or an enlarged sizeScale never bleeds
+// off the canvas edge the way a fixed size would. Falls back to the plain
+// base size when it can't measure (no DOM, empty text, or an unloaded font).
+export function interiorInspirationHeaderFontSize(header: TextLayer, canvasWidth: number): number {
+  const style = resolveTextStyle(header);
+  const base = INTERIOR_INSPIRATION_LAYOUT.headline.size * canvasWidth * style.sizeScale;
+  const label = interiorInspirationHeaderLabel(header);
+  const ctx = getMeasureCtx();
+  if (!ctx || !label) return base;
+  ctx.font = `${style.weight} ${base}px ${fontById(header.fontId).family}`;
+  const measured = ctx.measureText(label).width;
+  const maxWidth = canvasWidth * 0.92;
+  if (!measured || measured <= maxWidth) return base;
+  return base * (maxWidth / measured);
 }
 
 // ---------------------------------------------------------------------------

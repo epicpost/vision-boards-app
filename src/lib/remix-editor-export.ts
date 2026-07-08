@@ -54,11 +54,17 @@ import {
   briefGeometry,
   INTERIOR_INSPIRATION_LAYOUT,
   interiorInspirationGeometry,
+  interiorInspirationHeaderLabel,
+  interiorInspirationHeaderFontSize,
   BEAUTY_COLLECTION_SOURCE_SRC,
   BEAUTY_COLLECTION_BACKGROUND_SRC,
   BEAUTY_COLLECTION_MASK_SRC,
   beautyCollectionGeometry,
   beautyCollectionUsesLiveText,
+  BREAKING_NEWS_LAYOUT,
+  BREAKING_NEWS_REFERENCE_SRC,
+  breakingNewsGeometry,
+  breakingNewsUsesLiveLayers,
   fashionIconsGeometry,
   showcaseGeometry,
   showcaseVariant,
@@ -83,8 +89,8 @@ import {
   resolveTextStyle,
   splitHeadlineFontSize,
   summerMoodBandGeometry,
+  summerMoodCellGeometry,
   summerMoodRepeatedText,
-  summerMoodUsesLiveText,
   type EditorLayer,
   type ExportFormat,
   type ImageTransform,
@@ -2157,13 +2163,14 @@ async function exportInteriorInspiration(
   const subtitle = byId<TextLayer>("description");
   const header = byId<TextLayer>("header");
   const handle = byId<TextLayer>("cta");
+  const website = byId<TextLayer>("website");
   const insetLayer = detailLayer?.visible && detailLayer.src ? detailLayer : photoLayer;
   const usesBakedDefaultText = Boolean(
     insetLayer?.src.endsWith("/interior-inspiration-source.jpg") &&
     !insetLayer.assetId &&
     !insetLayer.assetUrl,
   );
-  const textLayers = [subtitle, header, handle].filter((layer): layer is TextLayer =>
+  const textLayers = [subtitle, header, handle, website].filter((layer): layer is TextLayer =>
     Boolean(layer?.visible && layer.text.trim()),
   );
 
@@ -2227,9 +2234,11 @@ async function exportInteriorInspiration(
       textAlign: CanvasTextAlign;
       tracking?: number;
       skipDefaultBakedText?: boolean;
+      textOverride?: string;
+      fittedSize?: number;
     },
   ) => {
-    if (!layer?.visible || !layer.text.trim()) return;
+    if (!layer?.visible) return;
     if (
       options.skipDefaultBakedText &&
       usesBakedDefaultText &&
@@ -2242,14 +2251,16 @@ async function exportInteriorInspiration(
       return;
     }
     const style = resolveTextStyle(layer);
-    const text = layer.uppercase ? layer.text.toUpperCase() : layer.text;
+    const text = options.textOverride ?? (layer.uppercase ? layer.text.toUpperCase() : layer.text);
+    if (!text.trim()) return;
+    const size = options.fittedSize ?? options.size * style.sizeScale;
     ctx.save();
     ctx.fillStyle = layer.color;
     ctx.textAlign = options.textAlign;
     ctx.textBaseline = "alphabetic";
-    ctx.font = `${style.weight} ${options.size * style.sizeScale}px ${fontById(layer.fontId).family}`;
+    ctx.font = `${style.weight} ${size}px ${fontById(layer.fontId).family}`;
     ctx.letterSpacing = `${options.tracking ?? style.letterSpacing}em`;
-    applyTextShadow(ctx, Boolean(style.shadow), options.size * style.sizeScale);
+    applyTextShadow(ctx, Boolean(style.shadow), size);
     ctx.fillText(text, options.x, options.y);
     ctx.restore();
   };
@@ -2269,12 +2280,21 @@ async function exportInteriorInspiration(
     textAlign: "center",
     tracking: INTERIOR_INSPIRATION_LAYOUT.headline.tracking,
     skipDefaultBakedText: true,
+    textOverride: header ? interiorInspirationHeaderLabel(header) : undefined,
+    fittedSize: header ? interiorInspirationHeaderFontSize(header, width) : undefined,
   });
   drawText(handle, {
     x: geo.handle.x,
     y: geo.handle.baseline,
     size: geo.handle.size,
     textAlign: "left",
+  });
+  drawText(website, {
+    x: geo.website.centerX,
+    y: geo.website.baseline,
+    size: geo.website.size,
+    textAlign: "center",
+    tracking: INTERIOR_INSPIRATION_LAYOUT.website.tracking,
   });
 
   return canvasToBlob(canvas, format);
@@ -3848,6 +3868,127 @@ function isBeautyCollectionSource(src: string): boolean {
   return src.includes("e876c2ccf4cffd6d1513713ce8f2e7f5.jpg");
 }
 
+async function exportBreakingNews(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  if (!breakingNewsUsesLiveLayers(layers)) {
+    try {
+      const reference = await loadImage(BREAKING_NEWS_REFERENCE_SRC);
+      drawImageCoverCanvas(ctx, reference, width, height);
+      return canvasToBlob(canvas, format);
+    } catch {
+      ctx.fillStyle = template.background;
+      ctx.fillRect(0, 0, width, height);
+    }
+  }
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+
+  const photo = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const label = byId<TextLayer>("eyebrow");
+  const headline = byId<TextLayer>("header");
+  const logo = byId<Extract<EditorLayer, { kind: "logo" }>>("logo");
+  const geo = breakingNewsGeometry(width, height);
+  const textLayers = [label, headline].filter((layer): layer is TextLayer =>
+    Boolean(layer?.visible && layer.text.trim()),
+  );
+
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      textLayers.map((layer) =>
+        document.fonts
+          .load(
+            `${resolveTextStyle(layer).weight} 64px ${primaryFamily(fontById(layer.fontId).family)}`,
+          )
+          .catch(() => undefined),
+      ),
+    ).catch(() => undefined);
+  }
+
+  ctx.fillStyle = template.background || BREAKING_NEWS_LAYOUT.background;
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.save();
+  ctx.fillStyle = BREAKING_NEWS_LAYOUT.badge.fill;
+  ctx.fillRect(geo.badge.x, geo.badge.y, geo.badge.w, geo.badge.h);
+  if (label?.visible && label.text.trim()) {
+    const style = resolveTextStyle(label);
+    const fontSize = geo.badge.size * style.sizeScale;
+    ctx.fillStyle = label.color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `${style.weight} ${fontSize}px ${primaryFamily(fontById(label.fontId).family)}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    const text = label.uppercase ? label.text.toUpperCase() : label.text;
+    ctx.fillText(text, geo.badge.x + geo.badge.w / 2, geo.badge.y + geo.badge.h / 2);
+  }
+  ctx.restore();
+
+  if (headline?.visible && headline.text.trim()) {
+    const style = resolveTextStyle(headline);
+    const baseSize = geo.title.size * style.sizeScale;
+    const family = primaryFamily(fontById(headline.fontId).family);
+    const text = headline.uppercase ? headline.text.toUpperCase() : headline.text;
+    const fontTemplate = `${style.weight} {size}px ${family}`;
+    const { size, lines } = fittedMultilineText(
+      ctx,
+      text,
+      fontTemplate,
+      baseSize,
+      geo.title.w,
+      geo.title.maxHeight,
+      BREAKING_NEWS_LAYOUT.title.lineHeight,
+      width * 0.032,
+    );
+    ctx.save();
+    ctx.fillStyle = headline.color;
+    ctx.textAlign = style.align;
+    ctx.textBaseline = "top";
+    ctx.font = fontTemplate.replace("{size}", `${size}`);
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    applyTextShadow(ctx, Boolean(style.shadow), size);
+    const x = alignX(style.align, geo.title.x, geo.title.x + geo.title.w);
+    const lineHeight = size * BREAKING_NEWS_LAYOUT.title.lineHeight;
+    lines.forEach((line, index) => {
+      ctx.fillText(line, x, geo.title.y + index * lineHeight);
+    });
+    ctx.restore();
+  }
+
+  if (photo?.visible && photo.src) {
+    try {
+      const image = await loadImage(photo.src);
+      drawRoundedImageCover(ctx, image, geo.image, geo.image.radius, imageTransform(photo));
+    } catch {
+      throw new ExportImageError(1);
+    }
+  }
+
+  if (logo?.visible && logo.src) {
+    try {
+      const image = await loadImage(logo.src);
+      drawImageContain(ctx, image, geo.logo);
+    } catch {
+      throw new Error("Couldn't load the logo for export.");
+    }
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
 // Rasterize the Beauty Collection poster. The reference JPG is the untouched
 // default background; edited photos are clipped through the rounded cells, and
 // edited/brand-styled text repaints the original text zones before drawing live
@@ -3969,11 +4110,12 @@ async function exportBeautyCollection(
     const eyebrow = byId<TextLayer>("eyebrow");
     const header = byId<TextLayer>("header");
     const cta = byId<TextLayer>("cta");
-    const ruleColor = eyebrow?.color ?? header?.color ?? "#111111";
     ctx.save();
-    ctx.strokeStyle = ruleColor;
     ctx.lineWidth = Math.max(1, width * 0.0014);
-    geo.rules.forEach((rule) => {
+    geo.rules.forEach((rule, index) => {
+      const ruleLayer = index < 2 ? eyebrow : cta;
+      if (!ruleLayer?.visible || !ruleLayer.text.trim()) return;
+      ctx.strokeStyle = ruleLayer.color ?? header?.color ?? "#111111";
       ctx.beginPath();
       ctx.moveTo(rule.x1, rule.y);
       ctx.lineTo(rule.x2, rule.y);
@@ -4274,25 +4416,39 @@ async function exportSummerMood(
   ctx.fillStyle = template.background;
   ctx.fillRect(0, 0, width, height);
 
-  const imageLayer = layers.find(
-    (layer): layer is Extract<EditorLayer, { kind: "image" }> =>
-      layer.id === "image" && layer.kind === "image",
-  );
-  if (imageLayer?.visible && imageLayer.src) {
+  let failedCount = 0;
+  for (const cell of SUMMER_MOOD_LAYOUT.cells) {
+    const imageLayer = layers.find(
+      (layer): layer is Extract<EditorLayer, { kind: "image" }> =>
+        layer.id === cell.id && layer.kind === "image",
+    );
+    if (!imageLayer?.visible || !imageLayer.src) continue;
+
     try {
+      const geo = summerMoodCellGeometry(cell, width, height);
       const img = await loadImage(imageLayer.src);
-      drawImageCover(ctx, img, { x: 0, y: 0, w: width, h: height }, imageTransform(imageLayer));
+      ctx.save();
+      try {
+        ctx.beginPath();
+        geo.points.forEach((point, index) => {
+          if (index === 0) ctx.moveTo(point.x, point.y);
+          else ctx.lineTo(point.x, point.y);
+        });
+        ctx.closePath();
+        ctx.clip();
+        drawImageCover(ctx, img, geo.rect, imageTransform(imageLayer));
+      } finally {
+        ctx.restore();
+      }
     } catch {
-      throw new ExportImageError(1);
+      failedCount++;
     }
   }
+  if (failedCount > 0) throw new ExportImageError(failedCount);
 
   const header = layers.find(
     (layer): layer is TextLayer => layer.id === "header" && layer.kind === "header",
   );
-  if (!summerMoodUsesLiveText(layers)) {
-    return canvasToBlob(canvas, format);
-  }
 
   const font = header ? fontById(header.fontId) : fontById("playfair");
   const style = header ? resolveTextStyle(header) : null;
@@ -4642,6 +4798,9 @@ export async function exportCreative(
   }
   if (template.layout === "beauty-collection") {
     return exportBeautyCollection(template, layers, format, width);
+  }
+  if (template.layout === "breaking-news") {
+    return exportBreakingNews(template, layers, format, width);
   }
   if (template.layout === "showcase") {
     return exportShowcase(template, layers, format, width);
