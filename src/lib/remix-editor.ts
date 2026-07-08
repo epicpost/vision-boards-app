@@ -6125,14 +6125,22 @@ export function showcaseLookLabel(photoIndex: number): string {
   return `Look ${photoIndex + 1}`;
 }
 
+// The widest a single-line slot's text is ever allowed to run, as a fraction
+// of the centre cell's width — leaves the same breathing room the reference
+// keeps around "MADE ME" (never edge-to-edge against the photo cells either
+// side). Matches the sale variant's own `wrap: 0.86` wordmark box, so a slot
+// that starts wrapping and one that doesn't share the same safe measure.
+const SHOWCASE_SLOT_MAX_WIDTH = 0.86;
+
 // A single-line slot's (`wrap: false` — the eyebrow/wordmark/CTA) scale-down
 // factor that keeps its rendered width (glyphs *and* letter-spacing, which is
-// set in em and so shrinks along with the font) within the slot's box. The
-// reference's default text/font already fits exactly at scale 1; swapping in
-// a wider face (or a font whose default carries heavier tracking) can render
-// past the panel's edge into the neighbouring photo cell without this — the
-// slot geometry gives every field a fixed width, not a measured gap, so
-// nothing else catches an overflow. Identity when it already fits, wraps, or
+// set in em and so shrinks along with the font) within `SHOWCASE_SLOT_MAX_WIDTH`
+// of the slot's box. The reference's default text/font already sits well
+// inside that margin at scale 1; swapping in a wider face (or a font whose
+// default carries heavier tracking), or just longer text, can otherwise
+// render past the panel's edge into the neighbouring photo cell — the slot
+// geometry gives every field a fixed width, not a measured gap, so nothing
+// else catches an overflow. Identity when it already fits, wraps, or
 // canvas/font-load state isn't available yet (SSR, or the face hasn't
 // finished loading — the caller re-measures once `document.fonts.ready`
 // resolves).
@@ -6153,9 +6161,10 @@ export function showcaseSlotFit(
   ctx.letterSpacing = `${style.letterSpacing}em`;
   const measured = ctx.measureText(text).width;
   ctx.letterSpacing = "0px";
-  if (!measured || measured <= slot.w) return 1;
+  const maxWidth = slot.w * SHOWCASE_SLOT_MAX_WIDTH;
+  if (!measured || measured <= maxWidth) return 1;
   // Same guard rail as `businessChoiceHeadlineFit` — never shrink past legibility.
-  return Math.max(0.4, slot.w / measured);
+  return Math.max(0.4, maxWidth / measured);
 }
 
 // ── "New Drop" geometry ──────────────────────────────────────────────────────
