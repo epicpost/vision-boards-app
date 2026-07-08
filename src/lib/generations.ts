@@ -211,6 +211,7 @@ export interface RemixParams {
   aspectRatio?: string;
   fontId?: string;
   captionColor?: string;
+  website?: string;
 }
 
 export async function remixTemplate(params: RemixParams): Promise<GenerationResult> {
@@ -230,6 +231,7 @@ export async function remixTemplate(params: RemixParams): Promise<GenerationResu
       aspect_ratio: params.aspectRatio || null,
       font_id: params.fontId || null,
       caption_color: params.captionColor || null,
+      website: params.website || null,
     }),
   });
 
@@ -248,6 +250,7 @@ export interface RemixUploadParams {
   aspectRatio?: string;
   fontId?: string;
   captionColor?: string;
+  website?: string;
 }
 
 export async function remixTemplateUpload(params: RemixUploadParams): Promise<GenerationResult> {
@@ -260,6 +263,7 @@ export async function remixTemplateUpload(params: RemixUploadParams): Promise<Ge
   if (params.aspectRatio) form.append("aspect_ratio", params.aspectRatio);
   if (params.fontId) form.append("font_id", params.fontId);
   if (params.captionColor) form.append("caption_color", params.captionColor);
+  if (params.website) form.append("website", params.website);
   params.files.forEach((file) => form.append("images", file, file.name));
 
   const response = await fetch(new URL("/api/v1/generations/remix-upload", API_BASE_URL), {

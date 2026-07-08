@@ -55,12 +55,14 @@ import {
   INTERIOR_INSPIRATION_LAYOUT,
   interiorInspirationGeometry,
   BEAUTY_COLLECTION_SOURCE_SRC,
+  BEAUTY_COLLECTION_BACKGROUND_SRC,
   beautyCollectionGeometry,
   beautyCollectionUsesLiveText,
   fashionIconsGeometry,
   showcaseGeometry,
   showcaseVariant,
   showcaseLookLabel,
+  showcaseSlotFit,
   OPEN_SPACE_LAYOUT,
   openSpaceGeometry,
   GRID_LAYOUT,
@@ -3873,8 +3875,13 @@ async function exportBeautyCollection(
     const background = await loadImage(BEAUTY_COLLECTION_SOURCE_SRC);
     drawImageCoverCanvas(ctx, background, width, height);
   } catch {
-    ctx.fillStyle = template.background;
-    ctx.fillRect(0, 0, width, height);
+    try {
+      const backdrop = await loadImage(BEAUTY_COLLECTION_BACKGROUND_SRC);
+      drawImageCoverCanvas(ctx, backdrop, width, height);
+    } catch {
+      ctx.fillStyle = template.background;
+      ctx.fillRect(0, 0, width, height);
+    }
   }
 
   const transform = photo ? imageTransform(photo) : DEFAULT_IMAGE_TRANSFORM;
@@ -3915,8 +3922,25 @@ async function exportBeautyCollection(
   }
 
   if (liveText) {
-    ctx.fillStyle = template.background;
-    geo.patches.forEach((patch) => ctx.fillRect(patch.x, patch.y, patch.w, patch.h));
+    let backdrop: HTMLImageElement | null = null;
+    try {
+      backdrop = await loadImage(BEAUTY_COLLECTION_BACKGROUND_SRC);
+    } catch {
+      backdrop = null;
+    }
+    geo.patches.forEach((patch) => {
+      if (backdrop) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(patch.x, patch.y, patch.w, patch.h);
+        ctx.clip();
+        drawImageCoverCanvas(ctx, backdrop, width, height);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = template.background;
+        ctx.fillRect(patch.x, patch.y, patch.w, patch.h);
+      }
+    });
 
     const eyebrow = byId<TextLayer>("eyebrow");
     const header = byId<TextLayer>("header");
@@ -4132,7 +4156,7 @@ async function exportShowcase(
     const layer = byId<TextLayer>(slot.id);
     if (!layer?.visible || !layer.text.trim()) continue;
     const style = resolveTextStyle(layer);
-    const fontSize = slot.size * style.sizeScale;
+    const fontSize = slot.size * style.sizeScale * showcaseSlotFit(layer, slot);
     const family = fontById(layer.fontId).family;
     const text = layer.uppercase ? layer.text.toUpperCase() : layer.text;
 

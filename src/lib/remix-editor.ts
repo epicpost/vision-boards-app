@@ -3174,6 +3174,13 @@ const INTERIOR_INSPIRATION: RemixEditorTemplate = {
 export const BEAUTY_COLLECTION_SOURCE_SRC =
   "/templates/shared/e876c2ccf4cffd6d1513713ce8f2e7f5.jpg";
 
+// Full-bleed paper/leaf-shadow backdrop behind the reference photo. Used to
+// repaint the eyebrow/title/cta zones when live text replaces the baked-in
+// default, so the patch blends into the textured paper instead of showing a
+// flat color seam.
+export const BEAUTY_COLLECTION_BACKGROUND_SRC =
+  "/templates/shared/45c6a231733063dc41ed8a5cd2e9c08b.png";
+
 // Beauty Collection — a rounded cutout fashion/beauty poster. The reference
 // image itself is used as the default background so the untouched editor matches
 // the supplied JPG exactly; when text style or content changes, the text zones
@@ -6116,6 +6123,39 @@ export function showcaseGeometry(
 // and can't drift on the label's wording.
 export function showcaseLookLabel(photoIndex: number): string {
   return `Look ${photoIndex + 1}`;
+}
+
+// A single-line slot's (`wrap: false` — the eyebrow/wordmark/CTA) scale-down
+// factor that keeps its rendered width (glyphs *and* letter-spacing, which is
+// set in em and so shrinks along with the font) within the slot's box. The
+// reference's default text/font already fits exactly at scale 1; swapping in
+// a wider face (or a font whose default carries heavier tracking) can render
+// past the panel's edge into the neighbouring photo cell without this — the
+// slot geometry gives every field a fixed width, not a measured gap, so
+// nothing else catches an overflow. Identity when it already fits, wraps, or
+// canvas/font-load state isn't available yet (SSR, or the face hasn't
+// finished loading — the caller re-measures once `document.fonts.ready`
+// resolves).
+export function showcaseSlotFit(
+  layer: TextLayer | undefined,
+  slot: ShowcaseSlotBox,
+): number {
+  if (!layer || slot.wrap || !layer.text.trim()) return 1;
+  const ctx = getMeasureCtx();
+  if (!ctx || typeof document === "undefined" || !("fonts" in document)) return 1;
+  const style = resolveTextStyle(layer);
+  const font = fontById(layer.fontId);
+  const text = layer.uppercase ? layer.text.toUpperCase() : layer.text;
+  const fontSize = slot.size * style.sizeScale;
+  const face = `${slot.italic ? "italic " : ""}${style.weight} ${fontSize}px ${fontPrimary(font)}`;
+  if (!document.fonts.check(face)) return 1;
+  ctx.font = face;
+  ctx.letterSpacing = `${style.letterSpacing}em`;
+  const measured = ctx.measureText(text).width;
+  ctx.letterSpacing = "0px";
+  if (!measured || measured <= slot.w) return 1;
+  // Same guard rail as `businessChoiceHeadlineFit` — never shrink past legibility.
+  return Math.max(0.4, slot.w / measured);
 }
 
 // ── "New Drop" geometry ──────────────────────────────────────────────────────

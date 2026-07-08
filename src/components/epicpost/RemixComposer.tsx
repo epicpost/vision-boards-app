@@ -5,6 +5,7 @@ import {
   ArrowUp,
   Download,
   ExternalLink,
+  Globe,
   Image as ImageIcon,
   Loader2,
   Pencil,
@@ -125,6 +126,17 @@ export function RemixComposer({
       false);
   const requiresText = Boolean(captionRequirement);
 
+  // Templates can render a brand website line. Backend templates advertise it as
+  // a `website` text requirement (required or optional); editor templates carry a
+  // dedicated `website` text layer (e.g. Claudia Testimonial). Either way, we
+  // offer a "www" card that forwards the brand kit's website.
+  const editorWebsiteCapable =
+    getRemixEditorTemplate(template.id)?.layers.some((layer) => layer.id === "website") ?? false;
+  const requiresWebsite =
+    editorWebsiteCapable ||
+    (template.input_requirements?.text_requirements.some((text) => text.key === "website") ??
+      false);
+
   // Prefer the explicit asset contract; fall back to the template's image count
   // so the composer still works for feed entries without input_requirements.
   const declaredInputImageCount = template.input_image_count ?? null;
@@ -165,6 +177,7 @@ export function RemixComposer({
   // Auto-attached brand cards default to shown; the user can dismiss each one.
   const [logoRemoved, setLogoRemoved] = useState(false);
   const [fontsRemoved, setFontsRemoved] = useState(false);
+  const [websiteRemoved, setWebsiteRemoved] = useState(false);
   // Caption colour: the template advertises a default + palette under
   // agent_hints.render_defaults; the user can pick one (or dismiss the card).
   const [captionColor, setCaptionColor] = useState<string | null>(null);
@@ -177,7 +190,9 @@ export function RemixComposer({
   const brandKitsQuery = useQuery({
     queryKey: brandKitsQueryKey(),
     queryFn: fetchBrandKits,
-    enabled: (requiresLogo || requiresText || isPickerOpen) && Boolean(getAccessToken()),
+    enabled:
+      (requiresLogo || requiresText || requiresWebsite || isPickerOpen) &&
+      Boolean(getAccessToken()),
   });
   const brandImages = (brandKitsQuery.data ?? []).flatMap((kit) => kit.images);
   // Follow the brand-kit page convention: the first kit is the default.
@@ -185,8 +200,13 @@ export function RemixComposer({
   const brandLogoUrl = brandKit?.logo_preview_url ?? brandKit?.logo_url ?? null;
   const brandPrimaryFont = brandKit?.font_family ?? null;
   const brandSecondaryFont = brandKit?.secondary_font_family ?? null;
+  const brandWebsite = brandKit?.website_url ?? null;
   const showLogoCard = requiresLogo && Boolean(brandLogoUrl) && !logoRemoved;
   const showFontsCard = requiresText && Boolean(brandPrimaryFont) && !fontsRemoved;
+  // Only offer the www card when the brand actually has a website to forward.
+  const showWebsiteCard = requiresWebsite && Boolean(brandWebsite) && !websiteRemoved;
+  // The website sent to the renderer — only while the www card is kept attached.
+  const selectedWebsite = showWebsiteCard ? (brandWebsite ?? undefined) : undefined;
   // The catalog font id sent to the renderer — only while the Fonts card is
   // kept attached. The backend resolves it to the actual typeface at render time.
   const selectedFontId = showFontsCard ? (brandKit?.font_id ?? undefined) : undefined;
@@ -450,6 +470,11 @@ export function RemixComposer({
           selectedCaptionColor && TEXT_KINDS.has(withFont.kind)
             ? { ...withFont, color: selectedCaptionColor }
             : withFont;
+        // Fill the dedicated website line with the brand kit's website when the
+        // www card is kept attached (matches the Logo card's fill-and-show).
+        if (withColor.id === "website" && selectedWebsite) {
+          return [{ ...withColor, text: selectedWebsite, visible: true }];
+        }
         if (withColor.kind === "header" && trimmedCaption) {
           return [{ ...withColor, text: trimmedCaption, visible: true }];
         }
@@ -569,6 +594,7 @@ export function RemixComposer({
           aspectRatio,
           fontId: selectedFontId,
           captionColor: selectedCaptionColor,
+          website: selectedWebsite,
         });
       } else {
         initial = await remixTemplateUpload({
@@ -579,6 +605,7 @@ export function RemixComposer({
           aspectRatio,
           fontId: selectedFontId,
           captionColor: selectedCaptionColor,
+          website: selectedWebsite,
         });
       }
       setPhase("generating");
@@ -615,6 +642,7 @@ export function RemixComposer({
     setClientRemix(null);
     setLogoRemoved(false);
     setFontsRemoved(false);
+    setWebsiteRemoved(false);
     setColorRemoved(false);
     setCaptionColor(null);
     setIsColorPaletteOpen(false);
@@ -670,8 +698,34 @@ export function RemixComposer({
         }}
       />
 
-      {(images.length > 0 || showLogoCard || showFontsCard || showColorCard) && (
+      {(images.length > 0 ||
+        showLogoCard ||
+        showFontsCard ||
+        showWebsiteCard ||
+        showColorCard) && (
         <div className="mb-2 flex flex-wrap items-center gap-2">
+          {showWebsiteCard && (
+            <div className="group relative h-14 w-14 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+              <span
+                className="flex h-full w-full items-center justify-center text-foreground"
+                title={brandWebsite ?? undefined}
+              >
+                <Globe className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <span className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1 py-0.5 text-center text-[9px] font-semibold uppercase tracking-wide text-white">
+                www
+              </span>
+              <button
+                type="button"
+                aria-label="Remove brand website"
+                disabled={isBusy}
+                onClick={() => setWebsiteRemoved(true)}
+                className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-0"
+              >
+                <X className="h-3 w-3" strokeWidth={2.6} />
+              </button>
+            </div>
+          )}
           {showLogoCard && (
             <div className="group relative h-14 w-14 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
               <img

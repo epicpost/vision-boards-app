@@ -123,12 +123,14 @@ import {
   INTERIOR_INSPIRATION_LAYOUT,
   interiorInspirationGeometry,
   BEAUTY_COLLECTION_SOURCE_SRC,
+  BEAUTY_COLLECTION_BACKGROUND_SRC,
   beautyCollectionGeometry,
   beautyCollectionUsesLiveText,
   fashionIconsGeometry,
   showcaseGeometry,
   showcaseVariant,
   showcaseLookLabel,
+  showcaseSlotFit,
   OPEN_SPACE_LAYOUT,
   openSpaceGeometry,
   GRID_LAYOUT,
@@ -4164,7 +4166,7 @@ function BeautyCollectionPreview({
           {geo.patches.map((patch, index) => (
             <div
               key={index}
-              className="pointer-events-none absolute z-20"
+              className="pointer-events-none absolute z-20 overflow-hidden"
               style={{
                 left: pctX(patch.x),
                 top: pctY(patch.y),
@@ -4172,7 +4174,20 @@ function BeautyCollectionPreview({
                 height: pctY(patch.h),
                 background: template.background,
               }}
-            />
+            >
+              <img
+                src={BEAUTY_COLLECTION_BACKGROUND_SRC}
+                alt=""
+                draggable={false}
+                className="pointer-events-none absolute max-w-none object-cover"
+                style={{
+                  left: cqi(-patch.x / Wv),
+                  top: cqi(-patch.y / Wv),
+                  width: "100cqi",
+                  height: cqi(Hv / Wv),
+                }}
+              />
+            </div>
           ))}
           {geo.rules.map((rule, index) => {
             const color = textLayer("eyebrow")?.color ?? textLayer("header")?.color ?? "#111111";
@@ -4334,6 +4349,26 @@ function ShowcasePreview({
         layer.id === id && layer.kind !== "image" && layer.kind !== "logo",
     );
 
+  // A custom (or brand-kit) font can carry wider glyphs or heavier tracking
+  // than the reference's default — rescale each single-line slot so it stays
+  // inside its box instead of spilling into the next photo cell. Re-measured
+  // once the chosen face finishes loading (Google Fonts loads on demand).
+  const computeSlotFits = () =>
+    Object.fromEntries(geo.slots.map((slot) => [slot.id, showcaseSlotFit(textLayer(slot.id), slot)]));
+  const [slotFits, setSlotFits] = useState<Record<string, number>>(computeSlotFits);
+  useEffect(() => {
+    let cancelled = false;
+    const measure = () => {
+      if (!cancelled) setSlotFits(computeSlotFits());
+    };
+    measure();
+    document.fonts?.ready.then(measure).catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [template.id, layers]);
+
   return (
     <div
       className="relative w-full overflow-hidden shadow-2xl"
@@ -4421,7 +4456,7 @@ function ShowcasePreview({
               color: layer.color,
               fontFamily: fontById(layer.fontId).family,
               fontWeight: style.weight,
-              fontSize: cqi((slot.size / Wv) * style.sizeScale),
+              fontSize: cqi((slot.size / Wv) * style.sizeScale * (slotFits[slot.id] ?? 1)),
               lineHeight: slot.lineHeight,
               letterSpacing: `${style.letterSpacing}em`,
               textAlign: style.align,
