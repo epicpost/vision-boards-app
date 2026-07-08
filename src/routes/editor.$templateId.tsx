@@ -4035,7 +4035,10 @@ function BeautyCollectionPreview({
   const photoEdited =
     Boolean(image?.visible && image.src) &&
     (!isBeautyCollectionPreviewSource(image?.src ?? "") || !isIdentityPreviewTransform(t));
-  const liveText = beautyCollectionUsesLiveText(layers);
+  // Draw type whenever text was edited, OR whenever the photo was replaced — in
+  // the latter case the base is the clean plate (not the reference JPG), so the
+  // JPG's baked-in default title is gone and must be redrawn live.
+  const drawText = beautyCollectionUsesLiveText(layers) || photoEdited;
   const textLayer = (id: string) =>
     layers.find(
       (layer): layer is TextLayer =>
@@ -4113,7 +4116,7 @@ function BeautyCollectionPreview({
       }}
     >
       <img
-        src={BEAUTY_COLLECTION_SOURCE_SRC}
+        src={photoEdited ? BEAUTY_COLLECTION_BACKGROUND_SRC : BEAUTY_COLLECTION_SOURCE_SRC}
         alt=""
         draggable={false}
         className="pointer-events-none absolute inset-0 h-full w-full object-cover"
@@ -4161,34 +4164,38 @@ function BeautyCollectionPreview({
           </div>
         ))}
 
-      {liveText && (
+      {drawText && (
         <>
-          {geo.patches.map((patch, index) => (
-            <div
-              key={index}
-              className="pointer-events-none absolute z-20 overflow-hidden"
-              style={{
-                left: pctX(patch.x),
-                top: pctY(patch.y),
-                width: pctX(patch.w),
-                height: pctY(patch.h),
-                background: template.background,
-              }}
-            >
-              <img
-                src={BEAUTY_COLLECTION_BACKGROUND_SRC}
-                alt=""
-                draggable={false}
-                className="pointer-events-none absolute max-w-none object-cover"
+          {/* Repaint the text zones only when the reference JPG is still the base
+              (photo not replaced) — that's the only case with baked-in text to
+              cover. These patches never overlap the photo cells. */}
+          {!photoEdited &&
+            geo.patches.map((patch, index) => (
+              <div
+                key={index}
+                className="pointer-events-none absolute z-20 overflow-hidden"
                 style={{
-                  left: cqi(-patch.x / Wv),
-                  top: cqi(-patch.y / Wv),
-                  width: "100cqi",
-                  height: cqi(Hv / Wv),
+                  left: pctX(patch.x),
+                  top: pctY(patch.y),
+                  width: pctX(patch.w),
+                  height: pctY(patch.h),
+                  background: template.background,
                 }}
-              />
-            </div>
-          ))}
+              >
+                <img
+                  src={BEAUTY_COLLECTION_BACKGROUND_SRC}
+                  alt=""
+                  draggable={false}
+                  className="pointer-events-none absolute max-w-none object-cover"
+                  style={{
+                    left: cqi(-patch.x / Wv),
+                    top: cqi(-patch.y / Wv),
+                    width: "100cqi",
+                    height: cqi(Hv / Wv),
+                  }}
+                />
+              </div>
+            ))}
           {geo.rules.map((rule, index) => {
             const color = textLayer("eyebrow")?.color ?? textLayer("header")?.color ?? "#111111";
             return (

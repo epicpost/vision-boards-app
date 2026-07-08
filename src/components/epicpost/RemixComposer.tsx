@@ -67,6 +67,12 @@ type Phase = "idle" | "sending" | "generating";
 const FALLBACK_ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const FALLBACK_MAX_IMAGES = 10;
 
+// The editor layer that renders a brand website line. Templates map it onto
+// different ids (`website`, `description`, …), so it's identified by its label.
+function isWebsiteLayer(layer: EditorLayer): boolean {
+  return layer.label?.trim().toLowerCase() === "website";
+}
+
 function formatCreatedAt(createdAt: string | null | undefined) {
   if (!createdAt) return "";
 
@@ -128,10 +134,12 @@ export function RemixComposer({
 
   // Templates can render a brand website line. Backend templates advertise it as
   // a `website` text requirement (required or optional); editor templates carry a
-  // dedicated `website` text layer (e.g. Claudia Testimonial). Either way, we
-  // offer a "www" card that forwards the brand kit's website.
+  // website text layer — keyed off the layer's label rather than its id, since
+  // different templates map it onto different layer ids (e.g. Claudia
+  // Testimonial's `website` layer vs. Cozy Drop Grid's `description` layer).
+  // Either way, we offer a "www" card that forwards the brand kit's website.
   const editorWebsiteCapable =
-    getRemixEditorTemplate(template.id)?.layers.some((layer) => layer.id === "website") ?? false;
+    getRemixEditorTemplate(template.id)?.layers.some((layer) => isWebsiteLayer(layer)) ?? false;
   const requiresWebsite =
     editorWebsiteCapable ||
     (template.input_requirements?.text_requirements.some((text) => text.key === "website") ??
@@ -470,9 +478,11 @@ export function RemixComposer({
           selectedCaptionColor && TEXT_KINDS.has(withFont.kind)
             ? { ...withFont, color: selectedCaptionColor }
             : withFont;
-        // Fill the dedicated website line with the brand kit's website when the
-        // www card is kept attached (matches the Logo card's fill-and-show).
-        if (withColor.id === "website" && selectedWebsite) {
+        // Fill the website line with the brand kit's website when the www card is
+        // kept attached (matches the Logo card's fill-and-show). Checked before
+        // the header/description fills so a website-labelled `description` layer
+        // (e.g. Cozy Drop Grid) gets the URL, not the city overview.
+        if (isWebsiteLayer(withColor) && selectedWebsite) {
           return [{ ...withColor, text: selectedWebsite, visible: true }];
         }
         if (withColor.kind === "header" && trimmedCaption) {
@@ -704,28 +714,6 @@ export function RemixComposer({
         showWebsiteCard ||
         showColorCard) && (
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          {showWebsiteCard && (
-            <div className="group relative h-14 w-14 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
-              <span
-                className="flex h-full w-full items-center justify-center text-foreground"
-                title={brandWebsite ?? undefined}
-              >
-                <Globe className="h-6 w-6" strokeWidth={1.8} />
-              </span>
-              <span className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1 py-0.5 text-center text-[9px] font-semibold uppercase tracking-wide text-white">
-                www
-              </span>
-              <button
-                type="button"
-                aria-label="Remove brand website"
-                disabled={isBusy}
-                onClick={() => setWebsiteRemoved(true)}
-                className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-0"
-              >
-                <X className="h-3 w-3" strokeWidth={2.6} />
-              </button>
-            </div>
-          )}
           {showLogoCard && (
             <div className="group relative h-14 w-14 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
               <img
@@ -826,6 +814,28 @@ export function RemixComposer({
                   )}
                 </div>
               )}
+            </div>
+          )}
+          {showWebsiteCard && (
+            <div className="group relative h-14 w-14 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+              <span
+                className="flex h-full w-full items-center justify-center text-foreground"
+                title={brandWebsite ?? undefined}
+              >
+                <Globe className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <span className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1 py-0.5 text-center text-[9px] font-semibold uppercase tracking-wide text-white">
+                www
+              </span>
+              <button
+                type="button"
+                aria-label="Remove brand website"
+                disabled={isBusy}
+                onClick={() => setWebsiteRemoved(true)}
+                className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-0"
+              >
+                <X className="h-3 w-3" strokeWidth={2.6} />
+              </button>
             </div>
           )}
           {images.map((image) => (

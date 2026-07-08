@@ -3871,8 +3871,19 @@ async function exportBeautyCollection(
   const photo = byId<Extract<EditorLayer, { kind: "image" }>>("image");
   const geo = beautyCollectionGeometry(width, height);
 
+  const transform = photo ? imageTransform(photo) : DEFAULT_IMAGE_TRANSFORM;
+  const shouldDrawPhoto =
+    Boolean(photo?.visible && photo.src) &&
+    (!isBeautyCollectionSource(photo?.src ?? "") || !isIdentityTransform(transform));
+
+  // Base plate. The untouched default uses the exact reference JPG so it matches
+  // the supplied art pixel-for-pixel. But once the photo is replaced or moved,
+  // the reference JPG can't be the base: the measured cells only approximate the
+  // flowing S-curve cutouts, so the model baked into the JPG would still show in
+  // the gaps the cells don't cover. Swap in the clean paper plate there instead.
+  const baseSrc = shouldDrawPhoto ? BEAUTY_COLLECTION_BACKGROUND_SRC : BEAUTY_COLLECTION_SOURCE_SRC;
   try {
-    const background = await loadImage(BEAUTY_COLLECTION_SOURCE_SRC);
+    const background = await loadImage(baseSrc);
     drawImageCoverCanvas(ctx, background, width, height);
   } catch {
     try {
@@ -3884,10 +3895,6 @@ async function exportBeautyCollection(
     }
   }
 
-  const transform = photo ? imageTransform(photo) : DEFAULT_IMAGE_TRANSFORM;
-  const shouldDrawPhoto =
-    Boolean(photo?.visible && photo.src) &&
-    (!isBeautyCollectionSource(photo?.src ?? "") || !isIdentityTransform(transform));
   if (shouldDrawPhoto && photo?.src) {
     try {
       const image = await loadImage(photo.src);
@@ -3904,12 +3911,16 @@ async function exportBeautyCollection(
     }
   }
 
-  const liveText = beautyCollectionUsesLiveText(layers);
+  // Draw type live whenever the text was edited, OR whenever the photo was
+  // replaced — in the latter case the base is the clean plate (not the reference
+  // JPG), so the JPG's baked-in default title is gone and must be redrawn live
+  // from the (possibly still-default) text layers.
+  const drawText = beautyCollectionUsesLiveText(layers) || shouldDrawPhoto;
   const textLayers = ["eyebrow", "header", "cta"]
     .map((id) => byId<TextLayer>(id))
     .filter((layer): layer is TextLayer => Boolean(layer));
 
-  if (liveText && typeof document !== "undefined" && document.fonts) {
+  if (drawText && typeof document !== "undefined" && document.fonts) {
     await Promise.all(
       textLayers.map((layer) =>
         document.fonts
@@ -3921,26 +3932,31 @@ async function exportBeautyCollection(
     ).catch(() => undefined);
   }
 
-  if (liveText) {
-    let backdrop: HTMLImageElement | null = null;
-    try {
-      backdrop = await loadImage(BEAUTY_COLLECTION_BACKGROUND_SRC);
-    } catch {
-      backdrop = null;
-    }
-    geo.patches.forEach((patch) => {
-      if (backdrop) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(patch.x, patch.y, patch.w, patch.h);
-        ctx.clip();
-        drawImageCoverCanvas(ctx, backdrop, width, height);
-        ctx.restore();
-      } else {
-        ctx.fillStyle = template.background;
-        ctx.fillRect(patch.x, patch.y, patch.w, patch.h);
+  if (drawText) {
+    // Repaint the text zones only when the reference JPG is still the base (photo
+    // not replaced) — that's the only case with baked-in text to cover. The
+    // patches never overlap the photo cells, so this is a no-op-safe extra draw.
+    if (!shouldDrawPhoto) {
+      let backdrop: HTMLImageElement | null = null;
+      try {
+        backdrop = await loadImage(BEAUTY_COLLECTION_BACKGROUND_SRC);
+      } catch {
+        backdrop = null;
       }
-    });
+      geo.patches.forEach((patch) => {
+        if (backdrop) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(patch.x, patch.y, patch.w, patch.h);
+          ctx.clip();
+          drawImageCoverCanvas(ctx, backdrop, width, height);
+          ctx.restore();
+        } else {
+          ctx.fillStyle = template.background;
+          ctx.fillRect(patch.x, patch.y, patch.w, patch.h);
+        }
+      });
+    }
 
     const eyebrow = byId<TextLayer>("eyebrow");
     const header = byId<TextLayer>("header");
