@@ -127,18 +127,20 @@ export function RemixComposer({
 
   // Prefer the explicit asset contract; fall back to the template's image count
   // so the composer still works for feed entries without input_requirements.
+  const declaredInputImageCount = template.input_image_count ?? null;
   const minImages = imageRequirements.length
-    ? Math.max(
-        1,
-        imageRequirements.reduce((sum, asset) => sum + asset.min_count, 0),
-      )
-    : Math.max(1, template.input_image_count ?? 1);
+    ? imageRequirements.reduce((sum, asset) => sum + asset.min_count, 0)
+    : declaredInputImageCount === 0
+      ? 0
+      : Math.max(1, declaredInputImageCount ?? 1);
   const maxImages = imageRequirements.length
     ? Math.max(
         minImages,
         imageRequirements.reduce((sum, asset) => sum + asset.max_count, 0),
       )
-    : Math.max(minImages, FALLBACK_MAX_IMAGES);
+    : minImages === 0
+      ? 0
+      : Math.max(minImages, FALLBACK_MAX_IMAGES);
   const acceptedTypes = imageRequirement?.accepted_mime_types.length
     ? imageRequirement.accepted_mime_types
     : FALLBACK_ACCEPTED_TYPES;
@@ -849,20 +851,22 @@ export function RemixComposer({
             {caption.length}/{maxChars}
           </span>
         )}
-        <button
-          type="button"
-          aria-label="Attach images"
-          disabled={isBusy}
-          onClick={() => setIsPickerOpen(true)}
-          className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-background/60 disabled:opacity-50"
-        >
-          <ImageIcon className="h-5 w-5 text-foreground" />
-          {images.length > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
-              {images.length}
-            </span>
-          )}
-        </button>
+        {maxImages > 0 && (
+          <button
+            type="button"
+            aria-label="Attach images"
+            disabled={isBusy}
+            onClick={() => setIsPickerOpen(true)}
+            className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-background/60 disabled:opacity-50"
+          >
+            <ImageIcon className="h-5 w-5 text-foreground" />
+            {images.length > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                {images.length}
+              </span>
+            )}
+          </button>
+        )}
         <button
           type="button"
           aria-label="Send remix request"

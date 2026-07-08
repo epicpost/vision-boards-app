@@ -79,6 +79,7 @@ import {
   collageSlide,
   LAYOUT,
   MOODBOARD_LAYOUT,
+  SUMMER_MOOD_LAYOUT,
   RELAX_LAYOUT,
   SPLIT_LAYOUT,
   splitHeadlineFontSize,
@@ -121,6 +122,9 @@ import {
   briefGeometry,
   INTERIOR_INSPIRATION_LAYOUT,
   interiorInspirationGeometry,
+  BEAUTY_COLLECTION_SOURCE_SRC,
+  beautyCollectionGeometry,
+  beautyCollectionUsesLiveText,
   fashionIconsGeometry,
   showcaseGeometry,
   showcaseVariant,
@@ -141,6 +145,9 @@ import {
   readableTextColor,
   resolveTextStyle,
   sizeScaleForFontChange,
+  summerMoodBandGeometry,
+  summerMoodRepeatedText,
+  summerMoodUsesLiveText,
   TEXT_SHADOW_CSS,
   transformCss,
   WEIGHT_LABELS,
@@ -1322,6 +1329,105 @@ function MoodboardPreview({
           {header.text}
         </div>
       )}
+    </div>
+  );
+}
+
+// Summer Mood: fixed full-bleed pool collage plus three repainted white text
+// strips. The single header layer is repeated along each strip, matching export.
+function SummerMoodPreview({
+  template,
+  layers,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+}) {
+  const image = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> =>
+      layer.id === "image" && layer.kind === "image",
+  );
+  const header = layers.find(
+    (layer): layer is TextLayer => layer.id === "header" && layer.kind === "header",
+  );
+  const headerStyle = header ? resolveTextStyle(header) : null;
+  const liveText = summerMoodUsesLiveText(layers);
+  const [rw, rh] = template.aspectRatio.split("/").map((part) => Number(part.trim()));
+  const ratio = rw && rh ? rw / rh : 9 / 16;
+  const Wv = 900;
+  const Hv = Math.round(Wv / ratio);
+  const pctX = (value: number) => `${(value / Wv) * 100}%`;
+  const pctY = (value: number) => `${(value / Hv) * 100}%`;
+  const cqi = (value: number) => `${(value / Wv) * 100}cqi`;
+  const display =
+    header && (header.uppercase ? header.text.toUpperCase() : header.text).trim()
+      ? header.uppercase
+        ? header.text.toUpperCase()
+        : header.text
+      : "summer mood";
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+      }}
+    >
+      {image?.visible && image.src && (
+        <img src={image.src} alt="" className="absolute inset-0 h-full w-full object-cover" />
+      )}
+
+      {liveText
+        ? SUMMER_MOOD_LAYOUT.bands.map((band) => {
+            const geo = summerMoodBandGeometry(band, Wv, Hv);
+            const fontSize = geo.fontSize * (headerStyle?.sizeScale ?? 1);
+            const stripWidth = Math.max(geo.stripWidth, fontSize * 1.16);
+            return (
+              <div
+                key={band.id}
+                className="pointer-events-none absolute"
+                style={{
+                  left: pctX(geo.x),
+                  top: pctY(geo.y),
+                  width: pctX(geo.length),
+                  height: 0,
+                  transform: `rotate(${geo.angleDeg}deg)`,
+                  transformOrigin: "left center",
+                  zIndex: geo.zIndex,
+                }}
+              >
+                <div
+                  className="absolute left-0 flex items-center overflow-hidden whitespace-nowrap"
+                  style={{
+                    top: cqi(-stripWidth / 2),
+                    width: "100%",
+                    height: cqi(stripWidth),
+                    background: SUMMER_MOOD_LAYOUT.stripColor,
+                  }}
+                >
+                  {header?.visible && headerStyle && header.text.trim() ? (
+                    <span
+                      className="block shrink-0"
+                      style={{
+                        marginLeft: cqi(geo.textOffset),
+                        fontFamily: fontById(header.fontId).family,
+                        fontWeight: headerStyle.weight,
+                        fontSize: cqi(fontSize),
+                        lineHeight: 1,
+                        letterSpacing: `${headerStyle.letterSpacing}em`,
+                        color: header.color,
+                        textShadow: headerStyle.shadow ? TEXT_SHADOW_CSS : "none",
+                      }}
+                    >
+                      {summerMoodRepeatedText(display)}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })
+        : null}
     </div>
   );
 }
@@ -3876,6 +3982,222 @@ function MosaicPreview({
   );
 }
 
+function isIdentityPreviewTransform(transform: ImageTransform): boolean {
+  return (
+    transform.offsetX === 0 &&
+    transform.offsetY === 0 &&
+    transform.scale === 1 &&
+    transform.rotation === 0
+  );
+}
+
+function isBeautyCollectionPreviewSource(src: string): boolean {
+  return src.includes("e876c2ccf4cffd6d1513713ce8f2e7f5.jpg");
+}
+
+// Beauty Collection: exact JPG background by default, with one continuous image
+// clipped through rounded cutouts when the portrait is replaced. Text is drawn
+// live only after edits/brand styling so the untouched template stays identical
+// to the supplied reference.
+function BeautyCollectionPreview({
+  layers,
+  template,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  layers: EditorLayer[];
+  template: RemixEditorTemplate;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const [rw, rh] = template.aspectRatio.split("/").map((part) => Number(part.trim()));
+  const ratio = rw && rh ? rw / rh : 736 / 1104;
+  const Wv = 1000;
+  const Hv = Math.round(Wv / ratio);
+  const geo = beautyCollectionGeometry(Wv, Hv);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const drag = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(
+    null,
+  );
+  const pctX = (value: number) => `${(value / Wv) * 100}%`;
+  const pctY = (value: number) => `${(value / Hv) * 100}%`;
+  const cqi = (value: number) => `${value * 100}cqi`;
+
+  const image = layers.find(
+    (layer): layer is ImageLayer => layer.id === "image" && layer.kind === "image",
+  );
+  const t = image ? imageTransform(image) : DEFAULT_IMAGE_TRANSFORM;
+  const photoEdited =
+    Boolean(image?.visible && image.src) &&
+    (!isBeautyCollectionPreviewSource(image?.src ?? "") || !isIdentityPreviewTransform(t));
+  const liveText = beautyCollectionUsesLiveText(layers);
+  const textLayer = (id: string) =>
+    layers.find(
+      (layer): layer is TextLayer =>
+        layer.id === id && layer.kind !== "image" && layer.kind !== "logo",
+    );
+
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (!image) return;
+    event.stopPropagation();
+    onSelect(image.id);
+    drag.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      baseX: t.offsetX,
+      baseY: t.offsetY,
+    };
+    setDragging(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    if (!image || !drag.current) return;
+    const box = rootRef.current?.getBoundingClientRect();
+    if (!box?.width || !box.height) return;
+    const dx = (event.clientX - drag.current.startX) / box.width;
+    const dy = (event.clientY - drag.current.startY) / box.height;
+    updateLayer(
+      image.id,
+      { transform: { ...t, offsetX: drag.current.baseX + dx, offsetY: drag.current.baseY + dy } },
+      `pan-${image.id}`,
+    );
+  }
+
+  function handlePointerEnd(event: React.PointerEvent<HTMLDivElement>) {
+    if (!drag.current) return;
+    drag.current = null;
+    setDragging(false);
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+
+  const renderText = (layer: TextLayer | undefined, box: typeof geo.title) => {
+    if (!layer?.visible || !layer.text.trim()) return null;
+    const style = resolveTextStyle(layer);
+    return (
+      <div
+        className="pointer-events-none absolute z-30 whitespace-pre-line"
+        style={{
+          left: pctX(box.x),
+          top: pctY(box.y),
+          width: pctX(box.w),
+          color: layer.color,
+          fontFamily: fontById(layer.fontId).family,
+          fontWeight: style.weight,
+          fontSize: cqi((box.size / Wv) * style.sizeScale),
+          lineHeight: box.lineHeight,
+          letterSpacing: `${style.letterSpacing}em`,
+          textAlign: style.align,
+          textTransform: layer.uppercase ? "uppercase" : "none",
+          textShadow: style.shadow ? TEXT_SHADOW_CSS : "none",
+        }}
+      >
+        {layer.text}
+      </div>
+    );
+  };
+
+  return (
+    <div
+      ref={rootRef}
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+      }}
+    >
+      <img
+        src={BEAUTY_COLLECTION_SOURCE_SRC}
+        alt=""
+        draggable={false}
+        className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+      />
+
+      {image &&
+        geo.cells.map((cell, index) => (
+          <div
+            key={index}
+            className={cn("absolute touch-none select-none overflow-hidden", {
+              "cursor-grabbing": dragging,
+              "cursor-grab": !dragging,
+            })}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerEnd}
+            onPointerCancel={handlePointerEnd}
+            style={{
+              left: pctX(cell.x),
+              top: pctY(cell.y),
+              width: pctX(cell.w),
+              height: pctY(cell.h),
+              borderRadius: cqi(cell.r / Wv),
+              zIndex: 10,
+              boxShadow:
+                selectedId === image.id ? "inset 0 0 0 2px hsl(var(--destructive))" : undefined,
+            }}
+          >
+            {photoEdited && image.visible && image.src && (
+              <img
+                src={image.src}
+                alt=""
+                draggable={false}
+                className="pointer-events-none absolute max-w-none object-cover"
+                style={{
+                  left: cqi(-cell.x / Wv),
+                  top: cqi(-cell.y / Wv),
+                  width: "100cqi",
+                  height: cqi(Hv / Wv),
+                  transform: `translate(${cqi(t.offsetX)}, ${cqi(t.offsetY * (Hv / Wv))}) scale(${t.scale}) rotate(${t.rotation}deg)`,
+                  transformOrigin: "center",
+                }}
+              />
+            )}
+          </div>
+        ))}
+
+      {liveText && (
+        <>
+          {geo.patches.map((patch, index) => (
+            <div
+              key={index}
+              className="pointer-events-none absolute z-20"
+              style={{
+                left: pctX(patch.x),
+                top: pctY(patch.y),
+                width: pctX(patch.w),
+                height: pctY(patch.h),
+                background: template.background,
+              }}
+            />
+          ))}
+          {geo.rules.map((rule, index) => {
+            const color = textLayer("eyebrow")?.color ?? textLayer("header")?.color ?? "#111111";
+            return (
+              <div
+                key={index}
+                className="pointer-events-none absolute z-30 h-px"
+                style={{
+                  left: pctX(rule.x1),
+                  top: pctY(rule.y),
+                  width: pctX(rule.x2 - rule.x1),
+                  background: color,
+                }}
+              />
+            );
+          })}
+          {renderText(textLayer("eyebrow"), geo.eyebrow)}
+          {renderText(textLayer("header"), geo.title)}
+          {renderText(textLayer("cta"), geo.cta)}
+        </>
+      )}
+    </div>
+  );
+}
+
 // Everyday Icons fashion collage: six hard-edged photo cells plus live editorial
 // type. Mirrors `exportFashionIcons`.
 function FashionIconsPreview({
@@ -5696,7 +6018,8 @@ function defaultOpenSections(template: RemixEditorTemplate): Record<string, bool
     template.layout === "cover" ||
     template.layout === "verticals" ||
     template.layout === "mosaic" ||
-    template.layout === "showcase"
+    template.layout === "showcase" ||
+    template.layout === "beauty-collection"
   ) {
     const open: Record<string, boolean> = {};
     template.layers.forEach((layer, index) => {
@@ -6373,7 +6696,9 @@ function EditorScreen({
                 template.layout === "open-space" ||
                 template.layout === "interior-inspiration" ||
                 template.layout === "fashion-icons" ||
+                template.layout === "beauty-collection" ||
                 template.layout === "showcase" ||
+                template.layout === "summer-mood" ||
                 template.layout === "mosaic"
                 ? "max-w-[300px]"
                 : "max-w-[360px]",
@@ -6575,6 +6900,14 @@ function EditorScreen({
                 onSelect={setSelectedImageId}
                 updateLayer={updateLayer}
               />
+            ) : template.layout === "beauty-collection" ? (
+              <BeautyCollectionPreview
+                template={activeTemplate}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
             ) : template.layout === "showcase" ? (
               <ShowcasePreview
                 template={activeTemplate}
@@ -6583,6 +6916,8 @@ function EditorScreen({
                 onSelect={setSelectedImageId}
                 updateLayer={updateLayer}
               />
+            ) : template.layout === "summer-mood" ? (
+              <SummerMoodPreview template={activeTemplate} layers={layers} />
             ) : template.layout === "mosaic" ? (
               <MosaicPreview
                 template={activeTemplate}
@@ -6844,6 +7179,90 @@ function EditorScreen({
                         label={label}
                         value={layer.text}
                         multiline
+                        onChange={(value) =>
+                          updateLayer(layer.id, { text: value }, `${layer.id}-text`)
+                        }
+                        onSuggest={() => cycleSuggestion(layer)}
+                      />
+                      <div className="mt-4">
+                        <FontDropdown
+                          value={layer.fontId}
+                          color={layer.color}
+                          onChange={(fontId) => changeFont(layer.id, fontId)}
+                        />
+                      </div>
+                      <div className="mt-4">
+                        <ColorSwatches
+                          palette={template.palette}
+                          value={layer.color}
+                          onChange={(hex) => updateLayer(layer.id, { color: hex })}
+                        />
+                      </div>
+                      <TextStyleControls
+                        layer={layer}
+                        onChange={(patch, key) => updateLayer(layer.id, patch, key)}
+                      />
+                    </EditorSection>
+                  ) : null,
+                )}
+              </>
+            )}
+
+            {/* Beauty Collection: one portrait mask, required top label, required
+                collection headline and optional footer wordmark. */}
+            {template.layout === "beauty-collection" && (
+              <>
+                {image && (
+                  <EditorSection
+                    title={image.label}
+                    open={openSections[image.id] ?? true}
+                    onToggleOpen={() => toggleOpen(image.id)}
+                    hideable={image.hideable}
+                    visible={image.visible}
+                    onToggleVisible={() => toggleVisible(image.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+                        <img src={image.src} alt="" className="h-full w-full object-cover" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openReplace(image.id)}
+                        className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                      >
+                        <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                        Replace photo
+                      </button>
+                    </div>
+                    <ImageControls
+                      layer={image}
+                      onChange={(transform, key) => updateLayer(image.id, { transform }, key)}
+                      onReset={() =>
+                        updateLayer(image.id, { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                      }
+                    />
+                  </EditorSection>
+                )}
+
+                {[
+                  { layer: eyebrow, title: "Top label", label: "Top label text" },
+                  { layer: header, title: "New Collection", label: "Headline text" },
+                  { layer: cta, title: "Footer wordmark", label: "Footer text" },
+                ].map(({ layer, title, label }) =>
+                  layer ? (
+                    <EditorSection
+                      key={layer.id}
+                      title={title}
+                      open={openSections[layer.id] ?? layer.id === "header"}
+                      onToggleOpen={() => toggleOpen(layer.id)}
+                      hideable={layer.hideable}
+                      visible={layer.visible}
+                      onToggleVisible={() => toggleVisible(layer.id)}
+                    >
+                      <TextField
+                        label={label}
+                        value={layer.text}
+                        multiline={layer.id === "header"}
                         onChange={(value) =>
                           updateLayer(layer.id, { text: value }, `${layer.id}-text`)
                         }
@@ -8534,7 +8953,9 @@ function EditorScreen({
               template.layout !== "open-space" &&
               template.layout !== "interior-inspiration" &&
               template.layout !== "fashion-icons" &&
+              template.layout !== "beauty-collection" &&
               template.layout !== "showcase" &&
+              template.layout !== "summer-mood" &&
               template.layout !== "mosaic" &&
               image && (
                 <EditorSection
@@ -8622,6 +9043,7 @@ function EditorScreen({
               template.layout !== "open-space" &&
               template.layout !== "interior-inspiration" &&
               template.layout !== "fashion-icons" &&
+              template.layout !== "beauty-collection" &&
               template.layout !== "showcase" &&
               template.layout !== "mosaic" &&
               header && (
@@ -8676,6 +9098,7 @@ function EditorScreen({
               template.layout !== "open-space" &&
               template.layout !== "interior-inspiration" &&
               template.layout !== "fashion-icons" &&
+              template.layout !== "beauty-collection" &&
               template.layout !== "showcase" &&
               description && (
                 <EditorSection
@@ -8743,6 +9166,7 @@ function EditorScreen({
               template.layout !== "open-space" &&
               template.layout !== "interior-inspiration" &&
               template.layout !== "fashion-icons" &&
+              template.layout !== "beauty-collection" &&
               template.layout !== "showcase" &&
               cta && (
                 <EditorSection

@@ -135,10 +135,14 @@ export const EXPORT_FORMATS: Record<ExportFormat, ExportFormatMeta> = {
 // script subtitle;
 // "fashion-icons" is a six-photo fashion collage with a required editorial
 // title and two optional small copy blocks;
+// "beauty-collection" is a single-photo rounded cutout beauty poster with a
+// required top label, required collection headline and optional footer wordmark;
 // "showcase" is an eight-photo 3×3 grid (the ninth, centre cell holds a
 // stacked block of live text) — used for drop announcements, sale banners and
 // numbered lookbooks; which text layers exist and how they're styled varies
 // per template via `SHOWCASE_VARIANTS`;
+// "summer-mood" is a fixed pool collage with three diagonal white caption
+// strips; one editable text input repeats along each strip.
 // "mosaic" is an 11-photo masonry moodboard grid (3 uneven columns, one tall
 // centre cell), with no text layers at all.
 export type TemplateLayout =
@@ -167,7 +171,9 @@ export type TemplateLayout =
   | "open-space"
   | "interior-inspiration"
   | "fashion-icons"
+  | "beauty-collection"
   | "showcase"
+  | "summer-mood"
   | "mosaic";
 
 export interface RemixEditorTemplate {
@@ -237,6 +243,13 @@ export const EDITOR_FONTS: EditorFont[] = [
     family: "'Playfair Display', serif",
     weight: 700,
     weights: [400, 500, 600, 700, 800],
+  },
+  {
+    id: "ultra",
+    label: "Ultra",
+    family: "'Ultra', serif",
+    weight: 400,
+    weights: [400],
   },
   {
     id: "alexbrush",
@@ -3158,6 +3171,127 @@ const INTERIOR_INSPIRATION: RemixEditorTemplate = {
   ],
 };
 
+export const BEAUTY_COLLECTION_SOURCE_SRC =
+  "/templates/shared/e876c2ccf4cffd6d1513713ce8f2e7f5.jpg";
+
+// Beauty Collection — a rounded cutout fashion/beauty poster. The reference
+// image itself is used as the default background so the untouched editor matches
+// the supplied JPG exactly; when text style or content changes, the text zones
+// are repainted and drawn live while the photo keeps the same measured cutouts.
+const BEAUTY_COLLECTION: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000056",
+  title: "Beauty Collection",
+  layout: "beauty-collection",
+  aspectRatio: "736 / 1104",
+  background: "#f6f5f1",
+  palette: [
+    { label: "Black", value: "#111111" },
+    { label: "Paper", value: "#f6f5f1" },
+    { label: "Fern", value: "#314c2f" },
+    { label: "Merlot", value: "#8a1824" },
+    { label: "Warm brown", value: "#7a4d35" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Portrait photo",
+      visible: true,
+      hideable: false,
+      src: BEAUTY_COLLECTION_SOURCE_SRC,
+    },
+    {
+      id: "eyebrow",
+      kind: "eyebrow",
+      label: "Top label",
+      visible: true,
+      hideable: false,
+      text: "BEAUTY 2025",
+      color: "#111111",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 400,
+      align: "center",
+      letterSpacing: 0.28,
+      suggestions: ["BEAUTY 2025", "BEAUTY EDIT", "SPRING 2025", "SKINCARE 2025"],
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "New Collection",
+      visible: true,
+      hideable: false,
+      text: "New\nCollection",
+      color: "#000000",
+      fontId: "ultra",
+      uppercase: false,
+      weight: 400,
+      align: "center",
+      suggestions: ["New\nCollection", "Fresh\nArrivals", "Beauty\nEssentials", "Summer\nEdit"],
+    },
+    {
+      id: "cta",
+      kind: "cta",
+      label: "Footer wordmark",
+      visible: true,
+      hideable: true,
+      text: "U & ME",
+      color: "#111111",
+      fontId: "montserrat",
+      uppercase: true,
+      weight: 400,
+      align: "center",
+      letterSpacing: 0.06,
+      suggestions: ["U & ME", "YOUR BRAND", "SHOP NOW", ""],
+    },
+  ],
+};
+
+export const SUMMER_MOOD_SOURCE_SRC = "/templates/shared/12c6a594683063dc41ed8a5cd2e9c08a.jpg";
+
+// Summer Mood — fixed pool collage with three diagonal white text strips. The
+// editor exposes one caption value; the renderer repeats it along every strip.
+const SUMMER_MOOD: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000057",
+  title: "Summer Mood",
+  layout: "summer-mood",
+  aspectRatio: "9 / 16",
+  background: "#ffffff",
+  palette: [
+    { label: "Black", value: "#000000" },
+    { label: "White", value: "#ffffff" },
+    { label: "Pool", value: "#17a99a" },
+    { label: "Tomato", value: "#d94b2b" },
+    { label: "Sand", value: "#c7bca0" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Pool collage",
+      visible: true,
+      hideable: false,
+      src: SUMMER_MOOD_SOURCE_SRC,
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Mood text",
+      visible: true,
+      hideable: false,
+      text: "summer mood",
+      color: "#000000",
+      fontId: "playfair",
+      uppercase: false,
+      weight: 700,
+      align: "left",
+      suggestions: ["summer mood", "pool day", "sunny state", "vacation mood"],
+    },
+  ],
+};
+
 // Everyday Icons — a six-photo editorial fashion collage. Preview art lives at
 // public/templates/shared/5f0141e800d6ae18b904a5f4a4aefe2a.jpg (736 x 1034):
 // two top product/model images, one middle-left jacket image, three bottom
@@ -3602,6 +3736,8 @@ const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [STONE_VILLA_MOSAIC.id]: STONE_VILLA_MOSAIC,
   [OPEN_SPACE_LIVING_ROOM.id]: OPEN_SPACE_LIVING_ROOM,
   [INTERIOR_INSPIRATION.id]: INTERIOR_INSPIRATION,
+  [BEAUTY_COLLECTION.id]: BEAUTY_COLLECTION,
+  [SUMMER_MOOD.id]: SUMMER_MOOD,
   [FASHION_ICONS.id]: FASHION_ICONS,
   [SHOWCASE_DROP.id]: SHOWCASE_DROP,
   [SHOWCASE_SALE.id]: SHOWCASE_SALE,
@@ -3829,6 +3965,114 @@ export const MOODBOARD_LAYOUT = {
   bands: 3,
   title: { centerY: 0.5, size: 0.135, lineHeight: 1, weight: 800, padX: 0.04 },
 } as const;
+
+// ── Summer Mood geometry ────────────────────────────────────────────────────
+// Coordinates are measured from the supplied 900×1600 reference. `stripWidth`,
+// `fontSize` and `textOffset` scale from canvas width so the white strips and
+// type preserve their thickness on any 9:16 export size.
+export const SUMMER_MOOD_LAYOUT = {
+  stripColor: "#ffffff",
+  bands: [
+    {
+      id: "top",
+      startX: 295 / 900,
+      startY: -12 / 1600,
+      endX: 503 / 900,
+      endY: 814 / 1600,
+      stripWidth: 54 / 900,
+      fontSize: 43 / 900,
+      textOffset: -6 / 900,
+      zIndex: 20,
+    },
+    {
+      id: "bottom",
+      startX: 340 / 900,
+      startY: 856 / 1600,
+      endX: 548 / 900,
+      endY: 1614 / 1600,
+      stripWidth: 54 / 900,
+      fontSize: 43 / 900,
+      textOffset: -2 / 900,
+      zIndex: 20,
+    },
+    {
+      id: "middle",
+      startX: -28 / 900,
+      startY: 938 / 1600,
+      endX: 930 / 900,
+      endY: 684 / 1600,
+      stripWidth: 58 / 900,
+      fontSize: 47 / 900,
+      textOffset: -8 / 900,
+      zIndex: 30,
+    },
+  ],
+} as const;
+
+export type SummerMoodBand = (typeof SUMMER_MOOD_LAYOUT.bands)[number];
+
+export function summerMoodRepeatedText(text: string): string {
+  const clean = text.trim() || "summer mood";
+  return Array.from({ length: 18 }, () => clean).join(" ");
+}
+
+function matchesSummerMoodDefault(layer: TextLayer | undefined, fallback: TextLayer): boolean {
+  if (!layer) return false;
+  return (
+    layer.visible === fallback.visible &&
+    layer.text === fallback.text &&
+    layer.color.toLowerCase() === fallback.color.toLowerCase() &&
+    layer.fontId === fallback.fontId &&
+    layer.uppercase === fallback.uppercase &&
+    (layer.weight ?? null) === (fallback.weight ?? null) &&
+    (layer.letterSpacing ?? 0) === (fallback.letterSpacing ?? 0) &&
+    (layer.align ?? "center") === (fallback.align ?? "center") &&
+    (layer.sizeScale ?? 1) === (fallback.sizeScale ?? 1) &&
+    (layer.shadow ?? false) === (fallback.shadow ?? false)
+  );
+}
+
+export function summerMoodUsesLiveText(layers: readonly EditorLayer[]): boolean {
+  const layer = layers.find(
+    (candidate): candidate is TextLayer =>
+      candidate.id === "header" && candidate.kind !== "image" && candidate.kind !== "logo",
+  );
+  const fallback = SUMMER_MOOD.layers.find(
+    (candidate): candidate is TextLayer =>
+      candidate.id === "header" && candidate.kind !== "image" && candidate.kind !== "logo",
+  );
+  return !fallback || !matchesSummerMoodDefault(layer, fallback);
+}
+
+export function summerMoodBandGeometry(
+  band: SummerMoodBand,
+  width: number,
+  height: number,
+): {
+  x: number;
+  y: number;
+  length: number;
+  angleDeg: number;
+  stripWidth: number;
+  fontSize: number;
+  textOffset: number;
+  zIndex: number;
+} {
+  const x = band.startX * width;
+  const y = band.startY * height;
+  const dx = band.endX * width - x;
+  const dy = band.endY * height - y;
+  return {
+    x,
+    y,
+    length: Math.hypot(dx, dy),
+    angleDeg: (Math.atan2(dy, dx) * 180) / Math.PI,
+    stripWidth: band.stripWidth * width,
+    fontSize: band.fontSize * width,
+    textOffset: band.textOffset * width,
+    zIndex: band.zIndex,
+  };
+}
 
 // ── Relax trio geometry ──────────────────────────────────────────────────────
 // Rounded photo panels stacked with a soft gap; caption + subcaption ride the
@@ -6276,6 +6520,144 @@ export function openSpaceGeometry(width: number, height: number): OpenSpaceGeome
     },
     uploadedLogo: rect(L.uploadedLogo),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Beauty Collection — measured from
+// public/templates/shared/e876c2ccf4cffd6d1513713ce8f2e7f5.jpg (736 x 1104).
+// The source JPG remains the default background for pixel-faithful previews.
+// When the user edits text or applies brand styling, these zones are repainted
+// and live text is drawn over the same measured line/text positions.
+export const BEAUTY_COLLECTION_LAYOUT = {
+  cells: [
+    { x: 113 / 736, y: 318 / 1104, w: 148 / 736, h: 145 / 1104, r: 34 / 736 },
+    { x: 273 / 736, y: 318 / 1104, w: 160 / 736, h: 169 / 1104, r: 34 / 736 },
+    { x: 444 / 736, y: 318 / 1104, w: 180 / 736, h: 145 / 1104, r: 34 / 736 },
+    { x: 113 / 736, y: 474 / 1104, w: 150 / 736, h: 151 / 1104, r: 34 / 736 },
+    { x: 274 / 736, y: 487 / 1104, w: 188 / 736, h: 163 / 1104, r: 38 / 736 },
+    { x: 477 / 736, y: 489 / 1104, w: 147 / 736, h: 150 / 1104, r: 34 / 736 },
+    { x: 113 / 736, y: 641 / 1104, w: 172 / 736, h: 144 / 1104, r: 34 / 736 },
+    { x: 285 / 736, y: 655 / 1104, w: 178 / 736, h: 292 / 1104, r: 38 / 736 },
+    { x: 477 / 736, y: 641 / 1104, w: 147 / 736, h: 144 / 1104, r: 34 / 736 },
+    { x: 113 / 736, y: 800 / 1104, w: 350 / 736, h: 147 / 1104, r: 34 / 736 },
+    { x: 477 / 736, y: 800 / 1104, w: 147 / 736, h: 147 / 1104, r: 34 / 736 },
+  ],
+  patches: [
+    { x: 88 / 736, y: 44 / 1104, w: 560 / 736, h: 226 / 1104 },
+    { x: 96 / 736, y: 1018 / 1104, w: 544 / 736, h: 52 / 1104 },
+  ],
+  rules: [
+    { x1: 113 / 736, x2: 222 / 736, y: 64 / 1104 },
+    { x1: 514 / 736, x2: 623 / 736, y: 64 / 1104 },
+    { x1: 113 / 736, x2: 222 / 736, y: 1039 / 1104 },
+    { x1: 514 / 736, x2: 623 / 736, y: 1039 / 1104 },
+  ],
+  eyebrow: { x: 248 / 736, y: 55 / 1104, w: 240 / 736, size: 16 / 736, lineHeight: 1 },
+  title: { x: 88 / 736, y: 106 / 1104, w: 560 / 736, size: 66 / 736, lineHeight: 1.08 },
+  cta: { x: 290 / 736, y: 1027 / 1104, w: 156 / 736, size: 17 / 736, lineHeight: 1 },
+} as const;
+
+export interface BeautyCollectionRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  r: number;
+}
+
+export interface BeautyCollectionRule {
+  x1: number;
+  x2: number;
+  y: number;
+}
+
+export interface BeautyCollectionTextBox {
+  x: number;
+  y: number;
+  w: number;
+  size: number;
+  lineHeight: number;
+}
+
+export interface BeautyCollectionGeometry {
+  cells: BeautyCollectionRect[];
+  patches: Omit<BeautyCollectionRect, "r">[];
+  rules: BeautyCollectionRule[];
+  eyebrow: BeautyCollectionTextBox;
+  title: BeautyCollectionTextBox;
+  cta: BeautyCollectionTextBox;
+}
+
+export function beautyCollectionGeometry(width: number, height: number): BeautyCollectionGeometry {
+  const rect = (r: { x: number; y: number; w: number; h: number; r: number }) => ({
+    x: r.x * width,
+    y: r.y * height,
+    w: r.w * width,
+    h: r.h * height,
+    r: r.r * width,
+  });
+  const patch = (r: { x: number; y: number; w: number; h: number }) => ({
+    x: r.x * width,
+    y: r.y * height,
+    w: r.w * width,
+    h: r.h * height,
+  });
+  const rule = (r: { x1: number; x2: number; y: number }) => ({
+    x1: r.x1 * width,
+    x2: r.x2 * width,
+    y: r.y * height,
+  });
+  const textBox = (box: { x: number; y: number; w: number; size: number; lineHeight: number }) => ({
+    x: box.x * width,
+    y: box.y * height,
+    w: box.w * width,
+    size: box.size * width,
+    lineHeight: box.lineHeight,
+  });
+  return {
+    cells: BEAUTY_COLLECTION_LAYOUT.cells.map(rect),
+    patches: BEAUTY_COLLECTION_LAYOUT.patches.map(patch),
+    rules: BEAUTY_COLLECTION_LAYOUT.rules.map(rule),
+    eyebrow: textBox(BEAUTY_COLLECTION_LAYOUT.eyebrow),
+    title: textBox(BEAUTY_COLLECTION_LAYOUT.title),
+    cta: textBox(BEAUTY_COLLECTION_LAYOUT.cta),
+  };
+}
+
+function matchesBeautyCollectionDefault(
+  layer: TextLayer | undefined,
+  fallback: TextLayer,
+): boolean {
+  if (!layer) return false;
+  return (
+    layer.visible === fallback.visible &&
+    layer.text === fallback.text &&
+    layer.color.toLowerCase() === fallback.color.toLowerCase() &&
+    layer.fontId === fallback.fontId &&
+    layer.uppercase === fallback.uppercase &&
+    (layer.weight ?? null) === (fallback.weight ?? null) &&
+    (layer.letterSpacing ?? 0) === (fallback.letterSpacing ?? 0) &&
+    (layer.align ?? "center") === (fallback.align ?? "center") &&
+    (layer.sizeScale ?? 1) === (fallback.sizeScale ?? 1) &&
+    (layer.shadow ?? false) === (fallback.shadow ?? false)
+  );
+}
+
+export function beautyCollectionUsesLiveText(layers: readonly EditorLayer[]): boolean {
+  const textLayer = (id: string) =>
+    layers.find(
+      (layer): layer is TextLayer =>
+        layer.id === id && layer.kind !== "image" && layer.kind !== "logo",
+    );
+  const defaultTextLayer = (id: string) =>
+    BEAUTY_COLLECTION.layers.find(
+      (layer): layer is TextLayer =>
+        layer.id === id && layer.kind !== "image" && layer.kind !== "logo",
+    );
+  return ["eyebrow", "header", "cta"].some((id) => {
+    const fallback = defaultTextLayer(id);
+    return !fallback || !matchesBeautyCollectionDefault(textLayer(id), fallback);
+  });
 }
 
 // ---------------------------------------------------------------------------

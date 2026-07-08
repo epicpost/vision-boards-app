@@ -11,6 +11,7 @@ import {
   EXPORT_FORMATS,
   LAYOUT,
   MOODBOARD_LAYOUT,
+  SUMMER_MOOD_LAYOUT,
   RELAX_LAYOUT,
   SPLIT_LAYOUT,
   SLICED_LAYOUT,
@@ -53,6 +54,9 @@ import {
   briefGeometry,
   INTERIOR_INSPIRATION_LAYOUT,
   interiorInspirationGeometry,
+  BEAUTY_COLLECTION_SOURCE_SRC,
+  beautyCollectionGeometry,
+  beautyCollectionUsesLiveText,
   fashionIconsGeometry,
   showcaseGeometry,
   showcaseVariant,
@@ -75,6 +79,9 @@ import {
   readableTextColor,
   resolveTextStyle,
   splitHeadlineFontSize,
+  summerMoodBandGeometry,
+  summerMoodRepeatedText,
+  summerMoodUsesLiveText,
   type EditorLayer,
   type ExportFormat,
   type ImageTransform,
@@ -191,6 +198,17 @@ function drawImageCover(
   ctx.clip();
   drawTransformedImage(ctx, image, box, baseScale, transform);
   ctx.restore();
+}
+
+function drawImageCoverCanvas(
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  width: number,
+  height: number,
+  transform: ImageTransform = DEFAULT_IMAGE_TRANSFORM,
+) {
+  const baseScale = Math.max(width / image.width, height / image.height);
+  drawTransformedImage(ctx, image, { x: 0, y: 0, w: width, h: height }, baseScale, transform);
 }
 
 function drawRoundedImageCover(
@@ -3814,6 +3832,139 @@ async function exportGrid(
   return canvasToBlob(canvas, format);
 }
 
+function isIdentityTransform(transform: ImageTransform): boolean {
+  return (
+    transform.offsetX === 0 &&
+    transform.offsetY === 0 &&
+    transform.scale === 1 &&
+    transform.rotation === 0
+  );
+}
+
+function isBeautyCollectionSource(src: string): boolean {
+  return src.includes("e876c2ccf4cffd6d1513713ce8f2e7f5.jpg");
+}
+
+// Rasterize the Beauty Collection poster. The reference JPG is the untouched
+// default background; edited photos are clipped through the rounded cells, and
+// edited/brand-styled text repaints the original text zones before drawing live
+// type and rules. Mirrors `BeautyCollectionPreview`.
+async function exportBeautyCollection(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+  const photo = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const geo = beautyCollectionGeometry(width, height);
+
+  try {
+    const background = await loadImage(BEAUTY_COLLECTION_SOURCE_SRC);
+    drawImageCoverCanvas(ctx, background, width, height);
+  } catch {
+    ctx.fillStyle = template.background;
+    ctx.fillRect(0, 0, width, height);
+  }
+
+  const transform = photo ? imageTransform(photo) : DEFAULT_IMAGE_TRANSFORM;
+  const shouldDrawPhoto =
+    Boolean(photo?.visible && photo.src) &&
+    (!isBeautyCollectionSource(photo?.src ?? "") || !isIdentityTransform(transform));
+  if (shouldDrawPhoto && photo?.src) {
+    try {
+      const image = await loadImage(photo.src);
+      for (const cell of geo.cells) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(cell.x, cell.y, cell.w, cell.h, cell.r);
+        ctx.clip();
+        drawImageCoverCanvas(ctx, image, width, height, transform);
+        ctx.restore();
+      }
+    } catch {
+      throw new ExportImageError(1);
+    }
+  }
+
+  const liveText = beautyCollectionUsesLiveText(layers);
+  const textLayers = ["eyebrow", "header", "cta"]
+    .map((id) => byId<TextLayer>(id))
+    .filter((layer): layer is TextLayer => Boolean(layer));
+
+  if (liveText && typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      textLayers.map((layer) =>
+        document.fonts
+          .load(
+            `${resolveTextStyle(layer).weight} 64px ${primaryFamily(fontById(layer.fontId).family)}`,
+          )
+          .catch(() => undefined),
+      ),
+    ).catch(() => undefined);
+  }
+
+  if (liveText) {
+    ctx.fillStyle = template.background;
+    geo.patches.forEach((patch) => ctx.fillRect(patch.x, patch.y, patch.w, patch.h));
+
+    const eyebrow = byId<TextLayer>("eyebrow");
+    const header = byId<TextLayer>("header");
+    const cta = byId<TextLayer>("cta");
+    const ruleColor = eyebrow?.color ?? header?.color ?? "#111111";
+    ctx.save();
+    ctx.strokeStyle = ruleColor;
+    ctx.lineWidth = Math.max(1, width * 0.0014);
+    geo.rules.forEach((rule) => {
+      ctx.beginPath();
+      ctx.moveTo(rule.x1, rule.y);
+      ctx.lineTo(rule.x2, rule.y);
+      ctx.stroke();
+    });
+    ctx.restore();
+
+    const drawTextBox = (layer: TextLayer | undefined, box: typeof geo.title) => {
+      if (!layer?.visible || !layer.text.trim()) return;
+      const style = resolveTextStyle(layer);
+      const fontSize = box.size * style.sizeScale;
+      const family = fontById(layer.fontId).family;
+      const text = layer.uppercase ? layer.text.toUpperCase() : layer.text;
+      ctx.save();
+      ctx.fillStyle = layer.color;
+      ctx.textAlign = style.align;
+      ctx.textBaseline = "top";
+      ctx.font = `${style.weight} ${fontSize}px ${primaryFamily(family)}`;
+      ctx.letterSpacing = `${style.letterSpacing}em`;
+      applyTextShadow(ctx, Boolean(style.shadow), fontSize);
+
+      const x = alignX(style.align, box.x, box.x + box.w);
+      const lines = text
+        .split(/\n/)
+        .flatMap((line) => (line.trim() ? wrapLines(ctx, line.trim(), box.w) : [""]));
+      lines.forEach((line, lineIndex) => {
+        ctx.fillText(line, x, box.y + lineIndex * fontSize * box.lineHeight);
+      });
+      ctx.restore();
+    };
+
+    drawTextBox(eyebrow, geo.eyebrow);
+    drawTextBox(header, geo.title);
+    drawTextBox(cta, geo.cta);
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
 // Rasterize the Everyday Icons fashion collage: six required images in a fixed
 // white grid, with a required title and two optional small copy blocks. Mirrors
 // `FashionIconsPreview`.
@@ -4050,6 +4201,89 @@ async function exportMosaic(
     }
   }
   if (failed > 0) throw new ExportImageError(failed);
+
+  return canvasToBlob(canvas, format);
+}
+
+// Rasterize the Summer Mood collage: full-bleed supplied reference image, then
+// repaint each white diagonal strip and repeat the single editable caption along
+// it. Mirrors `SummerMoodPreview`.
+async function exportSummerMood(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  const imageLayer = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "image" }> =>
+      layer.id === "image" && layer.kind === "image",
+  );
+  if (imageLayer?.visible && imageLayer.src) {
+    try {
+      const img = await loadImage(imageLayer.src);
+      drawImageCover(ctx, img, { x: 0, y: 0, w: width, h: height }, imageTransform(imageLayer));
+    } catch {
+      throw new ExportImageError(1);
+    }
+  }
+
+  const header = layers.find(
+    (layer): layer is TextLayer => layer.id === "header" && layer.kind === "header",
+  );
+  if (!summerMoodUsesLiveText(layers)) {
+    return canvasToBlob(canvas, format);
+  }
+
+  const font = header ? fontById(header.fontId) : fontById("playfair");
+  const style = header ? resolveTextStyle(header) : null;
+  const display = header ? (header.uppercase ? header.text.toUpperCase() : header.text) : "";
+  const repeated = summerMoodRepeatedText(display);
+  const maxFontSize = style
+    ? Math.max(...SUMMER_MOOD_LAYOUT.bands.map((band) => band.fontSize)) * style.sizeScale * width
+    : 0;
+  if (style && typeof document !== "undefined" && document.fonts) {
+    await document.fonts
+      .load(`${style.weight} ${maxFontSize}px ${primaryFamily(font.family)}`)
+      .catch(() => undefined);
+  }
+
+  for (const band of SUMMER_MOOD_LAYOUT.bands) {
+    const geo = summerMoodBandGeometry(band, width, height);
+    const fontSize = geo.fontSize * (style?.sizeScale ?? 1);
+    const stripWidth = Math.max(geo.stripWidth, fontSize * 1.16);
+    ctx.save();
+    ctx.translate(geo.x, geo.y);
+    ctx.rotate((geo.angleDeg * Math.PI) / 180);
+    ctx.beginPath();
+    ctx.rect(0, -stripWidth / 2, geo.length, stripWidth);
+    ctx.clip();
+    ctx.fillStyle = SUMMER_MOOD_LAYOUT.stripColor;
+    ctx.fillRect(0, -stripWidth / 2, geo.length, stripWidth);
+
+    if (header?.visible && header.text.trim() && style) {
+      ctx.font = `${style.weight} ${fontSize}px ${primaryFamily(font.family)}`;
+      ctx.letterSpacing = `${style.letterSpacing}em`;
+      ctx.fillStyle = header.color;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      applyTextShadow(ctx, style.shadow, fontSize);
+      ctx.fillText(repeated, geo.textOffset, fontSize * 0.02);
+      ctx.letterSpacing = "0px";
+    }
+    ctx.restore();
+  }
 
   return canvasToBlob(canvas, format);
 }
@@ -4358,8 +4592,14 @@ export async function exportCreative(
   if (template.layout === "fashion-icons") {
     return exportFashionIcons(template, layers, format, width);
   }
+  if (template.layout === "beauty-collection") {
+    return exportBeautyCollection(template, layers, format, width);
+  }
   if (template.layout === "showcase") {
     return exportShowcase(template, layers, format, width);
+  }
+  if (template.layout === "summer-mood") {
+    return exportSummerMood(template, layers, format, width);
   }
   if (template.layout === "mosaic") {
     return exportMosaic(template, layers, format, width);
