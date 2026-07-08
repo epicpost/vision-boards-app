@@ -126,6 +126,19 @@
         "--strictPort"
       ],
       "port": 5210
+    },
+    {
+      "name": "web-app-corners",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5299",
+        "--strictPort"
+      ],
+      "port": 5299
     }
   ]
 }

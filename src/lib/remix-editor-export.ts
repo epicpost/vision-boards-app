@@ -58,13 +58,17 @@ import {
   interiorInspirationHeaderFontSize,
   BEAUTY_COLLECTION_SOURCE_SRC,
   BEAUTY_COLLECTION_BACKGROUND_SRC,
-  BEAUTY_COLLECTION_MASK_SRC,
   beautyCollectionGeometry,
   beautyCollectionUsesLiveText,
   BREAKING_NEWS_LAYOUT,
   BREAKING_NEWS_REFERENCE_SRC,
   breakingNewsGeometry,
   breakingNewsUsesLiveLayers,
+  MODERN_FASHION_REFERENCE_SRC,
+  modernFashionGeometry,
+  modernFashionUsesLiveLayers,
+  modernFashionUsesLiveText,
+  modernFashionUsesReplacementPhoto,
   fashionIconsGeometry,
   showcaseGeometry,
   showcaseVariant,
@@ -90,6 +94,7 @@ import {
   splitHeadlineFontSize,
   summerMoodBandGeometry,
   summerMoodCellGeometry,
+  summerMoodCornerPatchPoints,
   summerMoodRepeatedText,
   type EditorLayer,
   type ExportFormat,
@@ -3989,6 +3994,165 @@ async function exportBreakingNews(
   return canvasToBlob(canvas, format);
 }
 
+function modernFashionCellPath(
+  ctx: CanvasRenderingContext2D,
+  cell: ReturnType<typeof modernFashionGeometry>["cells"][number],
+) {
+  const { x, y, w, h } = cell;
+  ctx.beginPath();
+  if (cell.shape === "rect") {
+    ctx.rect(x, y, w, h);
+    return;
+  }
+  if (cell.shape === "circle" || cell.shape === "bottom-bite") {
+    ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+    return;
+  }
+  const r = Math.min(w, h) / 2;
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y);
+  ctx.closePath();
+}
+
+function modernFashionFilter(
+  filter: ReturnType<typeof modernFashionGeometry>["cells"][number]["filter"],
+) {
+  if (filter === "warm") return "sepia(0.42) saturate(1.45) hue-rotate(-12deg) brightness(1.08)";
+  if (filter === "mono") return "grayscale(1)";
+  return "none";
+}
+
+// Rasterize the Modern Fashion poster. The default is the exact reference JPG;
+// edits either patch and redraw text over it or rebuild the geometric one-photo
+// mask collage.
+async function exportModernFashion(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+  const photo = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const geo = modernFashionGeometry(width, height);
+  const photoReplaced = modernFashionUsesReplacementPhoto(layers);
+  const liveText = modernFashionUsesLiveText(layers);
+
+  if (!modernFashionUsesLiveLayers(layers)) {
+    try {
+      const reference = await loadImage(MODERN_FASHION_REFERENCE_SRC);
+      drawImageCoverCanvas(ctx, reference, width, height);
+      return canvasToBlob(canvas, format);
+    } catch {
+      ctx.fillStyle = template.background;
+      ctx.fillRect(0, 0, width, height);
+    }
+  } else if (!photoReplaced) {
+    try {
+      const reference = await loadImage(MODERN_FASHION_REFERENCE_SRC);
+      drawImageCoverCanvas(ctx, reference, width, height);
+    } catch {
+      ctx.fillStyle = template.background;
+      ctx.fillRect(0, 0, width, height);
+    }
+  } else {
+    ctx.fillStyle = template.background;
+    ctx.fillRect(0, 0, width, height);
+    if (!photo?.visible || !photo.src) throw new ExportImageError(1);
+    try {
+      const image = await loadImage(photo.src);
+      for (const cell of geo.cells) {
+        ctx.save();
+        modernFashionCellPath(ctx, cell);
+        ctx.clip();
+        ctx.filter = modernFashionFilter(cell.filter);
+        drawImageCoverCanvas(ctx, image, width, height, imageTransform(photo));
+        ctx.restore();
+      }
+      ctx.fillStyle = template.background;
+      ctx.fillRect(geo.bite.x, geo.bite.y, geo.bite.w, geo.bite.h);
+    } catch {
+      throw new ExportImageError(1);
+    } finally {
+      ctx.filter = "none";
+    }
+  }
+
+  if (liveText && !photoReplaced) {
+    ctx.fillStyle = template.background;
+    geo.patches.forEach((patch) => ctx.fillRect(patch.x, patch.y, patch.w, patch.h));
+  }
+
+  const textLayers = ["header", "description", "eyebrow", "cta"]
+    .map((id) => byId<TextLayer>(id))
+    .filter((layer): layer is TextLayer => Boolean(layer?.visible && layer.text.trim()));
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      textLayers.map((layer) =>
+        document.fonts
+          .load(
+            `${resolveTextStyle(layer).weight} 64px ${primaryFamily(fontById(layer.fontId).family)}`,
+          )
+          .catch(() => undefined),
+      ),
+    ).catch(() => undefined);
+  }
+
+  const drawTextBox = (
+    layer: TextLayer | undefined,
+    box: ReturnType<typeof modernFashionGeometry>["title"],
+    wrap: boolean,
+  ) => {
+    if (!layer?.visible || !layer.text.trim()) return;
+    const style = resolveTextStyle(layer);
+    const fontSize = box.size * style.sizeScale;
+    const family = primaryFamily(fontById(layer.fontId).family);
+    const text = layer.uppercase ? layer.text.toUpperCase() : layer.text;
+    ctx.save();
+    ctx.fillStyle = layer.color;
+    ctx.font = `${style.weight} ${fontSize}px ${family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    applyTextShadow(ctx, style.shadow, fontSize);
+    ctx.textAlign = style.align;
+    ctx.textBaseline = "top";
+    const x = alignX(style.align, box.x, box.x + box.w);
+    const lines = wrap
+      ? text
+          .split(/\n/)
+          .flatMap((line) => wrapLines(ctx, line, box.w))
+          .filter(Boolean)
+      : [text];
+    const lineHeight = fontSize * box.lineHeight;
+    lines.forEach((line, index) => {
+      ctx.fillText(line, x, box.y + index * lineHeight);
+    });
+    ctx.restore();
+  };
+
+  if (photoReplaced || liveText) {
+    drawTextBox(byId<TextLayer>("header"), geo.title, true);
+    drawTextBox(byId<TextLayer>("description"), geo.text01, false);
+    drawTextBox(byId<TextLayer>("eyebrow"), geo.text20, false);
+    drawTextBox(byId<TextLayer>("cta"), geo.text30, false);
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
 // Rasterize the Beauty Collection poster. The reference JPG is the untouched
 // default background; edited photos are clipped through the rounded cells, and
 // edited/brand-styled text repaints the original text zones before drawing live
@@ -4039,22 +4203,19 @@ async function exportBeautyCollection(
 
   if (shouldDrawPhoto && photo?.src) {
     try {
-      const [image, mask] = await Promise.all([
-        loadImage(photo.src),
-        loadImage(BEAUTY_COLLECTION_MASK_SRC),
-      ]);
-      // Clip through the traced tile mask (with its bridged, flowing channels)
-      // instead of separate rounded rects. Compose on an offscreen canvas so the
-      // destination-in only erases the photo, not the base plate underneath.
-      const off = document.createElement("canvas");
-      off.width = width;
-      off.height = height;
-      const octx = off.getContext("2d");
-      if (!octx) throw new ExportImageError(1);
-      drawImageCoverCanvas(octx, image, width, height, transform);
-      octx.globalCompositeOperation = "destination-in";
-      octx.drawImage(mask, 0, 0, width, height);
-      ctx.drawImage(off, 0, 0);
+      const image = await loadImage(photo.src);
+      // Clip an identically transformed full-canvas draw through each rounded
+      // cell rect — plain arcs, not a raster mask — so every window shows a
+      // consistent slice of the same photo and corners stay crisp at any size.
+      const baseScale = Math.max(width / image.width, height / image.height);
+      geo.cells.forEach((cell) => {
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(cell.x, cell.y, cell.w, cell.h, cell.r);
+        ctx.clip();
+        drawTransformedImage(ctx, image, { x: 0, y: 0, w: width, h: height }, baseScale, transform);
+        ctx.restore();
+      });
     } catch {
       throw new ExportImageError(1);
     }
@@ -4395,6 +4556,38 @@ async function exportMosaic(
   return canvasToBlob(canvas, format);
 }
 
+// Traces a Summer Mood cell polygon, filleting `roundedIndex` (if given) with
+// native `arcTo` so the exported corner matches the CSS-polygon approximation
+// used by `SummerMoodPreview` exactly.
+function traceSummerMoodCellPath(
+  ctx: CanvasRenderingContext2D,
+  points: { x: number; y: number }[],
+  roundedIndex: number | undefined,
+  radius: number,
+) {
+  const n = points.length;
+  if (roundedIndex === undefined || radius <= 0) {
+    points.forEach((point, index) => {
+      if (index === 0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
+    });
+    ctx.closePath();
+    return;
+  }
+  const startIndex = (roundedIndex + 1) % n;
+  ctx.moveTo(points[startIndex].x, points[startIndex].y);
+  for (let step = 1; step <= n; step++) {
+    const i = (startIndex + step) % n;
+    if (i === roundedIndex) {
+      const next = points[(i + 1) % n];
+      ctx.arcTo(points[i].x, points[i].y, next.x, next.y, radius);
+    } else {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+  }
+  ctx.closePath();
+}
+
 // Rasterize the Summer Mood collage: full-bleed supplied reference image, then
 // repaint each white diagonal strip and repeat the single editable caption along
 // it. Mirrors `SummerMoodPreview`.
@@ -4430,11 +4623,7 @@ async function exportSummerMood(
       ctx.save();
       try {
         ctx.beginPath();
-        geo.points.forEach((point, index) => {
-          if (index === 0) ctx.moveTo(point.x, point.y);
-          else ctx.lineTo(point.x, point.y);
-        });
-        ctx.closePath();
+        traceSummerMoodCellPath(ctx, geo.points, geo.roundedIndex, geo.cornerRadius);
         ctx.clip();
         drawImageCover(ctx, img, geo.rect, imageTransform(imageLayer));
       } finally {
@@ -4487,6 +4676,24 @@ async function exportSummerMood(
       ctx.letterSpacing = "0px";
     }
     ctx.restore();
+  }
+
+  // Bands paint over each cell's corner with a hard rectangular edge, so the
+  // rounded photo clip alone is invisible underneath them. Paint the small
+  // white "ear" on top of everything to round off whichever edge (band or
+  // photo) actually forms the visible corner. Mirrors the DOM patch overlay
+  // in `SummerMoodPreview`.
+  for (const cell of SUMMER_MOOD_LAYOUT.cells) {
+    const patchPoints = summerMoodCornerPatchPoints(cell, width, height);
+    if (!patchPoints) continue;
+    ctx.beginPath();
+    patchPoints.forEach((point, index) => {
+      if (index === 0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
+    });
+    ctx.closePath();
+    ctx.fillStyle = SUMMER_MOOD_LAYOUT.stripColor;
+    ctx.fill();
   }
 
   return canvasToBlob(canvas, format);
@@ -4801,6 +5008,9 @@ export async function exportCreative(
   }
   if (template.layout === "breaking-news") {
     return exportBreakingNews(template, layers, format, width);
+  }
+  if (template.layout === "modern-fashion") {
+    return exportModernFashion(template, layers, format, width);
   }
   if (template.layout === "showcase") {
     return exportShowcase(template, layers, format, width);

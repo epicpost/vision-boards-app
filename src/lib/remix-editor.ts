@@ -147,6 +147,8 @@ export const EXPORT_FORMATS: Record<ExportFormat, ExportFormatMeta> = {
 // centre cell), with no text layers at all.
 // "breaking-news" is a news-card layout with a red label badge, oversized
 // headline, rounded story image and required bottom-right logo.
+// "modern-fashion" is a one-photo editorial fashion poster: one portrait sits
+// behind circle/square masks, with a required title and optional number labels.
 export type TemplateLayout =
   | "poster"
   | "moodboard"
@@ -177,7 +179,8 @@ export type TemplateLayout =
   | "showcase"
   | "summer-mood"
   | "mosaic"
-  | "breaking-news";
+  | "breaking-news"
+  | "modern-fashion";
 
 export interface RemixEditorTemplate {
   id: string;
@@ -3192,13 +3195,6 @@ const INTERIOR_INSPIRATION: RemixEditorTemplate = {
 export const BEAUTY_COLLECTION_SOURCE_SRC =
   "/templates/shared/e876c2ccf4cffd6d1513713ce8f2e7f5.jpg";
 
-// Alpha mask traced pixel-for-pixel from the reference JPG's flowing tile shape
-// (connected rounded cells with the weaving white channels between them). Edited
-// photos are clipped through this single mask so the mosaic reproduces the
-// reference exactly — the rounded-rect `cells` below can't render the bridges
-// that link adjacent tiles, so they're kept only for legacy geometry.
-export const BEAUTY_COLLECTION_MASK_SRC = "/templates/shared/beauty-collection-mask.png";
-
 // Full-bleed paper/leaf-shadow backdrop behind the reference photo. Used to
 // repaint the eyebrow/title/cta zones when live text replaces the baked-in
 // default, so the patch blends into the textured paper instead of showing a
@@ -3282,6 +3278,9 @@ const BEAUTY_COLLECTION: RemixEditorTemplate = {
 
 export const SUMMER_MOOD_SOURCE_SRC = "/templates/shared/12c6a594683063dc41ed8a5cd2e9c08a.jpg";
 
+// `roundedVertex` marks the single point on each cell that faces the center
+// crossing — the reference collage fillets only that corner, every other
+// corner (canvas edges) stays sharp.
 const SUMMER_MOOD_CELLS = [
   {
     id: "photo-1",
@@ -3292,6 +3291,7 @@ const SUMMER_MOOD_CELLS = [
       [0.48, 0.53],
       [0, 0.6],
     ],
+    roundedVertex: 2,
     zIndex: 1,
   },
   {
@@ -3303,6 +3303,7 @@ const SUMMER_MOOD_CELLS = [
       [1, 0.43],
       [0.48, 0.56],
     ],
+    roundedVertex: 3,
     zIndex: 2,
   },
   {
@@ -3314,6 +3315,7 @@ const SUMMER_MOOD_CELLS = [
       [0.47, 1],
       [0, 1],
     ],
+    roundedVertex: 1,
     zIndex: 1,
   },
   {
@@ -3325,6 +3327,7 @@ const SUMMER_MOOD_CELLS = [
       [1, 1],
       [0.47, 1],
     ],
+    roundedVertex: 0,
     zIndex: 2,
   },
 ] as const;
@@ -3402,8 +3405,7 @@ const SUMMER_MOOD: RemixEditorTemplate = {
   ],
 };
 
-export const BREAKING_NEWS_REFERENCE_SRC =
-  "/templates/shared/53c6a231711063dc41ed8a5cd2e9c08a.jpg";
+export const BREAKING_NEWS_REFERENCE_SRC = "/templates/shared/53c6a231711063dc41ed8a5cd2e9c08a.jpg";
 export const BREAKING_NEWS_PHOTO_SRC = "/templates/shared/breaking-news-photo-source.png";
 export const BREAKING_NEWS_LOGO_SRC = "/templates/shared/breaking-news-logo-source.png";
 
@@ -3473,6 +3475,99 @@ const BREAKING_NEWS: RemixEditorTemplate = {
       visible: true,
       hideable: false,
       src: BREAKING_NEWS_LOGO_SRC,
+    },
+  ],
+};
+
+export const MODERN_FASHION_REFERENCE_SRC =
+  "/templates/shared/d636bdebe9a88f0ff93b08171d8035e9.jpg";
+
+// Modern Fashion — measured from
+// public/templates/shared/d636bdebe9a88f0ff93b08171d8035e9.jpg (1199 x 1799).
+// One required portrait/photo sits behind the traced geometric mask windows.
+const MODERN_FASHION: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000059",
+  title: "Modern Fashion",
+  layout: "modern-fashion",
+  aspectRatio: "1199 / 1799",
+  background: "#f5f6f2",
+  palette: [
+    { label: "Black", value: "#000000" },
+    { label: "Paper", value: "#f5f6f2" },
+    { label: "Warm blush", value: "#d9a08e" },
+    { label: "Charcoal", value: "#2a2a2a" },
+    { label: "Silver", value: "#8b8f8d" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Portrait image",
+      visible: true,
+      hideable: false,
+      src: MODERN_FASHION_REFERENCE_SRC,
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Title / caption",
+      visible: true,
+      hideable: false,
+      text: "high,\nmodern\n& fashion.",
+      color: "#000000",
+      fontId: "montserrat",
+      uppercase: false,
+      weight: 800,
+      align: "left",
+      suggestions: [
+        "high,\nmodern\n& fashion.",
+        "clean,\nmodern\n& iconic.",
+        "new,\nminimal\n& bold.",
+        "quiet,\nsharp\n& fashion.",
+      ],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Text 01",
+      visible: true,
+      hideable: true,
+      text: "01",
+      color: "#000000",
+      fontId: "montserrat",
+      uppercase: false,
+      weight: 800,
+      align: "left",
+      suggestions: ["01", "02", "03", ""],
+    },
+    {
+      id: "eyebrow",
+      kind: "eyebrow",
+      label: "Text 20",
+      visible: true,
+      hideable: true,
+      text: "20",
+      color: "#000000",
+      fontId: "montserrat",
+      uppercase: false,
+      weight: 800,
+      align: "left",
+      suggestions: ["20", "24", "26", ""],
+    },
+    {
+      id: "cta",
+      kind: "cta",
+      label: "Text 30",
+      visible: true,
+      hideable: true,
+      text: "30",
+      color: "#000000",
+      fontId: "montserrat",
+      uppercase: false,
+      weight: 800,
+      align: "left",
+      suggestions: ["30", "25", "27", ""],
     },
   ],
 };
@@ -3924,6 +4019,7 @@ const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [BEAUTY_COLLECTION.id]: BEAUTY_COLLECTION,
   [SUMMER_MOOD.id]: SUMMER_MOOD,
   [BREAKING_NEWS.id]: BREAKING_NEWS,
+  [MODERN_FASHION.id]: MODERN_FASHION,
   [FASHION_ICONS.id]: FASHION_ICONS,
   [SHOWCASE_DROP.id]: SHOWCASE_DROP,
   [SHOWCASE_SALE.id]: SHOWCASE_SALE,
@@ -4180,6 +4276,7 @@ export const MOODBOARD_LAYOUT = {
 export const SUMMER_MOOD_LAYOUT = {
   stripColor: "#ffffff",
   cells: SUMMER_MOOD_CELLS,
+  cornerRadius: 40 / 900,
   bands: [
     {
       id: "top",
@@ -4220,6 +4317,138 @@ export const SUMMER_MOOD_LAYOUT = {
 export type SummerMoodBand = (typeof SUMMER_MOOD_LAYOUT.bands)[number];
 export type SummerMoodCell = (typeof SUMMER_MOOD_LAYOUT.cells)[number];
 
+interface SummerMoodCorner {
+  vertex: { x: number; y: number };
+  t1: { x: number; y: number };
+  t2: { x: number; y: number };
+  center: { x: number; y: number };
+  radius: number;
+  startAngle: number;
+  endAngle: number;
+}
+
+// Shared tangent/arc math for filleting a single polygon vertex: `t1`/`t2` are
+// the tangent points on the two adjacent edges, `center`/`radius` describe the
+// arc between them. Used both to draw the rounded photo clip and to paint the
+// small white "corner patch" that rounds off the diagonal strip on top of it.
+function summerMoodComputeCorner(
+  points: { x: number; y: number }[],
+  roundedIndex: number | undefined,
+  radius: number,
+): SummerMoodCorner | null {
+  if (roundedIndex === undefined || radius <= 0) return null;
+  const n = points.length;
+  const vertex = points[roundedIndex];
+  const prev = points[(roundedIndex - 1 + n) % n];
+  const next = points[(roundedIndex + 1) % n];
+  const v1x = prev.x - vertex.x;
+  const v1y = prev.y - vertex.y;
+  const v2x = next.x - vertex.x;
+  const v2y = next.y - vertex.y;
+  const len1 = Math.hypot(v1x, v1y);
+  const len2 = Math.hypot(v2x, v2y);
+  if (!len1 || !len2) return null;
+  const u1x = v1x / len1;
+  const u1y = v1y / len1;
+  const u2x = v2x / len2;
+  const u2y = v2y / len2;
+  const dot = Math.max(-1, Math.min(1, u1x * u2x + u1y * u2y));
+  const theta = Math.acos(dot);
+  const tanLen = Math.min(radius / Math.tan(theta / 2), len1 * 0.999, len2 * 0.999);
+  const t1 = { x: vertex.x + u1x * tanLen, y: vertex.y + u1y * tanLen };
+  const t2 = { x: vertex.x + u2x * tanLen, y: vertex.y + u2y * tanLen };
+  const bisectorX = u1x + u2x;
+  const bisectorY = u1y + u2y;
+  const bisectorLen = Math.hypot(bisectorX, bisectorY) || 1;
+  const distToCenter = radius / Math.sin(theta / 2);
+  const center = {
+    x: vertex.x + (bisectorX / bisectorLen) * distToCenter,
+    y: vertex.y + (bisectorY / bisectorLen) * distToCenter,
+  };
+  const startAngle = Math.atan2(t1.y - center.y, t1.x - center.x);
+  const endAngle = Math.atan2(t2.y - center.y, t2.x - center.x);
+  return { vertex, t1, t2, center, radius, startAngle, endAngle };
+}
+
+function summerMoodSampleArc(
+  corner: SummerMoodCorner,
+  segments: number,
+): { x: number; y: number }[] {
+  let delta = corner.endAngle - corner.startAngle;
+  while (delta <= -Math.PI) delta += Math.PI * 2;
+  while (delta > Math.PI) delta -= Math.PI * 2;
+  const points: { x: number; y: number }[] = [];
+  for (let i = 0; i <= segments; i++) {
+    const angle = corner.startAngle + (delta * i) / segments;
+    points.push({
+      x: corner.center.x + Math.cos(angle) * corner.radius,
+      y: corner.center.y + Math.sin(angle) * corner.radius,
+    });
+  }
+  return points;
+}
+
+// Replaces a single polygon vertex with a circular-arc fillet, sampled as line
+// segments so it survives being expressed as a CSS `polygon()`. Canvas export
+// draws the same corner exactly via `arcTo`; see `traceSummerMoodCellPath`.
+export function summerMoodFilletPoints(
+  points: { x: number; y: number }[],
+  roundedIndex: number | undefined,
+  radius: number,
+  segments = 10,
+): { x: number; y: number }[] {
+  const corner = summerMoodComputeCorner(points, roundedIndex, radius);
+  if (!corner) return points;
+  const arc = summerMoodSampleArc(corner, segments);
+  const result: { x: number; y: number }[] = [];
+  points.forEach((point, index) => {
+    if (index === roundedIndex) result.push(...arc);
+    else result.push(point);
+  });
+  return result;
+}
+
+// The diagonal strip bands paint over the cell's corner with a hard rectangular
+// edge (they're drawn on top so their rotated text reads cleanly), so rounding
+// the photo's own clip is invisible in practice. Instead we paint this small
+// "ear" — the sliver between the original sharp corner and the fillet arc — in
+// the strip's white on top of everything, which rounds off whichever edge
+// (band or photo) actually forms the visible corner underneath.
+export function summerMoodCornerPatchPoints(
+  cell: SummerMoodCell,
+  width: number,
+  height: number,
+  segments = 10,
+): { x: number; y: number }[] | null {
+  const points = cell.points.map(([x, y]) => ({ x: x * width, y: y * height }));
+  const radius = SUMMER_MOOD_LAYOUT.cornerRadius * width;
+  const corner = summerMoodComputeCorner(points, cell.roundedVertex, radius);
+  if (!corner) return null;
+  return [corner.vertex, ...summerMoodSampleArc(corner, segments)];
+}
+
+export function summerMoodCornerPatchGeometry(
+  cell: SummerMoodCell,
+  width: number,
+  height: number,
+): { rect: { x: number; y: number; w: number; h: number }; clipPath: string; zIndex: number } | null {
+  const patchPoints = summerMoodCornerPatchPoints(cell, width, height);
+  if (!patchPoints) return null;
+  const xs = patchPoints.map((point) => point.x);
+  const ys = patchPoints.map((point) => point.y);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  const rect = { x: minX, y: minY, w: Math.max(...xs) - minX, h: Math.max(...ys) - minY };
+  const clipPath = `polygon(${patchPoints
+    .map((point) => {
+      const x = rect.w ? ((point.x - rect.x) / rect.w) * 100 : 0;
+      const y = rect.h ? ((point.y - rect.y) / rect.h) * 100 : 0;
+      return `${x}% ${y}%`;
+    })
+    .join(", ")})`;
+  return { rect, clipPath, zIndex: 40 };
+}
+
 export function summerMoodCellGeometry(
   cell: SummerMoodCell,
   width: number,
@@ -4229,17 +4458,22 @@ export function summerMoodCellGeometry(
   points: { x: number; y: number }[];
   clipPath: string;
   zIndex: number;
+  cornerRadius: number;
+  roundedIndex?: number;
 } {
   const rect = summerMoodCellBounds(cell, width, height);
   const points = cell.points.map(([x, y]) => ({ x: x * width, y: y * height }));
-  const clipPath = `polygon(${points
+  const roundedIndex: number | undefined = cell.roundedVertex;
+  const cornerRadius = SUMMER_MOOD_LAYOUT.cornerRadius * width;
+  const filletPoints = summerMoodFilletPoints(points, roundedIndex, cornerRadius);
+  const clipPath = `polygon(${filletPoints
     .map((point) => {
       const x = rect.w ? ((point.x - rect.x) / rect.w) * 100 : 0;
       const y = rect.h ? ((point.y - rect.y) / rect.h) * 100 : 0;
       return `${x}% ${y}%`;
     })
     .join(", ")})`;
-  return { rect, points, clipPath, zIndex: cell.zIndex };
+  return { rect, points, clipPath, zIndex: cell.zIndex, cornerRadius, roundedIndex };
 }
 
 export function summerMoodRepeatedText(text: string): string {
@@ -7065,6 +7299,178 @@ export function breakingNewsUsesLiveLayers(layers: readonly EditorLayer[]): bool
     const fallback = fallbackById<TextLayer>(id);
     return !fallback || !matchesBreakingNewsTextDefault(layerById<TextLayer>(id), fallback);
   });
+}
+
+// ---------------------------------------------------------------------------
+// Modern Fashion — measured from
+// public/templates/shared/d636bdebe9a88f0ff93b08171d8035e9.jpg (1199 x 1799).
+// The photo layer is one full-canvas image clipped through five geometric
+// windows; the default layer uses the reference JPG as an exact base plate until
+// the user replaces the image.
+export type ModernFashionCellShape = "circle" | "rect" | "diagonal-round" | "bottom-bite";
+
+export interface ModernFashionRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface ModernFashionCell extends ModernFashionRect {
+  shape: ModernFashionCellShape;
+  filter?: "warm" | "mono";
+}
+
+export interface ModernFashionTextBox {
+  x: number;
+  y: number;
+  w: number;
+  size: number;
+  lineHeight: number;
+}
+
+export interface ModernFashionGeometry {
+  cells: ModernFashionCell[];
+  bite: ModernFashionRect;
+  patches: ModernFashionRect[];
+  title: ModernFashionTextBox;
+  text01: ModernFashionTextBox;
+  text20: ModernFashionTextBox;
+  text30: ModernFashionTextBox;
+}
+
+export const MODERN_FASHION_LAYOUT = {
+  source: { width: 1199, height: 1799 },
+  cells: [
+    {
+      x: 120 / 1199,
+      y: 120 / 1799,
+      w: 480 / 1199,
+      h: 480 / 1799,
+      shape: "circle",
+      filter: "warm",
+    },
+    {
+      x: 600 / 1199,
+      y: 120 / 1799,
+      w: 480 / 1199,
+      h: 480 / 1799,
+      shape: "rect",
+      filter: "mono",
+    },
+    {
+      x: 120 / 1199,
+      y: 600 / 1799,
+      w: 480 / 1199,
+      h: 480 / 1799,
+      shape: "diagonal-round",
+      filter: "mono",
+    },
+    {
+      x: 600 / 1199,
+      y: 600 / 1799,
+      w: 480 / 1199,
+      h: 480 / 1799,
+      shape: "circle",
+      filter: "mono",
+    },
+    {
+      x: 600 / 1199,
+      y: 1080 / 1799,
+      w: 480 / 1199,
+      h: 480 / 1799,
+      shape: "bottom-bite",
+      filter: "mono",
+    },
+  ],
+  bite: { x: 840 / 1199, y: 1320 / 1799, w: 240 / 1199, h: 240 / 1799 },
+  patches: [
+    { x: 98 / 1199, y: 1088 / 1799, w: 115 / 1199, h: 70 / 1799 },
+    { x: 102 / 1199, y: 1340 / 1799, w: 790 / 1199, h: 360 / 1799 },
+    { x: 1014 / 1199, y: 1610 / 1799, w: 106 / 1199, h: 95 / 1799 },
+  ],
+  title: {
+    x: 120 / 1199,
+    y: 1364 / 1799,
+    w: 770 / 1199,
+    size: 112 / 1199,
+    lineHeight: 0.98,
+  },
+  text01: {
+    x: 120 / 1199,
+    y: 1104 / 1799,
+    w: 90 / 1199,
+    size: 30 / 1199,
+    lineHeight: 1,
+  },
+  text20: {
+    x: 1044 / 1199,
+    y: 1625 / 1799,
+    w: 70 / 1199,
+    size: 30 / 1199,
+    lineHeight: 0.94,
+  },
+  text30: {
+    x: 1044 / 1199,
+    y: 1657 / 1799,
+    w: 70 / 1199,
+    size: 30 / 1199,
+    lineHeight: 0.94,
+  },
+} as const;
+
+export function modernFashionGeometry(width: number, height: number): ModernFashionGeometry {
+  const rect = (r: { x: number; y: number; w: number; h: number }) => ({
+    x: r.x * width,
+    y: r.y * height,
+    w: r.w * width,
+    h: r.h * height,
+  });
+  const textBox = (box: { x: number; y: number; w: number; size: number; lineHeight: number }) => ({
+    x: box.x * width,
+    y: box.y * height,
+    w: box.w * width,
+    size: box.size * width,
+    lineHeight: box.lineHeight,
+  });
+  return {
+    cells: MODERN_FASHION_LAYOUT.cells.map((cell) => ({
+      ...rect(cell),
+      shape: cell.shape,
+      filter: cell.filter,
+    })),
+    bite: rect(MODERN_FASHION_LAYOUT.bite),
+    patches: MODERN_FASHION_LAYOUT.patches.map(rect),
+    title: textBox(MODERN_FASHION_LAYOUT.title),
+    text01: textBox(MODERN_FASHION_LAYOUT.text01),
+    text20: textBox(MODERN_FASHION_LAYOUT.text20),
+    text30: textBox(MODERN_FASHION_LAYOUT.text30),
+  };
+}
+
+function fallbackLayer<T extends EditorLayer>(template: RemixEditorTemplate, id: string) {
+  return template.layers.find((layer) => layer.id === id) as T | undefined;
+}
+
+export function modernFashionUsesReplacementPhoto(layers: readonly EditorLayer[]): boolean {
+  const image = layers.find(
+    (layer): layer is ImageLayer => layer.id === "image" && layer.kind === "image",
+  );
+  const fallback = fallbackLayer<ImageLayer>(MODERN_FASHION, "image");
+  return !image || !fallback || image.visible !== fallback.visible || image.src !== fallback.src;
+}
+
+export function modernFashionUsesLiveText(layers: readonly EditorLayer[]): boolean {
+  const layerById = <T extends EditorLayer>(id: string) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+  return ["header", "description", "eyebrow", "cta"].some((id) => {
+    const fallback = fallbackLayer<TextLayer>(MODERN_FASHION, id);
+    return !fallback || !matchesBreakingNewsTextDefault(layerById<TextLayer>(id), fallback);
+  });
+}
+
+export function modernFashionUsesLiveLayers(layers: readonly EditorLayer[]): boolean {
+  return modernFashionUsesReplacementPhoto(layers) || modernFashionUsesLiveText(layers);
 }
 
 // ---------------------------------------------------------------------------

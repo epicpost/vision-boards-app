@@ -127,13 +127,17 @@ import {
   interiorInspirationHeaderFontSize,
   BEAUTY_COLLECTION_SOURCE_SRC,
   BEAUTY_COLLECTION_BACKGROUND_SRC,
-  BEAUTY_COLLECTION_MASK_SRC,
   beautyCollectionGeometry,
   beautyCollectionUsesLiveText,
   BREAKING_NEWS_LAYOUT,
   BREAKING_NEWS_REFERENCE_SRC,
   breakingNewsGeometry,
   breakingNewsUsesLiveLayers,
+  MODERN_FASHION_REFERENCE_SRC,
+  modernFashionGeometry,
+  modernFashionUsesLiveLayers,
+  modernFashionUsesLiveText,
+  modernFashionUsesReplacementPhoto,
   fashionIconsGeometry,
   showcaseGeometry,
   showcaseVariant,
@@ -157,6 +161,7 @@ import {
   sizeScaleForFontChange,
   summerMoodBandGeometry,
   summerMoodCellGeometry,
+  summerMoodCornerPatchGeometry,
   summerMoodRepeatedText,
   TEXT_SHADOW_CSS,
   transformCss,
@@ -1472,6 +1477,27 @@ function SummerMoodPreview({
               ) : null}
             </div>
           </div>
+        );
+      })}
+
+      {SUMMER_MOOD_LAYOUT.cells.map((cell) => {
+        const patch = summerMoodCornerPatchGeometry(cell, Wv, Hv);
+        if (!patch) return null;
+        return (
+          <div
+            key={`${cell.id}-corner`}
+            className="pointer-events-none absolute"
+            style={{
+              left: pctX(patch.rect.x),
+              top: pctY(patch.rect.y),
+              width: pctX(patch.rect.w),
+              height: pctY(patch.rect.h),
+              clipPath: patch.clipPath,
+              WebkitClipPath: patch.clipPath,
+              background: SUMMER_MOOD_LAYOUT.stripColor,
+              zIndex: patch.zIndex,
+            }}
+          />
         );
       })}
     </div>
@@ -4166,44 +4192,56 @@ function BeautyCollectionPreview({
         className="pointer-events-none absolute inset-0 h-full w-full object-cover"
       />
 
-      {/* Edited photos are clipped through the traced tile mask (with its flowing,
-          bridged channels) so the mosaic reproduces the reference exactly. The
-          untouched default keeps the reference JPG's baked-in mosaic. */}
+      {/* Edited photos show through a grid of independently rounded-corner
+          windows — plain divs with overflow:hidden, not a traced raster mask —
+          so corners are always crisp regardless of scale. Every window holds an
+          identically transformed full-canvas copy of the same photo, so they
+          read as one continuous image behind the cutouts. */}
       {image && photoEdited && image.visible && image.src && (
-        <div
-          className={cn("absolute inset-0 touch-none select-none", {
-            "cursor-grabbing": dragging,
-            "cursor-grab": !dragging,
-          })}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerEnd}
-          onPointerCancel={handlePointerEnd}
-          style={{
-            zIndex: 10,
-            WebkitMaskImage: `url(${BEAUTY_COLLECTION_MASK_SRC})`,
-            maskImage: `url(${BEAUTY_COLLECTION_MASK_SRC})`,
-            WebkitMaskSize: "100% 100%",
-            maskSize: "100% 100%",
-            WebkitMaskRepeat: "no-repeat",
-            maskRepeat: "no-repeat",
-            boxShadow:
-              selectedId === image.id ? "inset 0 0 0 2px hsl(var(--destructive))" : undefined,
-          }}
-        >
-          <img
-            src={image.src}
-            alt=""
-            draggable={false}
-            className="pointer-events-none absolute inset-0 max-w-none object-cover"
-            style={{
-              width: "100cqi",
-              height: cqi(Hv / Wv),
-              transform: `translate(${cqi(t.offsetX)}, ${cqi(t.offsetY * (Hv / Wv))}) scale(${t.scale}) rotate(${t.rotation}deg)`,
-              transformOrigin: "center",
-            }}
+        <>
+          {geo.cells.map((cell, index) => (
+            <div
+              key={index}
+              className="pointer-events-none absolute overflow-hidden"
+              style={{
+                zIndex: 10,
+                left: pctX(cell.x),
+                top: pctY(cell.y),
+                width: pctX(cell.w),
+                height: pctY(cell.h),
+                borderRadius: cqi(cell.r / Wv),
+                boxShadow:
+                  selectedId === image.id ? "inset 0 0 0 2px hsl(var(--destructive))" : undefined,
+              }}
+            >
+              <img
+                src={image.src}
+                alt=""
+                draggable={false}
+                className="pointer-events-none absolute max-w-none object-cover"
+                style={{
+                  left: cqi(-cell.x / Wv),
+                  top: cqi(-cell.y / Wv),
+                  width: "100cqi",
+                  height: cqi(Hv / Wv),
+                  transform: `translate(${cqi(t.offsetX)}, ${cqi(t.offsetY * (Hv / Wv))}) scale(${t.scale}) rotate(${t.rotation}deg)`,
+                  transformOrigin: "center",
+                }}
+              />
+            </div>
+          ))}
+          <div
+            className={cn("absolute inset-0 touch-none select-none", {
+              "cursor-grabbing": dragging,
+              "cursor-grab": !dragging,
+            })}
+            style={{ zIndex: 11 }}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerEnd}
+            onPointerCancel={handlePointerEnd}
           />
-        </div>
+        </>
       )}
 
       {drawText && (
@@ -4442,6 +4480,228 @@ function BreakingNewsPreview({
               }}
             />
           )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// Modern Fashion: one portrait image behind geometric circle/square cutouts,
+// a required lower-left title/caption, and optional small number labels.
+function ModernFashionPreview({
+  layers,
+  template,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  layers: EditorLayer[];
+  template: RemixEditorTemplate;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const image = layers.find(
+    (layer): layer is ImageLayer => layer.id === "image" && layer.kind === "image",
+  );
+  const header = layers.find((layer): layer is TextLayer => layer.id === "header");
+  const text01 = layers.find((layer): layer is TextLayer => layer.id === "description");
+  const text20 = layers.find((layer): layer is TextLayer => layer.id === "eyebrow");
+  const text30 = layers.find((layer): layer is TextLayer => layer.id === "cta");
+
+  const [rw, rh] = template.aspectRatio.split("/").map((part) => Number(part.trim()));
+  const ratio = rw && rh ? rw / rh : 1199 / 1799;
+  const Wv = 1000;
+  const Hv = Math.round(Wv / ratio);
+  const geo = modernFashionGeometry(Wv, Hv);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const drag = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(
+    null,
+  );
+  const pctX = (value: number) => `${(value / Wv) * 100}%`;
+  const pctY = (value: number) => `${(value / Hv) * 100}%`;
+  const cqi = (value: number) => `${value * 100}cqi`;
+  const photoReplaced = modernFashionUsesReplacementPhoto(layers);
+  const liveText = modernFashionUsesLiveText(layers);
+  const useLiveLayers = modernFashionUsesLiveLayers(layers);
+  const transform = image ? imageTransform(image) : DEFAULT_IMAGE_TRANSFORM;
+
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (!image) return;
+    event.stopPropagation();
+    onSelect(image.id);
+    drag.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      baseX: transform.offsetX,
+      baseY: transform.offsetY,
+    };
+    setDragging(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    if (!image || !drag.current) return;
+    const box = rootRef.current?.getBoundingClientRect();
+    if (!box?.width || !box.height) return;
+    const dx = (event.clientX - drag.current.startX) / box.width;
+    const dy = (event.clientY - drag.current.startY) / box.height;
+    updateLayer(
+      image.id,
+      {
+        transform: {
+          ...transform,
+          offsetX: drag.current.baseX + dx,
+          offsetY: drag.current.baseY + dy,
+        },
+      },
+      `pan-${image.id}`,
+    );
+  }
+
+  function handlePointerEnd(event: React.PointerEvent<HTMLDivElement>) {
+    if (!drag.current) return;
+    drag.current = null;
+    setDragging(false);
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+
+  const shapeRadius = (shape: (typeof geo.cells)[number]["shape"]) => {
+    if (shape === "circle" || shape === "bottom-bite") return "50%";
+    if (shape === "diagonal-round") return "0 50% 0 50%";
+    return 0;
+  };
+
+  const filterFor = (filter: (typeof geo.cells)[number]["filter"]) =>
+    filter === "warm"
+      ? "sepia(0.42) saturate(1.45) hue-rotate(-12deg) brightness(1.08)"
+      : filter === "mono"
+        ? "grayscale(1)"
+        : undefined;
+
+  const renderText = (layer: TextLayer | undefined, box: typeof geo.title) => {
+    if (!layer?.visible || !layer.text.trim()) return null;
+    const style = resolveTextStyle(layer);
+    return (
+      <div
+        className="pointer-events-none absolute z-30 whitespace-pre-line"
+        style={{
+          left: pctX(box.x),
+          top: pctY(box.y),
+          width: pctX(box.w),
+          color: layer.color,
+          fontFamily: fontById(layer.fontId).family,
+          fontWeight: style.weight,
+          fontSize: cqi((box.size / Wv) * style.sizeScale),
+          lineHeight: box.lineHeight,
+          letterSpacing: `${style.letterSpacing}em`,
+          textAlign: style.align,
+          textTransform: layer.uppercase ? "uppercase" : "none",
+          textShadow: style.shadow ? TEXT_SHADOW_CSS : "none",
+        }}
+      >
+        {layer.text}
+      </div>
+    );
+  };
+
+  return (
+    <div
+      ref={rootRef}
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+      }}
+    >
+      {!photoReplaced && (
+        <img
+          src={MODERN_FASHION_REFERENCE_SRC}
+          alt=""
+          draggable={false}
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        />
+      )}
+
+      {photoReplaced &&
+        image?.visible &&
+        image.src &&
+        geo.cells.map((cell, index) => (
+          <div
+            key={index}
+            className={cn("absolute z-10 touch-none select-none overflow-hidden", {
+              "cursor-grabbing": dragging,
+              "cursor-grab": !dragging,
+            })}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerEnd}
+            onPointerCancel={handlePointerEnd}
+            style={{
+              left: pctX(cell.x),
+              top: pctY(cell.y),
+              width: pctX(cell.w),
+              height: pctY(cell.h),
+              borderRadius: shapeRadius(cell.shape),
+              boxShadow:
+                selectedId === image.id ? "inset 0 0 0 2px hsl(var(--destructive))" : undefined,
+            }}
+          >
+            <img
+              src={image.src}
+              alt=""
+              draggable={false}
+              className="pointer-events-none absolute max-w-none object-cover"
+              style={{
+                left: cqi(-cell.x / Wv),
+                top: cqi(-cell.y / Wv),
+                width: "100cqi",
+                height: cqi(Hv / Wv),
+                filter: filterFor(cell.filter),
+                transform: transformCss(transform),
+                transformOrigin: "center",
+              }}
+            />
+          </div>
+        ))}
+
+      {photoReplaced && (
+        <div
+          className="pointer-events-none absolute z-20"
+          style={{
+            left: pctX(geo.bite.x),
+            top: pctY(geo.bite.y),
+            width: pctX(geo.bite.w),
+            height: pctY(geo.bite.h),
+            background: template.background,
+          }}
+        />
+      )}
+
+      {liveText &&
+        !photoReplaced &&
+        geo.patches.map((patch, index) => (
+          <div
+            key={index}
+            className="pointer-events-none absolute z-20"
+            style={{
+              left: pctX(patch.x),
+              top: pctY(patch.y),
+              width: pctX(patch.w),
+              height: pctY(patch.h),
+              background: template.background,
+            }}
+          />
+        ))}
+
+      {useLiveLayers && (
+        <>
+          {renderText(header, geo.title)}
+          {renderText(text01, geo.text01)}
+          {renderText(text20, geo.text20)}
+          {renderText(text30, geo.text30)}
         </>
       )}
     </div>
@@ -6315,7 +6575,8 @@ function defaultOpenSections(template: RemixEditorTemplate): Record<string, bool
     template.layout === "mosaic" ||
     template.layout === "showcase" ||
     template.layout === "beauty-collection" ||
-    template.layout === "breaking-news"
+    template.layout === "breaking-news" ||
+    template.layout === "modern-fashion"
   ) {
     const open: Record<string, boolean> = {};
     template.layers.forEach((layer, index) => {
@@ -7227,6 +7488,14 @@ function EditorScreen({
                 onSelect={setSelectedImageId}
                 updateLayer={updateLayer}
               />
+            ) : template.layout === "modern-fashion" ? (
+              <ModernFashionPreview
+                template={activeTemplate}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
             ) : template.layout === "showcase" ? (
               <ShowcasePreview
                 template={activeTemplate}
@@ -7654,13 +7923,108 @@ function EditorScreen({
                 )}
 
                 {[
-                  { layer: eyebrow, title: "Breaking label", label: "Badge text", multiline: false },
+                  {
+                    layer: eyebrow,
+                    title: "Breaking label",
+                    label: "Badge text",
+                    multiline: false,
+                  },
                   {
                     layer: header,
                     title: "Title / caption",
                     label: "Title / caption text",
                     multiline: true,
                   },
+                ].map(({ layer, title, label, multiline }) =>
+                  layer ? (
+                    <EditorSection
+                      key={layer.id}
+                      title={title}
+                      open={openSections[layer.id] ?? layer.id === "header"}
+                      onToggleOpen={() => toggleOpen(layer.id)}
+                      hideable={layer.hideable}
+                      visible={layer.visible}
+                      onToggleVisible={() => toggleVisible(layer.id)}
+                    >
+                      <TextField
+                        label={label}
+                        value={layer.text}
+                        multiline={multiline}
+                        onChange={(value) =>
+                          updateLayer(layer.id, { text: value }, `${layer.id}-text`)
+                        }
+                        onSuggest={() => cycleSuggestion(layer)}
+                      />
+                      <div className="mt-4">
+                        <FontDropdown
+                          value={layer.fontId}
+                          color={layer.color}
+                          onChange={(fontId) => changeFont(layer.id, fontId)}
+                        />
+                      </div>
+                      <div className="mt-4">
+                        <ColorSwatches
+                          palette={template.palette}
+                          value={layer.color}
+                          onChange={(hex) => updateLayer(layer.id, { color: hex })}
+                        />
+                      </div>
+                      <TextStyleControls
+                        layer={layer}
+                        onChange={(patch, key) => updateLayer(layer.id, patch, key)}
+                      />
+                    </EditorSection>
+                  ) : null,
+                )}
+              </>
+            )}
+
+            {/* Modern Fashion: one required portrait image, required title/caption,
+                and optional hideable 01 / 20 / 30 labels. */}
+            {template.layout === "modern-fashion" && (
+              <>
+                {image && (
+                  <EditorSection
+                    title={image.label}
+                    open={openSections[image.id] ?? true}
+                    onToggleOpen={() => toggleOpen(image.id)}
+                    hideable={image.hideable}
+                    visible={image.visible}
+                    onToggleVisible={() => toggleVisible(image.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+                        <img src={image.src} alt="" className="h-full w-full object-cover" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openReplace(image.id)}
+                        className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                      >
+                        <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                        Replace photo
+                      </button>
+                    </div>
+                    <ImageControls
+                      layer={image}
+                      onChange={(transform, key) => updateLayer(image.id, { transform }, key)}
+                      onReset={() =>
+                        updateLayer(image.id, { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                      }
+                    />
+                  </EditorSection>
+                )}
+
+                {[
+                  {
+                    layer: header,
+                    title: "Title / caption",
+                    label: "Title / caption text",
+                    multiline: true,
+                  },
+                  { layer: description, title: "Text 01", label: "Text 01", multiline: false },
+                  { layer: eyebrow, title: "Text 20", label: "Text 20", multiline: false },
+                  { layer: cta, title: "Text 30", label: "Text 30", multiline: false },
                 ].map(({ layer, title, label, multiline }) =>
                   layer ? (
                     <EditorSection
@@ -9448,6 +9812,7 @@ function EditorScreen({
               template.layout !== "summer-mood" &&
               template.layout !== "mosaic" &&
               template.layout !== "breaking-news" &&
+              template.layout !== "modern-fashion" &&
               image && (
                 <EditorSection
                   title="Image"
@@ -9539,6 +9904,7 @@ function EditorScreen({
               template.layout !== "summer-mood" &&
               template.layout !== "mosaic" &&
               template.layout !== "breaking-news" &&
+              template.layout !== "modern-fashion" &&
               header && (
                 <EditorSection
                   title={template.layout === "porto" ? "Caption" : "Header"}
@@ -9593,6 +9959,7 @@ function EditorScreen({
               template.layout !== "fashion-icons" &&
               template.layout !== "beauty-collection" &&
               template.layout !== "showcase" &&
+              template.layout !== "modern-fashion" &&
               description && (
                 <EditorSection
                   title={
@@ -9661,6 +10028,7 @@ function EditorScreen({
               template.layout !== "fashion-icons" &&
               template.layout !== "beauty-collection" &&
               template.layout !== "showcase" &&
+              template.layout !== "modern-fashion" &&
               cta && (
                 <EditorSection
                   title="Call to action"
