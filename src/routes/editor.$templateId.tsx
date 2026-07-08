@@ -11,8 +11,9 @@ import {
   ChevronDown,
   ChevronRight,
   X,
-  CloudOff,
-  CloudUpload,
+  CloudAlert,
+  CloudCheck,
+  CloudSync,
   Download,
   Eye,
   EyeOff,
@@ -5992,8 +5993,8 @@ function PortoPreview({
 function SaveStatus({ status }: { status: ReturnType<typeof useEditorDraft>["status"] }) {
   if (status === "loading" || status === "saving") {
     return (
-      <span className="hidden items-center gap-1.5 text-xs font-medium text-muted-foreground sm:inline-flex">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      <span className="hidden items-center gap-1.5 text-xs font-medium text-black sm:inline-flex">
+        <CloudSync className="h-3.5 w-3.5 animate-spin" />
         {status === "loading" ? "Loading…" : "Saving…"}
       </span>
     );
@@ -6001,7 +6002,7 @@ function SaveStatus({ status }: { status: ReturnType<typeof useEditorDraft>["sta
   if (status === "saved") {
     return (
       <span className="hidden items-center gap-1.5 text-xs font-medium text-emerald-600 sm:inline-flex">
-        <Check className="h-3.5 w-3.5" />
+        <CloudCheck className="h-3.5 w-3.5" />
         Saved
       </span>
     );
@@ -6009,14 +6010,14 @@ function SaveStatus({ status }: { status: ReturnType<typeof useEditorDraft>["sta
   if (status === "error") {
     return (
       <span className="hidden items-center gap-1.5 text-xs font-medium text-rose-600 sm:inline-flex">
-        <CloudOff className="h-3.5 w-3.5" />
+        <CloudAlert className="h-3.5 w-3.5" />
         Not saved
       </span>
     );
   }
   return (
-    <span className="hidden items-center gap-1.5 text-xs font-medium text-muted-foreground sm:inline-flex">
-      <CloudUpload className="h-3.5 w-3.5" />
+    <span className="hidden items-center gap-1.5 text-xs font-medium text-amber-500 sm:inline-flex">
+      <CloudAlert className="h-3.5 w-3.5" />
       Autosave on
     </span>
   );
@@ -6205,6 +6206,20 @@ function EditorScreen({
         : { ...template, aspectRatio: selectedAspectRatio },
     [selectedAspectRatio, template],
   );
+
+  // Cap the preview by the stage's available height so a tall poster grows to
+  // fill the empty space on large screens instead of staying pinned to a small
+  // fixed pixel width. Width is derived from the poster's aspect ratio and the
+  // viewport height (minus the toolbar/controls/padding chrome around it); the
+  // per-layout px cap below still bounds it on very tall/wide displays.
+  const previewMaxHeightWidth = useMemo(() => {
+    const [rw, rh] = activeTemplate.aspectRatio
+      .split("/")
+      .map((part) => Number(part.trim()));
+    if (!rw || !rh) return null;
+    // ~ header + vertical padding + preview toolbar + gaps + Fix-design controls.
+    return `calc((100dvh - 260px) * ${rw} / ${rh})`;
+  }, [activeTemplate.aspectRatio]);
 
   const [layers, setLayers] = useState<EditorLayer[]>(() => {
     if (initialLayers) return initialLayers;
@@ -6720,32 +6735,18 @@ function EditorScreen({
           </div>
 
           <div
-            className={cn(
-              "w-full",
-              template.layout === "moodboard" ||
-                template.layout === "porto" ||
-                template.layout === "relax" ||
-                template.layout === "cover" ||
-                template.layout === "duel" ||
-                template.layout === "business-choice" ||
-                template.layout === "testimonial-arc" ||
-                template.layout === "postcard" ||
-                template.layout === "citymask" ||
-                template.layout === "self" ||
-                template.layout === "statement" ||
-                template.layout === "woven" ||
-                template.layout === "drop" ||
-                template.layout === "open-space" ||
-                template.layout === "interior-inspiration" ||
-                template.layout === "fashion-icons" ||
-                template.layout === "beauty-collection" ||
-                template.layout === "showcase" ||
-                template.layout === "summer-mood" ||
-                template.layout === "mosaic"
-                ? "max-w-[300px]"
-                : "max-w-[360px]",
-              template.layout === "verticals" && "max-w-[420px]",
-            )}
+            className="w-full"
+            style={{
+              // Grow to fill the stage height (capped by aspect ratio) but never
+              // exceed the per-layout pixel cap on short/wide viewports.
+              maxWidth: previewMaxHeightWidth
+                ? `min(${
+                    template.layout === "verticals" ? "560px" : "480px"
+                  }, ${previewMaxHeightWidth})`
+                : template.layout === "verticals"
+                  ? "560px"
+                  : "480px",
+            }}
             // Tapping anywhere in the preview that isn't an image clears the
             // selection, so the crop outline only shows while an image is
             // actively selected (a `DraggableImage` stops this from firing when
