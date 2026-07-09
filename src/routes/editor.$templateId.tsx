@@ -138,6 +138,26 @@ import {
   modernFashionUsesLiveLayers,
   modernFashionUsesLiveText,
   modernFashionUsesReplacementPhoto,
+  LISTING_LAYOUT,
+  LISTING_REFERENCE_SRC,
+  listingGeometry,
+  listingHeadlineWords,
+  listingHeadlineFit,
+  listingTextFit,
+  listingUsesLiveLayers,
+  ESTATE_LAYOUT,
+  ESTATE_REFERENCE_SRC,
+  estateGeometry,
+  estateUsesLiveLayers,
+  APERTURE_LAYOUT,
+  APERTURE_REFERENCE_SRC,
+  apertureGeometry,
+  apertureUsesLiveLayers,
+  apertureHeadlineLines,
+  apertureHeadlineFit,
+  apertureWrapParagraph,
+  apertureBoldWeight,
+  apertureBoldColor,
   fashionIconsGeometry,
   showcaseGeometry,
   showcaseVariant,
@@ -4812,6 +4832,805 @@ function FashionIconsPreview({
   );
 }
 
+// Just Listed: full-bleed photo behind a bottom scrim, a two-word headline on
+// one shared baseline (roman first word, italic remainder — see
+// `listingHeadlineWords`), an optional caption below it, and a required
+// hollow, tracked call-to-action button. The untouched default just shows the
+// reference JPG (see `listingUsesLiveLayers`). Text is rendered in an SVG
+// overlay (not plain DOM text) so its baseline position matches `exportListing`
+// exactly. Mirrors `exportListing`.
+function ListingPreview({
+  template,
+  layers,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const image = layers.find(
+    (layer): layer is ImageLayer => layer.id === "image" && layer.kind === "image",
+  );
+  const headline = layers.find(
+    (layer): layer is TextLayer =>
+      layer.id === "header" && layer.kind !== "image" && layer.kind !== "logo",
+  );
+  const subtitle = layers.find(
+    (layer): layer is TextLayer =>
+      layer.id === "description" && layer.kind !== "image" && layer.kind !== "logo",
+  );
+  const cta = layers.find(
+    (layer): layer is TextLayer =>
+      layer.id === "cta" && layer.kind !== "image" && layer.kind !== "logo",
+  );
+  const logo = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "logo" }> => layer.kind === "logo",
+  );
+
+  const [rw, rh] = template.aspectRatio.split("/").map((part) => Number(part.trim()));
+  const ratio = rw && rh ? rw / rh : 1080 / 1350;
+  const Wv = 1000;
+  const Hv = Math.round(Wv / ratio);
+  const geo = listingGeometry(Wv, Hv);
+  const pctX = (value: number) => `${(value / Wv) * 100}%`;
+  const pctY = (value: number) => `${(value / Hv) * 100}%`;
+  const useLiveLayers = listingUsesLiveLayers(layers);
+
+  // Font metrics used to fit the headline/caption/button aren't reliable until
+  // the Google font has actually downloaded; re-render once it's ready so the
+  // shrink-to-fit scale (currently 1, the safe no-shrink default) updates.
+  const [, setFontTick] = useState(0);
+  const faces = [headline, cta]
+    .filter((layer): layer is TextLayer => Boolean(layer))
+    .flatMap((layer) => {
+      const weight = resolveTextStyle(layer).weight;
+      const family = fontById(layer.fontId).family.split(",")[0].trim();
+      const list = [`${weight} 64px ${family}`];
+      if (layer.id === "header") list.push(`italic ${weight} 64px ${family}`);
+      return list;
+    })
+    .join("|");
+  useEffect(() => {
+    if (typeof document === "undefined" || !document.fonts || !faces) return;
+    let live = true;
+    Promise.all(
+      faces.split("|").map((face) => document.fonts.load(face).catch(() => undefined)),
+    ).then(() => {
+      if (live) setFontTick((tick) => tick + 1);
+    });
+    return () => {
+      live = false;
+    };
+  }, [faces]);
+
+  const headlineStyle = headline ? resolveTextStyle(headline) : null;
+  const headlineWords = headline ? listingHeadlineWords(headline.text) : { word1: "", word2: "" };
+  const headlineFit =
+    headline && headlineStyle
+      ? listingHeadlineFit(
+          headline.text,
+          headline.fontId,
+          headlineStyle.weight,
+          geo.headline.size * headlineStyle.sizeScale,
+          geo.headline.maxWidth,
+          geo.headline.gap,
+        )
+      : null;
+  const headlineScale = headlineFit?.scale ?? 1;
+  const headlineSize = headlineStyle
+    ? geo.headline.size * headlineStyle.sizeScale * headlineScale
+    : 0;
+  const headlineGap = headlineWords.word2 ? geo.headline.gap * headlineScale : 0;
+  const word1RenderWidth = (headlineFit?.word1Width ?? 0) * headlineScale;
+  const word2RenderWidth = (headlineFit?.word2Width ?? 0) * headlineScale;
+  const headlineTotalWidth = word1RenderWidth + headlineGap + word2RenderWidth;
+  const headlineStartX = Wv / 2 - headlineTotalWidth / 2;
+  const headlineWord2X = headlineStartX + word1RenderWidth + headlineGap;
+
+  const subtitleStyle = subtitle ? resolveTextStyle(subtitle) : null;
+  const subtitleScale =
+    subtitle && subtitleStyle
+      ? listingTextFit(
+          subtitle.text,
+          subtitle.fontId,
+          subtitleStyle.weight,
+          subtitleStyle.letterSpacing,
+          geo.subtitle.size * subtitleStyle.sizeScale,
+          geo.subtitle.maxWidth,
+          LISTING_LAYOUT.subtitle.minScale,
+        )
+      : 1;
+  const subtitleSize = subtitleStyle
+    ? geo.subtitle.size * subtitleStyle.sizeScale * subtitleScale
+    : 0;
+
+  const ctaStyle = cta ? resolveTextStyle(cta) : null;
+  const ctaText = cta?.text.trim() ? cta.text.toUpperCase() : "";
+  const ctaScale =
+    cta && ctaStyle && ctaText
+      ? listingTextFit(
+          ctaText,
+          cta.fontId,
+          ctaStyle.weight,
+          ctaStyle.letterSpacing,
+          geo.cta.size * ctaStyle.sizeScale,
+          geo.cta.w - geo.cta.padX * 2,
+          LISTING_LAYOUT.cta.minScale,
+        )
+      : 1;
+  const ctaSize = ctaStyle ? geo.cta.size * ctaStyle.sizeScale * ctaScale : 0;
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+      }}
+    >
+      {!useLiveLayers && (
+        <img
+          src={LISTING_REFERENCE_SRC}
+          alt=""
+          draggable={false}
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        />
+      )}
+
+      {useLiveLayers && (
+        <>
+          {image?.visible && (
+            <DraggableImage
+              layer={image}
+              fit="cover"
+              selected={selectedId === image.id}
+              onSelect={() => onSelect(image.id)}
+              onPan={(offsetX, offsetY) =>
+                updateLayer(
+                  image.id,
+                  { transform: { ...imageTransform(image), offsetX, offsetY } },
+                  `pan-${image.id}`,
+                )
+              }
+              style={{ left: 0, top: 0, width: "100%", height: "100%" }}
+            />
+          )}
+
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background: `linear-gradient(180deg, rgba(${LISTING_LAYOUT.scrim.color},${LISTING_LAYOUT.scrim.fromOpacity}) ${LISTING_LAYOUT.scrim.from * 100}%, rgba(${LISTING_LAYOUT.scrim.color},${LISTING_LAYOUT.scrim.toOpacity}) ${LISTING_LAYOUT.scrim.to * 100}%)`,
+            }}
+          />
+
+          <svg
+            className="pointer-events-none absolute inset-0 h-full w-full"
+            viewBox={`0 0 ${Wv} ${Hv}`}
+            preserveAspectRatio="none"
+          >
+            {headline?.visible && headline.text.trim() && headlineStyle && (
+              <>
+                <text
+                  x={headlineStartX}
+                  y={geo.headline.baselineY}
+                  fontFamily={fontById(headline.fontId).family}
+                  fontWeight={headlineStyle.weight}
+                  fontSize={headlineSize}
+                  fill={headline.color}
+                >
+                  {headlineWords.word1}
+                </text>
+                {headlineWords.word2 && (
+                  <text
+                    x={headlineWord2X}
+                    y={geo.headline.baselineY}
+                    fontFamily={fontById(headline.fontId).family}
+                    fontWeight={headlineStyle.weight}
+                    fontStyle="italic"
+                    fontSize={headlineSize}
+                    fill={headline.color}
+                  >
+                    {headlineWords.word2}
+                  </text>
+                )}
+              </>
+            )}
+
+            {subtitle?.visible && subtitle.text.trim() && subtitleStyle && (
+              <text
+                x={Wv / 2}
+                y={geo.subtitle.baselineY}
+                textAnchor="middle"
+                fontFamily={fontById(subtitle.fontId).family}
+                fontWeight={subtitleStyle.weight}
+                fontSize={subtitleSize}
+                fill={subtitle.color}
+              >
+                {subtitle.text}
+              </text>
+            )}
+
+            {cta?.visible && ctaText && ctaStyle && (
+              <>
+                <rect
+                  x={geo.cta.x}
+                  y={geo.cta.y}
+                  width={geo.cta.w}
+                  height={geo.cta.h}
+                  fill="none"
+                  stroke={cta.color}
+                  strokeWidth={geo.cta.borderWidth}
+                />
+                <text
+                  x={geo.cta.x + geo.cta.w / 2}
+                  y={geo.cta.y + geo.cta.h / 2}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fontFamily={fontById(cta.fontId).family}
+                  fontWeight={ctaStyle.weight}
+                  fontSize={ctaSize}
+                  letterSpacing={`${ctaStyle.letterSpacing}em`}
+                  fill={cta.color}
+                >
+                  {ctaText}
+                </text>
+              </>
+            )}
+          </svg>
+
+          {logo?.visible && logo.src && (
+            <img
+              src={logo.src}
+              alt=""
+              draggable={false}
+              className="pointer-events-none absolute object-contain"
+              style={{
+                left: pctX(geo.logo.x),
+                top: pctY(geo.logo.y),
+                width: pctX(geo.logo.w),
+                height: pctY(geo.logo.h),
+              }}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// Belong Estate: a full-bleed lifestyle backdrop beside a flat panel (optional
+// tracked wordmark over a script subtitle, optional bottom-right badge/logo),
+// a second property photo floating over the seam between them, and a required
+// serif headline set over the backdrop. Mirrors `exportEstate`.
+function EstatePreview({
+  template,
+  layers,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const image = layers.find(
+    (layer): layer is ImageLayer => layer.id === "image" && layer.kind === "image",
+  );
+  const detail = layers.find(
+    (layer): layer is ImageLayer => layer.id === "detail" && layer.kind === "image",
+  );
+  const wordmark = layers.find(
+    (layer): layer is TextLayer =>
+      layer.id === "eyebrow" && layer.kind !== "image" && layer.kind !== "logo",
+  );
+  const headline = layers.find(
+    (layer): layer is TextLayer =>
+      layer.id === "header" && layer.kind !== "image" && layer.kind !== "logo",
+  );
+  const logo = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "logo" }> => layer.kind === "logo",
+  );
+
+  const [rw, rh] = template.aspectRatio.split("/").map((part) => Number(part.trim()));
+  const ratio = rw && rh ? rw / rh : 1080 / 1350;
+  const Wv = 1000;
+  const Hv = Math.round(Wv / ratio);
+  const headlineStyle = headline ? resolveTextStyle(headline) : null;
+  const wordmarkStyle = wordmark ? resolveTextStyle(wordmark) : null;
+  const useLiveLayers = estateUsesLiveLayers(layers);
+
+  // Re-render once each face actually loads — `estateGeometry` measures the
+  // headline with canvas.measureText to wrap it, which reports fallback-font
+  // widths until the real face is ready.
+  const [, setFontTick] = useState(0);
+  const faces = [headline, wordmark]
+    .filter((layer): layer is TextLayer => Boolean(layer))
+    .map(
+      (layer) =>
+        `${resolveTextStyle(layer).weight} 64px ${fontById(layer.fontId).family.split(",")[0].trim()}`,
+    )
+    .join("|");
+  useEffect(() => {
+    if (typeof document === "undefined" || !document.fonts || !faces) return;
+    let live = true;
+    Promise.all(
+      faces.split("|").map((face) => document.fonts.load(face).catch(() => undefined)),
+    ).then(() => {
+      if (live) setFontTick((tick) => tick + 1);
+    });
+    return () => {
+      live = false;
+    };
+  }, [faces]);
+
+  const geo = estateGeometry(
+    headline?.visible ? headline.text : "",
+    headline?.fontId ?? "playfair",
+    headlineStyle?.weight ?? 400,
+    Wv,
+    Hv,
+  );
+  const pctX = (value: number) => `${(value / Wv) * 100}%`;
+  const pctY = (value: number) => `${(value / Hv) * 100}%`;
+
+  const wordmarkLines = (wordmark?.text ?? "").split(/\n/).map((line) => line.trim());
+  const wordmarkLine1 = wordmarkLines[0] ?? "";
+  const wordmarkLine2 = wordmarkLines.slice(1).join(" ");
+  const wordmarkFont = wordmark ? fontById(wordmark.fontId).family : "sans-serif";
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+      }}
+    >
+      {!useLiveLayers && (
+        <img
+          src={ESTATE_REFERENCE_SRC}
+          alt=""
+          draggable={false}
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        />
+      )}
+
+      {useLiveLayers && (
+        <>
+          <div
+            className="absolute"
+            style={{
+              left: pctX(geo.panel.x),
+              top: 0,
+              width: pctX(geo.panel.w),
+              height: "100%",
+              background: template.background,
+            }}
+          />
+
+          {image?.visible && image.src && (
+            <DraggableImage
+              layer={image}
+              fit="cover"
+              selected={selectedId === image.id}
+              onSelect={() => onSelect(image.id)}
+              onPan={(offsetX, offsetY) =>
+                updateLayer(
+                  image.id,
+                  { transform: { ...imageTransform(image), offsetX, offsetY } },
+                  `pan-${image.id}`,
+                )
+              }
+              style={{ left: 0, top: 0, width: pctX(geo.photo.w), height: "100%", zIndex: 5 }}
+            />
+          )}
+
+          {detail?.visible && detail.src && (
+            <DraggableImage
+              layer={detail}
+              fit="cover"
+              selected={selectedId === detail.id}
+              onSelect={() => onSelect(detail.id)}
+              onPan={(offsetX, offsetY) =>
+                updateLayer(
+                  detail.id,
+                  { transform: { ...imageTransform(detail), offsetX, offsetY } },
+                  `pan-${detail.id}`,
+                )
+              }
+              style={{
+                left: pctX(geo.inset.x),
+                top: pctY(geo.inset.y),
+                width: pctX(geo.inset.w),
+                height: pctY(geo.inset.h),
+                zIndex: 15,
+              }}
+            />
+          )}
+
+          <svg
+            className="pointer-events-none absolute inset-0 z-20 h-full w-full"
+            viewBox={`0 0 ${Wv} ${Hv}`}
+            preserveAspectRatio="none"
+          >
+            {wordmark?.visible && wordmarkLine1 && wordmarkStyle && (
+              <text
+                x={geo.wordmark.centerX}
+                y={geo.wordmark.line1Baseline}
+                textAnchor="middle"
+                fill={wordmark.color}
+                style={{
+                  fontFamily: wordmarkFont,
+                  fontWeight: wordmarkStyle.weight,
+                  fontSize: `${geo.wordmark.line1Size}px`,
+                  letterSpacing: `${ESTATE_LAYOUT.wordmark.line1.letterSpacing}em`,
+                }}
+              >
+                {wordmarkLine1.toUpperCase()}
+              </text>
+            )}
+            {wordmark?.visible && wordmarkLine2 && (
+              <text
+                x={geo.wordmark.centerX}
+                y={geo.wordmark.line2Baseline}
+                textAnchor="middle"
+                fill={wordmark.color}
+                fontStyle="italic"
+                style={{
+                  fontFamily: "'Alex Brush', cursive",
+                  fontWeight: 400,
+                  fontSize: `${geo.wordmark.line2Size}px`,
+                }}
+              >
+                {wordmarkLine2}
+              </text>
+            )}
+
+            {headline?.visible &&
+              headlineStyle &&
+              geo.headline.lines.map((line, index) => (
+                <text
+                  key={index}
+                  x={geo.headline.left}
+                  y={line.baseline}
+                  fill={headline.color}
+                  style={{
+                    fontFamily: fontById(headline.fontId).family,
+                    fontWeight: headlineStyle.weight,
+                    fontSize: `${geo.headline.fontSize}px`,
+                    filter: headlineStyle.shadow ? `drop-shadow(${TEXT_SHADOW_CSS})` : "none",
+                  }}
+                >
+                  {line.text}
+                </text>
+              ))}
+          </svg>
+
+          {logo?.visible && logo.src && (
+            <img
+              src={logo.src}
+              alt=""
+              draggable={false}
+              className="pointer-events-none absolute z-30 object-contain"
+              style={{
+                left: pctX(geo.logo.x),
+                top: pctY(geo.logo.y),
+                width: pctX(geo.logo.w),
+                height: pctY(geo.logo.h),
+              }}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// Skyline Focus: a blurred full-bleed photo backdrop with one narrow, thin-
+// bordered strip of the same photo left sharp (a window of focus through the
+// blur), an optional top-left logo, a two-line headline + subtitle beside the
+// strip, and an optional caption + a handle rotated vertical along the
+// strip's edge below it. The headline/caption mark "**word**" spans for
+// bold(-italic) emphasis (see `apertureBoldRuns`). Mirrors `exportAperture`.
+function AperturePreview({
+  template,
+  layers,
+  selectedId,
+  onSelect,
+  updateLayer,
+}: {
+  template: RemixEditorTemplate;
+  layers: EditorLayer[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  updateLayer: (id: string, patch: LayerPatch, coalesceKey?: string) => void;
+}) {
+  const image = layers.find(
+    (layer): layer is ImageLayer => layer.id === "image" && layer.kind === "image",
+  );
+  const header = layers.find((layer): layer is TextLayer => layer.id === "header");
+  const subtitle = layers.find((layer): layer is TextLayer => layer.id === "description");
+  const handle = layers.find((layer): layer is TextLayer => layer.id === "eyebrow");
+  const caption = layers.find((layer): layer is TextLayer => layer.id === "cta");
+  const logo = layers.find(
+    (layer): layer is Extract<EditorLayer, { kind: "logo" }> => layer.kind === "logo",
+  );
+
+  const [rw, rh] = template.aspectRatio.split("/").map((part) => Number(part.trim()));
+  const ratio = rw && rh ? rw / rh : 736 / 1104;
+  const Wv = 1000;
+  const Hv = Math.round(Wv / ratio);
+  const geo = apertureGeometry(Wv, Hv);
+  const pctX = (value: number) => `${(value / Wv) * 100}%`;
+  const pctY = (value: number) => `${(value / Hv) * 100}%`;
+  const cqi = (value: number) => `${(value / Wv) * 100}cqi`;
+  const useLiveLayers = apertureUsesLiveLayers(layers);
+  const transform = image ? imageTransform(image) : DEFAULT_IMAGE_TRANSFORM;
+
+  // `apertureHeadlineFit` / `apertureWrapParagraph` both gate on
+  // `document.fonts.check`, so re-render once the faces they measure with
+  // have actually landed — otherwise the first paint (and the fit/wrap it
+  // computes) is stuck using the fallback face's metrics.
+  const textLayers = [header, subtitle, handle, caption].filter((layer): layer is TextLayer =>
+    Boolean(layer),
+  );
+  const [, setFontTick] = useState(0);
+  const faces = textLayers
+    .map((layer) => {
+      const font = fontById(layer.fontId);
+      const family = font.family.split(",")[0].trim();
+      const weight = resolveTextStyle(layer).weight;
+      return `${weight} 64px ${family}|italic ${apertureBoldWeight(font, weight)} 64px ${family}`;
+    })
+    .join("|");
+  useEffect(() => {
+    if (typeof document === "undefined" || !document.fonts || !faces) return;
+    let live = true;
+    Promise.all(
+      faces.split("|").map((face) => document.fonts.load(face).catch(() => undefined)),
+    ).then(() => {
+      if (live) setFontTick((tick) => tick + 1);
+    });
+    return () => {
+      live = false;
+    };
+  }, [faces]);
+
+  const headerStyle = header ? resolveTextStyle(header) : null;
+  const headerFont = header ? fontById(header.fontId) : null;
+  const headerBaseSize = headerStyle ? geo.headline.size * headerStyle.sizeScale : 0;
+  const headerFit =
+    header && headerStyle
+      ? apertureHeadlineFit(
+          header.text,
+          header.fontId,
+          headerStyle.weight,
+          headerBaseSize,
+          geo.headline.maxWidth,
+        )
+      : 1;
+  const headerSize = headerBaseSize * headerFit;
+  const headerPitch = headerSize * APERTURE_LAYOUT.headline.lineHeight;
+  const headerLines = header ? apertureHeadlineLines(header.text) : [];
+  const headerBoldWeight =
+    headerFont && headerStyle ? apertureBoldWeight(headerFont, headerStyle.weight) : 700;
+
+  const captionStyle = caption ? resolveTextStyle(caption) : null;
+  const captionSize = captionStyle ? geo.paragraph.size * captionStyle.sizeScale : 0;
+  const captionPitch = captionSize * APERTURE_LAYOUT.paragraph.lineHeight;
+  const captionLines =
+    caption && captionStyle
+      ? apertureWrapParagraph(
+          caption.text,
+          caption.fontId,
+          captionStyle.weight,
+          captionSize,
+          geo.paragraph.maxWidth,
+        )
+      : [];
+  const captionFont = caption ? fontById(caption.fontId) : null;
+  const captionBoldWeight =
+    captionFont && captionStyle ? apertureBoldWeight(captionFont, captionStyle.weight) : 700;
+
+  const handleStyle = handle ? resolveTextStyle(handle) : null;
+  const handleSize = handleStyle ? geo.handle.size * handleStyle.sizeScale : 0;
+
+  return (
+    <div
+      className="relative w-full overflow-hidden shadow-2xl"
+      style={{
+        aspectRatio: template.aspectRatio,
+        background: template.background,
+        containerType: "inline-size",
+      }}
+    >
+      {!useLiveLayers && (
+        <img
+          src={APERTURE_REFERENCE_SRC}
+          alt=""
+          draggable={false}
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        />
+      )}
+
+      {useLiveLayers && (
+        <>
+          {image?.visible && image.src && (
+            <img
+              src={image.src}
+              alt=""
+              draggable={false}
+              className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+              style={{ filter: `blur(${cqi(geo.backdrop.blur)})`, scale: geo.backdrop.scale }}
+            />
+          )}
+
+          {image?.visible && image.src && (
+            <DraggableImage
+              layer={image}
+              fit="cover"
+              selected={selectedId === image.id}
+              onSelect={() => onSelect(image.id)}
+              onPan={(offsetX, offsetY) =>
+                updateLayer(
+                  image.id,
+                  { transform: { ...transform, offsetX, offsetY } },
+                  `pan-${image.id}`,
+                )
+              }
+              style={{
+                left: pctX(geo.frame.x),
+                top: pctY(geo.frame.y),
+                width: pctX(geo.frame.w),
+                height: pctY(geo.frame.h),
+                boxShadow:
+                  selectedId === image.id
+                    ? "inset 0 0 0 2px hsl(var(--destructive))"
+                    : `inset 0 0 0 ${cqi(geo.frame.borderWidth)} ${geo.frame.borderColor}`,
+                zIndex: 20,
+              }}
+            />
+          )}
+
+          {logo?.visible && logo.src && (
+            <img
+              src={logo.src}
+              alt=""
+              draggable={false}
+              className="pointer-events-none absolute z-30 object-contain"
+              style={{
+                left: pctX(geo.logo.x),
+                top: pctY(geo.logo.y),
+                width: pctX(geo.logo.w),
+                height: pctY(geo.logo.h),
+              }}
+            />
+          )}
+
+          {header?.visible &&
+            header.text.trim() &&
+            headerStyle &&
+            headerLines.map((line, index) => (
+              <div
+                key={index}
+                className="pointer-events-none absolute z-30 whitespace-nowrap"
+                style={{
+                  left: pctX(geo.headline.left),
+                  top: `calc(${pctY(geo.headline.baseline + index * headerPitch)} - ${cqi(headerSize)})`,
+                  maxWidth: pctX(geo.headline.maxWidth),
+                  color: header.color,
+                  fontFamily: headerFont?.family,
+                  fontWeight: headerStyle.weight,
+                  fontSize: cqi(headerSize),
+                  lineHeight: 1,
+                  letterSpacing: `${headerStyle.letterSpacing}em`,
+                  textShadow: headerStyle.shadow ? TEXT_SHADOW_CSS : undefined,
+                }}
+              >
+                {line.map((run, runIndex) =>
+                  run.text ? (
+                    <span
+                      key={runIndex}
+                      style={
+                        run.bold ? { fontWeight: headerBoldWeight, fontStyle: "italic" } : undefined
+                      }
+                    >
+                      {run.text}
+                    </span>
+                  ) : null,
+                )}
+              </div>
+            ))}
+
+          {subtitle?.visible && subtitle.text.trim() && (
+            <div
+              className="pointer-events-none absolute z-30 whitespace-nowrap"
+              style={{
+                left: pctX(geo.subtitle.left),
+                top: `calc(${pctY(geo.subtitle.baseline)} - ${cqi(geo.subtitle.size)})`,
+                maxWidth: pctX(geo.subtitle.maxWidth),
+                color: subtitle.color,
+                fontFamily: fontById(subtitle.fontId).family,
+                fontWeight: resolveTextStyle(subtitle).weight,
+                fontSize: cqi(geo.subtitle.size * resolveTextStyle(subtitle).sizeScale),
+                lineHeight: 1,
+                letterSpacing: `${resolveTextStyle(subtitle).letterSpacing}em`,
+                textTransform: subtitle.uppercase ? "uppercase" : "none",
+              }}
+            >
+              {subtitle.text}
+            </div>
+          )}
+
+          {handle?.visible && handle.text.trim() && handleStyle && (
+            <div
+              className="pointer-events-none absolute z-30 whitespace-nowrap"
+              style={{
+                left: `calc(${pctX(geo.handle.centerX)} - ${cqi(handleSize / 2)})`,
+                top: pctY(geo.handle.bottom),
+                transformOrigin: "0 0",
+                transform: "rotate(-90deg)",
+                color: handle.color,
+                fontFamily: fontById(handle.fontId).family,
+                fontWeight: handleStyle.weight,
+                fontSize: cqi(handleSize),
+                lineHeight: 1,
+                letterSpacing: `${handleStyle.letterSpacing}em`,
+                textTransform: handle.uppercase ? "uppercase" : "none",
+              }}
+            >
+              {handle.text}
+            </div>
+          )}
+
+          {caption?.visible &&
+            caption.text.trim() &&
+            captionStyle &&
+            captionLines.map((line, index) => (
+              <div
+                key={index}
+                className="pointer-events-none absolute z-30 whitespace-nowrap"
+                style={{
+                  left: pctX(geo.paragraph.left),
+                  top: `calc(${pctY(geo.paragraph.baseline + index * captionPitch)} - ${cqi(captionSize)})`,
+                  maxWidth: pctX(geo.paragraph.maxWidth),
+                  color: caption.color,
+                  fontFamily: captionFont?.family,
+                  fontWeight: captionStyle.weight,
+                  fontSize: cqi(captionSize),
+                  lineHeight: 1,
+                  letterSpacing: `${captionStyle.letterSpacing}em`,
+                }}
+              >
+                {line.map((run, runIndex) => (
+                  <span
+                    key={runIndex}
+                    style={
+                      run.bold
+                        ? { fontWeight: captionBoldWeight, color: apertureBoldColor(caption.color) }
+                        : undefined
+                    }
+                  >
+                    {run.text}
+                    {runIndex < line.length - 1 ? " " : ""}
+                  </span>
+                ))}
+              </div>
+            ))}
+        </>
+      )}
+    </div>
+  );
+}
+
 // Showcase grid: eight photo cells around a centre panel of stacked live text
 // (drop / sale / lookbook — see SHOWCASE_VARIANTS). The lookbook variant also
 // draws a fixed, non-editable "Look {n}" label on every photo cell. Mirrors
@@ -6648,6 +7467,9 @@ function defaultOpenSections(template: RemixEditorTemplate): Record<string, bool
   if (template.layout === "brief") {
     return { image: true, header: true, description: true };
   }
+  if (template.layout === "listing") {
+    return { image: true, header: true, description: true, cta: false };
+  }
   if (template.layout === "interior-inspiration") {
     return { image: true, detail: false, description: true, header: true, cta: true };
   }
@@ -7496,6 +8318,30 @@ function EditorScreen({
                 onSelect={setSelectedImageId}
                 updateLayer={updateLayer}
               />
+            ) : template.layout === "listing" ? (
+              <ListingPreview
+                template={activeTemplate}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
+            ) : template.layout === "estate" ? (
+              <EstatePreview
+                template={activeTemplate}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
+            ) : template.layout === "aperture" ? (
+              <AperturePreview
+                template={activeTemplate}
+                layers={layers}
+                selectedId={selectedImageId}
+                onSelect={setSelectedImageId}
+                updateLayer={updateLayer}
+              />
             ) : template.layout === "showcase" ? (
               <ShowcasePreview
                 template={activeTemplate}
@@ -8065,6 +8911,394 @@ function EditorScreen({
                       />
                     </EditorSection>
                   ) : null,
+                )}
+              </>
+            )}
+
+            {/* Just Listed: one full-bleed photo, a required two-word headline
+                (roman + italic, shared baseline), an optional caption below it,
+                and a required hollow call-to-action button. No
+                TextStyleControls here — alignment is always centred and
+                size/weight already come from the fixed geometry, so those
+                sliders would be dead controls (same reasoning as Woven/Brief). */}
+            {template.layout === "listing" && (
+              <>
+                {image && (
+                  <EditorSection
+                    title={image.label}
+                    open={openSections[image.id] ?? true}
+                    onToggleOpen={() => toggleOpen(image.id)}
+                    hideable={image.hideable}
+                    visible={image.visible}
+                    onToggleVisible={() => toggleVisible(image.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+                        <img src={image.src} alt="" className="h-full w-full object-cover" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openReplace(image.id)}
+                        className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                      >
+                        <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                        Replace photo
+                      </button>
+                    </div>
+                    <ImageControls
+                      layer={image}
+                      onChange={(transform, key) => updateLayer(image.id, { transform }, key)}
+                      onReset={() =>
+                        updateLayer(image.id, { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                      }
+                    />
+                  </EditorSection>
+                )}
+
+                {[
+                  { layer: header, title: "Headline", label: "Headline text" },
+                  { layer: description, title: "Location", label: "Caption text" },
+                  { layer: cta, title: "Call to action", label: "Button text" },
+                ].map(({ layer, title, label }) =>
+                  layer ? (
+                    <EditorSection
+                      key={layer.id}
+                      title={title}
+                      open={openSections[layer.id] ?? layer.id === "header"}
+                      onToggleOpen={() => toggleOpen(layer.id)}
+                      hideable={layer.hideable}
+                      visible={layer.visible}
+                      onToggleVisible={() => toggleVisible(layer.id)}
+                    >
+                      <TextField
+                        label={label}
+                        value={layer.text}
+                        onChange={(value) =>
+                          updateLayer(layer.id, { text: value }, `${layer.id}-text`)
+                        }
+                        onSuggest={() => cycleSuggestion(layer)}
+                      />
+                      <div className="mt-4">
+                        <FontDropdown
+                          value={layer.fontId}
+                          color={layer.color}
+                          onChange={(fontId) => changeFont(layer.id, fontId)}
+                        />
+                      </div>
+                      <div className="mt-4">
+                        <ColorSwatches
+                          palette={template.palette}
+                          value={layer.color}
+                          onChange={(hex) => updateLayer(layer.id, { color: hex })}
+                        />
+                      </div>
+                    </EditorSection>
+                  ) : null,
+                )}
+              </>
+            )}
+
+            {/* Belong Estate: a lifestyle backdrop + a floating property photo,
+                an optional wordmark (a tracked line over a fixed script
+                subtitle line) and a required headline. No TextStyleControls —
+                alignment/size come from the fixed geometry, same reasoning as
+                Listing/Woven/Brief. */}
+            {template.layout === "estate" && (
+              <>
+                {[
+                  { layer: image, title: image?.label ?? "Lifestyle photo" },
+                  { layer: detailImage, title: detailImage?.label ?? "Property photo" },
+                ].map(({ layer, title }) =>
+                  layer ? (
+                    <EditorSection
+                      key={layer.id}
+                      title={title}
+                      open={openSections[layer.id] ?? true}
+                      onToggleOpen={() => toggleOpen(layer.id)}
+                      hideable={layer.hideable}
+                      visible={layer.visible}
+                      onToggleVisible={() => toggleVisible(layer.id)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+                          <img src={layer.src} alt="" className="h-full w-full object-cover" />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => openReplace(layer.id)}
+                          className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                        >
+                          <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                          Replace photo
+                        </button>
+                      </div>
+                      <ImageControls
+                        layer={layer}
+                        onChange={(transform, key) => updateLayer(layer.id, { transform }, key)}
+                        onReset={() =>
+                          updateLayer(layer.id, { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                        }
+                      />
+                    </EditorSection>
+                  ) : null,
+                )}
+
+                {eyebrow && (
+                  <EditorSection
+                    title="Wordmark"
+                    open={openSections.eyebrow ?? false}
+                    onToggleOpen={() => toggleOpen("eyebrow")}
+                    hideable={eyebrow.hideable}
+                    visible={eyebrow.visible}
+                    onToggleVisible={() => toggleVisible("eyebrow")}
+                  >
+                    <TextField
+                      label="Wordmark text"
+                      value={eyebrow.text}
+                      onChange={(value) => updateLayer("eyebrow", { text: value }, "eyebrow-text")}
+                      onSuggest={() => cycleSuggestion(eyebrow)}
+                      multiline
+                    />
+                    <p className="mt-2 text-[13px] text-muted-foreground">
+                      First line sets the tracked wordmark; a second line (optional) sets the small
+                      script subtitle below it.
+                    </p>
+                    <div className="mt-4">
+                      <FontDropdown
+                        value={eyebrow.fontId}
+                        color={eyebrow.color}
+                        onChange={(fontId) => changeFont("eyebrow", fontId)}
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <ColorSwatches
+                        palette={template.palette}
+                        value={eyebrow.color}
+                        onChange={(hex) => updateLayer("eyebrow", { color: hex })}
+                      />
+                    </div>
+                  </EditorSection>
+                )}
+
+                {header && (
+                  <EditorSection
+                    title="Headline"
+                    open={openSections.header ?? true}
+                    onToggleOpen={() => toggleOpen("header")}
+                    hideable={header.hideable}
+                    visible={header.visible}
+                    onToggleVisible={() => toggleVisible("header")}
+                  >
+                    <TextField
+                      label="Headline text"
+                      value={header.text}
+                      onChange={(value) => updateLayer("header", { text: value }, "header-text")}
+                      onSuggest={() => cycleSuggestion(header)}
+                      multiline
+                    />
+                    <div className="mt-4">
+                      <FontDropdown
+                        value={header.fontId}
+                        color={header.color}
+                        onChange={(fontId) => changeFont("header", fontId)}
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <ColorSwatches
+                        palette={template.palette}
+                        value={header.color}
+                        onChange={(hex) => updateLayer("header", { color: hex })}
+                      />
+                    </div>
+                  </EditorSection>
+                )}
+              </>
+            )}
+
+            {/* Skyline Focus: a blurred backdrop + a sharp bordered photo strip
+                (the uploaded logo uses the shared Logo section), a required
+                two-line headline and an optional subtitle/handle/caption. The
+                headline/caption mark "**word**" spans for bold(-italic)
+                emphasis instead of exposing a rich-text editor. */}
+            {template.layout === "aperture" && (
+              <>
+                {image && (
+                  <EditorSection
+                    title={image.label}
+                    open={openSections.image ?? true}
+                    onToggleOpen={() => toggleOpen("image")}
+                    hideable={image.hideable}
+                    visible={image.visible}
+                    onToggleVisible={() => toggleVisible("image")}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[14px] border border-border bg-secondary">
+                        <img src={image.src} alt="" className="h-full w-full object-cover" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openReplace("image")}
+                        className="inline-flex h-11 items-center gap-2 rounded-full border border-white/10 bg-secondary px-5 text-[15px] font-semibold text-foreground transition hover:brightness-110"
+                      >
+                        <Wand2 className="h-4 w-4 text-[#c7d36f]" />
+                        Replace photo
+                      </button>
+                    </div>
+                    <p className="mt-3 text-[13px] text-muted-foreground">
+                      The same photo fills the blurred backdrop and the sharp strip — drag inside
+                      the strip to choose what stays in focus.
+                    </p>
+                    <ImageControls
+                      layer={image}
+                      onChange={(transform, key) => updateLayer("image", { transform }, key)}
+                      onReset={() =>
+                        updateLayer("image", { transform: { ...DEFAULT_IMAGE_TRANSFORM } })
+                      }
+                    />
+                  </EditorSection>
+                )}
+
+                {header && (
+                  <EditorSection
+                    title="Headline"
+                    open={openSections.header ?? true}
+                    onToggleOpen={() => toggleOpen("header")}
+                    hideable={header.hideable}
+                    visible={header.visible}
+                    onToggleVisible={() => toggleVisible("header")}
+                  >
+                    <TextField
+                      label="Headline text"
+                      value={header.text}
+                      onChange={(value) => updateLayer("header", { text: value }, "header-text")}
+                      onSuggest={() => cycleSuggestion(header)}
+                      multiline
+                    />
+                    <p className="mt-2 text-[13px] text-muted-foreground">
+                      Wrap a word in **double asterisks** to set it bold-italic, like the
+                      reference's "smarter" and "buy".
+                    </p>
+                    <div className="mt-4">
+                      <FontDropdown
+                        value={header.fontId}
+                        color={header.color}
+                        onChange={(fontId) => changeFont("header", fontId)}
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <ColorSwatches
+                        palette={template.palette}
+                        value={header.color}
+                        onChange={(hex) => updateLayer("header", { color: hex })}
+                      />
+                    </div>
+                  </EditorSection>
+                )}
+
+                {description && (
+                  <EditorSection
+                    title="Subtitle"
+                    open={openSections.description ?? false}
+                    onToggleOpen={() => toggleOpen("description")}
+                    hideable={description.hideable}
+                    visible={description.visible}
+                    onToggleVisible={() => toggleVisible("description")}
+                  >
+                    <TextField
+                      label="Subtitle text"
+                      value={description.text}
+                      onChange={(value) =>
+                        updateLayer("description", { text: value }, "description-text")
+                      }
+                      onSuggest={() => cycleSuggestion(description)}
+                    />
+                    <div className="mt-4">
+                      <FontDropdown
+                        value={description.fontId}
+                        color={description.color}
+                        onChange={(fontId) => changeFont("description", fontId)}
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <ColorSwatches
+                        palette={template.palette}
+                        value={description.color}
+                        onChange={(hex) => updateLayer("description", { color: hex })}
+                      />
+                    </div>
+                  </EditorSection>
+                )}
+
+                {eyebrow && (
+                  <EditorSection
+                    title="Handle"
+                    open={openSections.eyebrow ?? false}
+                    onToggleOpen={() => toggleOpen("eyebrow")}
+                    hideable={eyebrow.hideable}
+                    visible={eyebrow.visible}
+                    onToggleVisible={() => toggleVisible("eyebrow")}
+                  >
+                    <TextField
+                      label="Handle text"
+                      value={eyebrow.text}
+                      onChange={(value) => updateLayer("eyebrow", { text: value }, "eyebrow-text")}
+                      onSuggest={() => cycleSuggestion(eyebrow)}
+                    />
+                    <p className="mt-2 text-[13px] text-muted-foreground">
+                      Runs rotated vertically along the sharp strip's edge.
+                    </p>
+                    <div className="mt-4">
+                      <FontDropdown
+                        value={eyebrow.fontId}
+                        color={eyebrow.color}
+                        onChange={(fontId) => changeFont("eyebrow", fontId)}
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <ColorSwatches
+                        palette={template.palette}
+                        value={eyebrow.color}
+                        onChange={(hex) => updateLayer("eyebrow", { color: hex })}
+                      />
+                    </div>
+                  </EditorSection>
+                )}
+
+                {cta && (
+                  <EditorSection
+                    title="Caption"
+                    open={openSections.cta ?? false}
+                    onToggleOpen={() => toggleOpen("cta")}
+                    hideable={cta.hideable}
+                    visible={cta.visible}
+                    onToggleVisible={() => toggleVisible("cta")}
+                  >
+                    <TextField
+                      label="Caption text"
+                      value={cta.text}
+                      onChange={(value) => updateLayer("cta", { text: value }, "cta-text")}
+                      onSuggest={() => cycleSuggestion(cta)}
+                      multiline
+                    />
+                    <p className="mt-2 text-[13px] text-muted-foreground">
+                      Wrap a word in **double asterisks** to set it bold, like the reference's
+                      "Follow" and "UAE real estate".
+                    </p>
+                    <div className="mt-4">
+                      <FontDropdown
+                        value={cta.fontId}
+                        color={cta.color}
+                        onChange={(fontId) => changeFont("cta", fontId)}
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <ColorSwatches
+                        palette={template.palette}
+                        value={cta.color}
+                        onChange={(hex) => updateLayer("cta", { color: hex })}
+                      />
+                    </div>
+                  </EditorSection>
                 )}
               </>
             )}
@@ -9813,6 +11047,9 @@ function EditorScreen({
               template.layout !== "mosaic" &&
               template.layout !== "breaking-news" &&
               template.layout !== "modern-fashion" &&
+              template.layout !== "listing" &&
+              template.layout !== "estate" &&
+              template.layout !== "aperture" &&
               image && (
                 <EditorSection
                   title="Image"
@@ -9905,6 +11142,9 @@ function EditorScreen({
               template.layout !== "mosaic" &&
               template.layout !== "breaking-news" &&
               template.layout !== "modern-fashion" &&
+              template.layout !== "listing" &&
+              template.layout !== "estate" &&
+              template.layout !== "aperture" &&
               header && (
                 <EditorSection
                   title={template.layout === "porto" ? "Caption" : "Header"}
@@ -9960,6 +11200,9 @@ function EditorScreen({
               template.layout !== "beauty-collection" &&
               template.layout !== "showcase" &&
               template.layout !== "modern-fashion" &&
+              template.layout !== "listing" &&
+              template.layout !== "estate" &&
+              template.layout !== "aperture" &&
               description && (
                 <EditorSection
                   title={
@@ -10029,6 +11272,9 @@ function EditorScreen({
               template.layout !== "beauty-collection" &&
               template.layout !== "showcase" &&
               template.layout !== "modern-fashion" &&
+              template.layout !== "listing" &&
+              template.layout !== "estate" &&
+              template.layout !== "aperture" &&
               cta && (
                 <EditorSection
                   title="Call to action"

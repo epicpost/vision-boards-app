@@ -69,6 +69,24 @@ import {
   modernFashionUsesLiveLayers,
   modernFashionUsesLiveText,
   modernFashionUsesReplacementPhoto,
+  LISTING_LAYOUT,
+  LISTING_REFERENCE_SRC,
+  listingGeometry,
+  listingHeadlineWords,
+  listingUsesLiveLayers,
+  ESTATE_LAYOUT,
+  ESTATE_REFERENCE_SRC,
+  estateGeometry,
+  estateUsesLiveLayers,
+  APERTURE_LAYOUT,
+  APERTURE_REFERENCE_SRC,
+  apertureGeometry,
+  apertureUsesLiveLayers,
+  apertureHeadlineLines,
+  apertureHeadlineFit,
+  apertureWrapParagraph,
+  apertureBoldWeight,
+  apertureBoldColor,
   fashionIconsGeometry,
   showcaseGeometry,
   showcaseVariant,
@@ -4316,6 +4334,526 @@ async function exportBeautyCollection(
   return canvasToBlob(canvas, format);
 }
 
+// Rasterize the Just Listed real-estate poster: full-bleed photo behind a
+// bottom scrim, a two-word headline sharing one baseline (roman first word,
+// italic remainder), an optional caption below it, and a required hollow,
+// tracked call-to-action button. Mirrors `ListingPreview`. The untouched
+// default just re-plates the reference JPG (see `listingUsesLiveLayers`).
+async function exportListing(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  if (!listingUsesLiveLayers(layers)) {
+    try {
+      const reference = await loadImage(LISTING_REFERENCE_SRC);
+      drawImageCoverCanvas(ctx, reference, width, height);
+      return canvasToBlob(canvas, format);
+    } catch {
+      ctx.fillStyle = template.background;
+      ctx.fillRect(0, 0, width, height);
+    }
+  }
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+
+  const photo = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const headline = byId<TextLayer>("header");
+  const subtitle = byId<TextLayer>("description");
+  const cta = byId<TextLayer>("cta");
+  const logo = byId<Extract<EditorLayer, { kind: "logo" }>>("logo");
+  const geo = listingGeometry(width, height);
+
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  if (photo?.visible && photo.src) {
+    try {
+      const image = await loadImage(photo.src);
+      drawImageCoverCanvas(ctx, image, width, height, imageTransform(photo));
+    } catch {
+      throw new ExportImageError(1);
+    }
+  }
+
+  const scrim = ctx.createLinearGradient(0, 0, 0, height);
+  scrim.addColorStop(
+    LISTING_LAYOUT.scrim.from,
+    `rgba(${LISTING_LAYOUT.scrim.color},${LISTING_LAYOUT.scrim.fromOpacity})`,
+  );
+  scrim.addColorStop(
+    LISTING_LAYOUT.scrim.to,
+    `rgba(${LISTING_LAYOUT.scrim.color},${LISTING_LAYOUT.scrim.toOpacity})`,
+  );
+  ctx.fillStyle = scrim;
+  ctx.fillRect(0, 0, width, height);
+
+  const textLayers = [headline, subtitle, cta].filter((layer): layer is TextLayer =>
+    Boolean(layer?.visible && layer.text.trim()),
+  );
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      textLayers.flatMap((layer) => {
+        const style = resolveTextStyle(layer);
+        const family = primaryFamily(fontById(layer.fontId).family);
+        const faces = [`${style.weight} 64px ${family}`];
+        if (layer.id === "header") faces.push(`italic ${style.weight} 64px ${family}`);
+        return faces.map((face) => document.fonts.load(face).catch(() => undefined));
+      }),
+    ).catch(() => undefined);
+  }
+
+  if (headline?.visible && headline.text.trim()) {
+    const style = resolveTextStyle(headline);
+    const family = primaryFamily(fontById(headline.fontId).family);
+    const baseSize = geo.headline.size * style.sizeScale;
+    const { word1, word2 } = listingHeadlineWords(headline.text);
+
+    ctx.font = `${style.weight} ${baseSize}px ${family}`;
+    const word1Width = ctx.measureText(word1).width;
+    let word2Width = 0;
+    if (word2) {
+      ctx.font = `italic ${style.weight} ${baseSize}px ${family}`;
+      word2Width = ctx.measureText(word2).width;
+    }
+    const gap = word2 ? geo.headline.gap : 0;
+    const totalWidth = word1Width + gap + word2Width;
+    const scale =
+      totalWidth > geo.headline.maxWidth && totalWidth > 0
+        ? Math.max(LISTING_LAYOUT.headline.minScale, geo.headline.maxWidth / totalWidth)
+        : 1;
+    const size = baseSize * scale;
+
+    ctx.save();
+    ctx.fillStyle = headline.color;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    applyTextShadow(ctx, Boolean(style.shadow), size);
+    const startX = width / 2 - (totalWidth * scale) / 2;
+    ctx.font = `${style.weight} ${size}px ${family}`;
+    ctx.fillText(word1, startX, geo.headline.baselineY);
+    if (word2) {
+      ctx.font = `italic ${style.weight} ${size}px ${family}`;
+      ctx.fillText(word2, startX + word1Width * scale + gap * scale, geo.headline.baselineY);
+    }
+    ctx.restore();
+  }
+
+  if (subtitle?.visible && subtitle.text.trim()) {
+    const style = resolveTextStyle(subtitle);
+    const family = primaryFamily(fontById(subtitle.fontId).family);
+    const baseSize = geo.subtitle.size * style.sizeScale;
+    const label = subtitle.text.trim();
+    ctx.font = `${style.weight} ${baseSize}px ${family}`;
+    let size = baseSize;
+    const measured = ctx.measureText(label).width;
+    if (measured > geo.subtitle.maxWidth && measured > 0) {
+      const scale = Math.max(LISTING_LAYOUT.subtitle.minScale, geo.subtitle.maxWidth / measured);
+      size = baseSize * scale;
+      ctx.font = `${style.weight} ${size}px ${family}`;
+    }
+    ctx.save();
+    ctx.fillStyle = subtitle.color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    applyTextShadow(ctx, Boolean(style.shadow), size);
+    ctx.fillText(label, width / 2, geo.subtitle.baselineY);
+    ctx.restore();
+  }
+
+  if (cta?.visible && cta.text.trim()) {
+    const style = resolveTextStyle(cta);
+    ctx.save();
+    ctx.strokeStyle = cta.color;
+    ctx.lineWidth = geo.cta.borderWidth;
+    ctx.strokeRect(geo.cta.x, geo.cta.y, geo.cta.w, geo.cta.h);
+    ctx.restore();
+
+    const family = primaryFamily(fontById(cta.fontId).family);
+    const baseSize = geo.cta.size * style.sizeScale;
+    const text = cta.text.toUpperCase();
+    const maxTextWidth = geo.cta.w - geo.cta.padX * 2;
+    ctx.font = `${style.weight} ${baseSize}px ${family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    let size = baseSize;
+    let measured = ctx.measureText(text).width;
+    if (measured > maxTextWidth && measured > 0) {
+      const scale = Math.max(LISTING_LAYOUT.cta.minScale, maxTextWidth / measured);
+      size = baseSize * scale;
+      ctx.font = `${style.weight} ${size}px ${family}`;
+      measured = ctx.measureText(text).width;
+    }
+    ctx.save();
+    ctx.fillStyle = cta.color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, geo.cta.x + geo.cta.w / 2, geo.cta.y + geo.cta.h / 2);
+    ctx.restore();
+    ctx.letterSpacing = "0px";
+  }
+
+  if (logo?.visible && logo.src) {
+    try {
+      const image = await loadImage(logo.src);
+      drawImageContain(ctx, image, geo.logo);
+    } catch {
+      throw new Error("Couldn't load the logo for export.");
+    }
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
+// Rasterize the Belong Estate collage: a full-bleed lifestyle backdrop beside
+// a flat panel (optional tracked wordmark over a fixed script subtitle,
+// optional bottom-right badge/logo), a second property photo floating over
+// the seam between them, and a required serif headline over the backdrop.
+// Mirrors `EstatePreview`.
+async function exportEstate(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  if (!estateUsesLiveLayers(layers)) {
+    try {
+      const reference = await loadImage(ESTATE_REFERENCE_SRC);
+      drawImageCoverCanvas(ctx, reference, width, height);
+      return canvasToBlob(canvas, format);
+    } catch {
+      ctx.fillStyle = template.background;
+      ctx.fillRect(0, 0, width, height);
+    }
+  }
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+
+  const photo = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const detail = byId<Extract<EditorLayer, { kind: "image" }>>("detail");
+  const wordmark = byId<TextLayer>("eyebrow");
+  const headline = byId<TextLayer>("header");
+  const logo = byId<Extract<EditorLayer, { kind: "logo" }>>("logo");
+  const headlineStyle = headline ? resolveTextStyle(headline) : null;
+  const geo = estateGeometry(
+    headline?.visible ? headline.text : "",
+    headline?.fontId ?? "playfair",
+    headlineStyle?.weight ?? 400,
+    width,
+    height,
+  );
+
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  if (photo?.visible && photo.src) {
+    try {
+      const image = await loadImage(photo.src);
+      drawImageCover(ctx, image, geo.photo, imageTransform(photo));
+    } catch {
+      throw new ExportImageError(1);
+    }
+  }
+
+  if (detail?.visible && detail.src) {
+    try {
+      const image = await loadImage(detail.src);
+      drawImageCover(ctx, image, geo.inset, imageTransform(detail));
+    } catch {
+      throw new ExportImageError(1);
+    }
+  }
+
+  const wordmarkStyle = wordmark ? resolveTextStyle(wordmark) : null;
+  const textLayers = [headline, wordmark].filter((layer): layer is TextLayer =>
+    Boolean(layer?.visible && layer.text.trim()),
+  );
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all([
+      ...textLayers.map((layer) =>
+        document.fonts
+          .load(
+            `${resolveTextStyle(layer).weight} 64px ${primaryFamily(fontById(layer.fontId).family)}`,
+          )
+          .catch(() => undefined),
+      ),
+      document.fonts.load("italic 400 64px 'Alex Brush'").catch(() => undefined),
+    ]).catch(() => undefined);
+  }
+
+  if (wordmark?.visible) {
+    const [line1Raw, ...restLines] = wordmark.text.split(/\n/).map((line) => line.trim());
+    const line1 = (line1Raw ?? "").toUpperCase();
+    const line2 = restLines.join(" ");
+    if (line1 && wordmarkStyle) {
+      ctx.save();
+      ctx.fillStyle = wordmark.color;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "alphabetic";
+      ctx.font = `${wordmarkStyle.weight} ${geo.wordmark.line1Size}px ${primaryFamily(fontById(wordmark.fontId).family)}`;
+      ctx.letterSpacing = `${ESTATE_LAYOUT.wordmark.line1.letterSpacing}em`;
+      ctx.fillText(line1, geo.wordmark.centerX, geo.wordmark.line1Baseline);
+      ctx.letterSpacing = "0px";
+      ctx.restore();
+    }
+    if (line2) {
+      ctx.save();
+      ctx.fillStyle = wordmark.color;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "alphabetic";
+      ctx.font = `italic 400 ${geo.wordmark.line2Size}px 'Alex Brush', cursive`;
+      ctx.fillText(line2, geo.wordmark.centerX, geo.wordmark.line2Baseline);
+      ctx.restore();
+    }
+  }
+
+  if (headline?.visible && headline.text.trim() && headlineStyle) {
+    const family = primaryFamily(fontById(headline.fontId).family);
+    ctx.save();
+    ctx.fillStyle = headline.color;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.font = `${headlineStyle.weight} ${geo.headline.fontSize}px ${family}`;
+    applyTextShadow(ctx, Boolean(headlineStyle.shadow), geo.headline.fontSize);
+    geo.headline.lines.forEach((line) => {
+      ctx.fillText(line.text, geo.headline.left, line.baseline);
+    });
+    ctx.restore();
+  }
+
+  if (logo?.visible && logo.src) {
+    try {
+      const image = await loadImage(logo.src);
+      drawImageContain(ctx, image, geo.logo);
+    } catch {
+      throw new Error("Couldn't load the logo for export.");
+    }
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
+// Rasterize Skyline Focus: a blurred full-bleed photo backdrop with one
+// narrow, thin-bordered strip of the same photo left sharp (a window of
+// focus through the blur), an optional top-left logo, a two-line headline +
+// subtitle beside the strip, and an optional caption + a handle rotated
+// vertical along the strip's edge below it. The headline/caption's
+// "**word**" spans render bold(-italic) — see `apertureBoldRuns`. Mirrors
+// `AperturePreview`.
+async function exportAperture(
+  template: RemixEditorTemplate,
+  layers: EditorLayer[],
+  format: ExportFormat,
+  width: number,
+): Promise<Blob> {
+  const ratio = parseRatio(template.aspectRatio);
+  const height = Math.round(width / ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is not supported in this browser.");
+
+  if (!apertureUsesLiveLayers(layers)) {
+    try {
+      const reference = await loadImage(APERTURE_REFERENCE_SRC);
+      drawImageCoverCanvas(ctx, reference, width, height);
+      return canvasToBlob(canvas, format);
+    } catch {
+      ctx.fillStyle = template.background;
+      ctx.fillRect(0, 0, width, height);
+    }
+  }
+
+  const byId = <T extends EditorLayer>(id: EditorLayer["id"]) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+
+  const photo = byId<Extract<EditorLayer, { kind: "image" }>>("image");
+  const header = byId<TextLayer>("header");
+  const subtitle = byId<TextLayer>("description");
+  const handle = byId<TextLayer>("eyebrow");
+  const caption = byId<TextLayer>("cta");
+  const logo = byId<Extract<EditorLayer, { kind: "logo" }>>("logo");
+  const geo = apertureGeometry(width, height);
+
+  ctx.fillStyle = template.background;
+  ctx.fillRect(0, 0, width, height);
+
+  const textLayers = [header, subtitle, handle, caption].filter((layer): layer is TextLayer =>
+    Boolean(layer?.visible && layer.text.trim()),
+  );
+  if (typeof document !== "undefined" && document.fonts) {
+    await Promise.all(
+      textLayers.flatMap((layer) => {
+        const font = fontById(layer.fontId);
+        const weight = resolveTextStyle(layer).weight;
+        const family = primaryFamily(font.family);
+        return [
+          document.fonts.load(`${weight} 64px ${family}`).catch(() => undefined),
+          document.fonts
+            .load(`italic ${apertureBoldWeight(font, weight)} 64px ${family}`)
+            .catch(() => undefined),
+        ];
+      }),
+    ).catch(() => undefined);
+  }
+
+  if (photo?.visible && photo.src) {
+    let img: HTMLImageElement;
+    try {
+      img = await loadImage(photo.src);
+    } catch {
+      throw new ExportImageError(1);
+    }
+
+    // Blurred backdrop: overscan both the draw rect and the transform's zoom
+    // so the canvas blur filter never samples transparent edge fringe —
+    // mirrors `exportInteriorInspiration`'s bleed technique.
+    ctx.save();
+    ctx.filter = `blur(${geo.backdrop.blur}px)`;
+    const bleed = geo.backdrop.blur * 3;
+    drawImageCover(
+      ctx,
+      img,
+      { x: -bleed, y: -bleed, w: width + bleed * 2, h: height + bleed * 2 },
+      { ...imageTransform(photo), scale: imageTransform(photo).scale * geo.backdrop.scale },
+    );
+    ctx.restore();
+
+    // Sharp strip: the same photo, cover-fit into the frame with the user's
+    // own pan/zoom, then a thin stroke traces the window's edge.
+    drawImageCover(ctx, img, geo.frame, imageTransform(photo));
+    ctx.strokeStyle = geo.frame.borderColor;
+    ctx.lineWidth = geo.frame.borderWidth;
+    ctx.strokeRect(
+      geo.frame.x + geo.frame.borderWidth / 2,
+      geo.frame.y + geo.frame.borderWidth / 2,
+      geo.frame.w - geo.frame.borderWidth,
+      geo.frame.h - geo.frame.borderWidth,
+    );
+  }
+
+  if (logo?.visible && logo.src) {
+    try {
+      const image = await loadImage(logo.src);
+      drawImageContain(ctx, image, geo.logo);
+    } catch {
+      throw new Error("Couldn't load the logo for export.");
+    }
+  }
+
+  if (header?.visible && header.text.trim()) {
+    const style = resolveTextStyle(header);
+    const font = fontById(header.fontId);
+    const baseSize = geo.headline.size * style.sizeScale;
+    const fit = apertureHeadlineFit(
+      header.text,
+      header.fontId,
+      style.weight,
+      baseSize,
+      geo.headline.maxWidth,
+    );
+    const size = baseSize * fit;
+    const pitch = size * APERTURE_LAYOUT.headline.lineHeight;
+    const boldWeight = apertureBoldWeight(font, style.weight);
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    apertureHeadlineLines(header.text).forEach((line, index) => {
+      let x = geo.headline.left;
+      const y = geo.headline.baseline + index * pitch;
+      ctx.save();
+      applyTextShadow(ctx, Boolean(style.shadow), size);
+      for (const run of line) {
+        if (!run.text) continue;
+        ctx.fillStyle = header.color;
+        ctx.font = `${run.bold ? `italic ${boldWeight}` : style.weight} ${size}px ${font.family}`;
+        ctx.fillText(run.text, x, y);
+        x += ctx.measureText(run.text).width;
+      }
+      ctx.restore();
+    });
+  }
+
+  if (subtitle?.visible && subtitle.text.trim()) {
+    const style = resolveTextStyle(subtitle);
+    const text = subtitle.uppercase ? subtitle.text.toUpperCase() : subtitle.text;
+    ctx.save();
+    ctx.fillStyle = subtitle.color;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.font = `${style.weight} ${geo.subtitle.size * style.sizeScale}px ${fontById(subtitle.fontId).family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    ctx.fillText(text, geo.subtitle.left, geo.subtitle.baseline);
+    ctx.restore();
+  }
+
+  if (handle?.visible && handle.text.trim()) {
+    const style = resolveTextStyle(handle);
+    const text = handle.uppercase ? handle.text.toUpperCase() : handle.text;
+    ctx.save();
+    ctx.translate(geo.handle.centerX, geo.handle.bottom);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillStyle = handle.color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.font = `${style.weight} ${geo.handle.size * style.sizeScale}px ${fontById(handle.fontId).family}`;
+    ctx.letterSpacing = `${style.letterSpacing}em`;
+    ctx.fillText(text, 0, 0);
+    ctx.restore();
+  }
+
+  if (caption?.visible && caption.text.trim()) {
+    const style = resolveTextStyle(caption);
+    const font = fontById(caption.fontId);
+    const size = geo.paragraph.size * style.sizeScale;
+    const pitch = size * APERTURE_LAYOUT.paragraph.lineHeight;
+    const boldWeight = apertureBoldWeight(font, style.weight);
+    const lines = apertureWrapParagraph(
+      caption.text,
+      caption.fontId,
+      style.weight,
+      size,
+      geo.paragraph.maxWidth,
+    );
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    lines.forEach((line, index) => {
+      let x = geo.paragraph.left;
+      const y = geo.paragraph.baseline + index * pitch;
+      line.forEach((run, runIndex) => {
+        const display = run.text + (runIndex < line.length - 1 ? " " : "");
+        ctx.fillStyle = run.bold ? apertureBoldColor(caption.color) : caption.color;
+        ctx.font = `${run.bold ? boldWeight : style.weight} ${size}px ${font.family}`;
+        ctx.fillText(display, x, y);
+        x += ctx.measureText(display).width;
+      });
+    });
+  }
+
+  return canvasToBlob(canvas, format);
+}
+
 // Rasterize the Everyday Icons fashion collage: six required images in a fixed
 // white grid, with a required title and two optional small copy blocks. Mirrors
 // `FashionIconsPreview`.
@@ -5011,6 +5549,15 @@ export async function exportCreative(
   }
   if (template.layout === "modern-fashion") {
     return exportModernFashion(template, layers, format, width);
+  }
+  if (template.layout === "listing") {
+    return exportListing(template, layers, format, width);
+  }
+  if (template.layout === "estate") {
+    return exportEstate(template, layers, format, width);
+  }
+  if (template.layout === "aperture") {
+    return exportAperture(template, layers, format, width);
   }
   if (template.layout === "showcase") {
     return exportShowcase(template, layers, format, width);

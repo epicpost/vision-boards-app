@@ -149,6 +149,21 @@ export const EXPORT_FORMATS: Record<ExportFormat, ExportFormatMeta> = {
 // headline, rounded story image and required bottom-right logo.
 // "modern-fashion" is a one-photo editorial fashion poster: one portrait sits
 // behind circle/square masks, with a required title and optional number labels.
+// "listing" is a real-estate "Just Listed" poster: one full-bleed photo, a
+// required two-word headline (first word roman, second word italic, same
+// line) with an optional caption below it, and a required hollow-bordered
+// call-to-action button.
+// "estate" is a two-photo real-estate collage: a full-bleed lifestyle backdrop
+// on the left, a flat-colour panel on the right carrying an optional wordmark
+// + script subtitle and an optional bottom-right approval badge/logo, a
+// second property photo floating over the seam between the two, and a
+// required oversized serif headline set over the backdrop.
+// "aperture" is a blurred full-bleed photo backdrop with one narrow, thin-
+// bordered strip of the same photo left sharp — a window of focus through the
+// blur. An optional top-left logo, a required two-line headline (with
+// **bold-italic** emphasis spans) and subtitle sit beside the strip; an
+// optional caption (with **bold** spans) and an optional handle rotated
+// vertical along the strip's edge sit below.
 export type TemplateLayout =
   | "poster"
   | "moodboard"
@@ -180,7 +195,10 @@ export type TemplateLayout =
   | "summer-mood"
   | "mosaic"
   | "breaking-news"
-  | "modern-fashion";
+  | "modern-fashion"
+  | "listing"
+  | "estate"
+  | "aperture";
 
 export interface RemixEditorTemplate {
   id: string;
@@ -3572,6 +3590,294 @@ const MODERN_FASHION: RemixEditorTemplate = {
   ],
 };
 
+export const LISTING_REFERENCE_SRC = "/templates/shared/7382bcf56dc5e2eac13c5445de2cf0eb.jpg";
+export const LISTING_PHOTO_SRC = "/templates/shared/listing-just-listed-photo-source.jpg";
+
+// Just Listed — measured from
+// public/templates/shared/7382bcf56dc5e2eac13c5445de2cf0eb.jpg (1080 x 1350).
+// The editor/export use the reference JPG untouched until any editable input is
+// changed (see `listingUsesLiveLayers`), then rebuild the composition live: one
+// full-bleed photo, a two-word headline set on a shared baseline (first word
+// roman, the rest italic — split on the first space), an optional caption
+// below it, and a required hollow, tracked call-to-action button.
+const JUST_LISTED: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000060",
+  title: "Just Listed",
+  layout: "listing",
+  aspectRatio: "1080 / 1350",
+  background: "#2b2b28",
+  palette: [
+    { label: "White", value: "#ffffff" },
+    { label: "Ivory", value: "#f3ede2" },
+    { label: "Black", value: "#111111" },
+    { label: "Brass", value: "#c9a227" },
+    { label: "Sage", value: "#8a9a82" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Listing photo",
+      visible: true,
+      hideable: false,
+      src: LISTING_PHOTO_SRC,
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Headline",
+      visible: true,
+      hideable: false,
+      text: "Just listed",
+      color: "#ffffff",
+      fontId: "playfair",
+      uppercase: false,
+      weight: 600,
+      suggestions: ["Just listed", "Just sold", "Now leasing", "Coming soon", "Price reduced"],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Location",
+      visible: true,
+      hideable: true,
+      text: "in City",
+      color: "#ffffff",
+      fontId: "playfair",
+      uppercase: false,
+      weight: 400,
+      align: "center",
+      suggestions: ["in City", "in Austin", "in Miami", "in Denver", ""],
+    },
+    {
+      id: "cta",
+      kind: "cta",
+      label: "Call to action",
+      visible: true,
+      hideable: false,
+      text: "Take a peak →",
+      color: "#ffffff",
+      fontId: "poppins",
+      uppercase: true,
+      weight: 500,
+      letterSpacing: 0.16,
+      suggestions: ["Take a peak →", "View listing →", "See more →", "Swipe to explore →"],
+    },
+    {
+      id: "logo",
+      kind: "logo",
+      label: "Logo",
+      visible: false,
+      hideable: true,
+      src: "/transparent-logo.png",
+    },
+  ],
+};
+
+export const ESTATE_REFERENCE_SRC = "/templates/shared/aad6353a5c0eca9816292e4c6708f142.jpg";
+export const ESTATE_BACKDROP_SRC = "/templates/shared/estate-lifestyle-source.jpg";
+export const ESTATE_INSET_SRC = "/templates/shared/estate-poolside-source.jpg";
+export const ESTATE_LOGO_SRC = "/templates/shared/estate-badge-source.png";
+
+// Belong Estate — measured from
+// public/templates/shared/aad6353a5c0eca9816292e4c6708f142.jpg (1080 x 1350).
+// The reference bakes its headline into the lifestyle photo and its wordmark +
+// approval badge into the flat panel, so (like Breaking News / Just Listed)
+// the untouched editor shows that JPG as-is; editing any layer switches to a
+// live composition — a cover-fit backdrop photo on the left, a flat panel on
+// the right, a second property photo floating over the seam, an optional
+// wordmark + script subtitle centred in the panel, a required serif headline
+// over the backdrop, and an optional bottom-right badge/logo.
+const BELONG_ESTATE: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000061",
+  title: "Belong Estate",
+  layout: "estate",
+  aspectRatio: "1080 / 1350",
+  background: "#f5f5f4",
+  palette: [
+    { label: "Ivory", value: "#f5f5f4" },
+    { label: "White", value: "#ffffff" },
+    { label: "Charcoal", value: "#45443d" },
+    { label: "Sand", value: "#c9b896" },
+    { label: "Forest", value: "#2f3b2c" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Lifestyle photo",
+      visible: true,
+      hideable: false,
+      src: ESTATE_BACKDROP_SRC,
+    },
+    {
+      id: "detail",
+      kind: "image",
+      label: "Property photo",
+      visible: true,
+      hideable: false,
+      src: ESTATE_INSET_SRC,
+    },
+    {
+      id: "eyebrow",
+      kind: "eyebrow",
+      label: "Wordmark",
+      visible: true,
+      hideable: true,
+      text: "BELONG\nCartagena de Indias",
+      color: "#45443d",
+      fontId: "montserrat",
+      uppercase: false,
+      weight: 600,
+      align: "center",
+      letterSpacing: 0.24,
+      suggestions: ["BELONG\nCartagena de Indias", "AURORA\nMiami Beach", "HAVEN\nLisbon", ""],
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Headline",
+      visible: true,
+      hideable: false,
+      text: "Become a smart investor.",
+      color: "#ffffff",
+      fontId: "playfair",
+      uppercase: false,
+      weight: 400,
+      align: "left",
+      shadow: true,
+      suggestions: [
+        "Become a smart investor.",
+        "Invest in the view.",
+        "Own the skyline.",
+        "Your next address awaits.",
+      ],
+    },
+    {
+      id: "logo",
+      kind: "logo",
+      label: "Logo",
+      visible: true,
+      hideable: true,
+      src: ESTATE_LOGO_SRC,
+    },
+  ],
+};
+
+export const APERTURE_REFERENCE_SRC = "/templates/shared/d7e0d71e1c76c423f1bc2e5438c44699.jpg";
+export const APERTURE_PHOTO_SRC = "/templates/shared/imperial-alfa-source.jpg";
+export const APERTURE_LOGO_SRC = "/templates/shared/imperial-alfa-logo-source.png";
+
+// Skyline Focus — measured from
+// public/templates/shared/d7e0d71e1c76c423f1bc2e5438c44699.jpg (736 x 1104).
+// The reference bakes everything into one flat JPG, so (like Breaking News /
+// Just Listed) the untouched editor shows that plate as-is until an editable
+// input changes — see `apertureUsesLiveLayers`. The one required photo backs
+// both the blurred full-bleed backdrop and a sharp, hollow-bordered strip (a
+// window of focus through the blur). The headline and caption mark their
+// bold/bold-italic emphasis spans with "**word**" — see `apertureBoldRuns`.
+const APERTURE_DUBAI: RemixEditorTemplate = {
+  id: "11000000-0000-0000-0000-000000000062",
+  title: "Skyline Focus",
+  layout: "aperture",
+  aspectRatio: "736 / 1104",
+  background: "#0f2530",
+  palette: [
+    { label: "White", value: "#ffffff" },
+    { label: "Ink", value: "#0f2530" },
+    { label: "Sand", value: "#cbb994" },
+    { label: "Slate teal", value: "#3c6b78" },
+    { label: "Black", value: "#000000" },
+  ],
+  formats: ["png", "jpeg", "webp"],
+  layers: [
+    {
+      id: "image",
+      kind: "image",
+      label: "Property photo",
+      visible: true,
+      hideable: false,
+      src: APERTURE_PHOTO_SRC,
+    },
+    {
+      id: "header",
+      kind: "header",
+      label: "Headline",
+      visible: true,
+      hideable: false,
+      text: "A **smarter**\nway to **buy**",
+      color: "#ffffff",
+      fontId: "poppins",
+      uppercase: false,
+      weight: 400,
+      align: "left",
+      suggestions: [
+        "A **smarter**\nway to **buy**",
+        "A **smarter**\nway to **sell**",
+        "A **simpler**\nway to **invest**",
+        "The **modern**\nway to **move**",
+      ],
+    },
+    {
+      id: "description",
+      kind: "description",
+      label: "Website",
+      visible: true,
+      hideable: true,
+      text: "Imperial Alfa Real Estate",
+      color: "#ffffff",
+      fontId: "poppins",
+      uppercase: false,
+      weight: 400,
+      align: "left",
+      suggestions: ["Imperial Alfa Real Estate", "Your Brand Real Estate", "www.yourbrand.com", ""],
+    },
+    {
+      id: "eyebrow",
+      kind: "eyebrow",
+      label: "Handle",
+      visible: true,
+      hideable: true,
+      text: "@imperialalfa",
+      color: "#ffffff",
+      fontId: "poppins",
+      uppercase: false,
+      weight: 400,
+      align: "left",
+      suggestions: ["@imperialalfa", "@yourbrand", "@youragency", ""],
+    },
+    {
+      id: "cta",
+      kind: "cta",
+      label: "Caption",
+      visible: true,
+      hideable: true,
+      text: "**Follow** Imperial Alfa for curated **UAE real estate** insights and opportunities.",
+      color: "rgba(255,255,255,0.72)",
+      fontId: "poppins",
+      uppercase: false,
+      weight: 400,
+      align: "left",
+      suggestions: [
+        "**Follow** Imperial Alfa for curated **UAE real estate** insights and opportunities.",
+        "**Follow** us for **weekly** market updates and new listings.",
+        "**Save** this post for your next **home search**.",
+        "",
+      ],
+    },
+    {
+      id: "logo",
+      kind: "logo",
+      label: "Logo",
+      visible: true,
+      hideable: true,
+      src: APERTURE_LOGO_SRC,
+    },
+  ],
+};
+
 // Everyday Icons — a six-photo editorial fashion collage. Preview art lives at
 // public/templates/shared/5f0141e800d6ae18b904a5f4a4aefe2a.jpg (736 x 1034):
 // two top product/model images, one middle-left jacket image, three bottom
@@ -4020,6 +4326,9 @@ const REMIX_EDITOR_TEMPLATES: Record<string, RemixEditorTemplate> = {
   [SUMMER_MOOD.id]: SUMMER_MOOD,
   [BREAKING_NEWS.id]: BREAKING_NEWS,
   [MODERN_FASHION.id]: MODERN_FASHION,
+  [JUST_LISTED.id]: JUST_LISTED,
+  [BELONG_ESTATE.id]: BELONG_ESTATE,
+  [APERTURE_DUBAI.id]: APERTURE_DUBAI,
   [FASHION_ICONS.id]: FASHION_ICONS,
   [SHOWCASE_DROP.id]: SHOWCASE_DROP,
   [SHOWCASE_SALE.id]: SHOWCASE_SALE,
@@ -4431,7 +4740,11 @@ export function summerMoodCornerPatchGeometry(
   cell: SummerMoodCell,
   width: number,
   height: number,
-): { rect: { x: number; y: number; w: number; h: number }; clipPath: string; zIndex: number } | null {
+): {
+  rect: { x: number; y: number; w: number; h: number };
+  clipPath: string;
+  zIndex: number;
+} | null {
   const patchPoints = summerMoodCornerPatchPoints(cell, width, height);
   if (!patchPoints) return null;
   const xs = patchPoints.map((point) => point.x);
@@ -7784,4 +8097,711 @@ const MOSAIC_DEFAULT_CELLS = MOSAIC_VARIANTS["11000000-0000-0000-0000-0000000000
 // The mosaic cell rects for a template id (falls back to the 11-cell default).
 export function mosaicCells(templateId: string): readonly MosaicRect[] {
   return MOSAIC_VARIANTS[templateId] ?? MOSAIC_DEFAULT_CELLS;
+}
+
+// ---------------------------------------------------------------------------
+// Just Listed — measured from
+// public/templates/shared/7382bcf56dc5e2eac13c5445de2cf0eb.jpg (1080 x 1350).
+// The reference bakes its headline, caption and button into the photo, so
+// (like Breaking News / Modern Fashion) the untouched editor shows that JPG
+// as-is; editing any layer switches to a live composition over a clean plate
+// (`LISTING_PHOTO_SRC`) using the measurements below. Sizes are fractions of
+// canvas width, vertical positions fractions of height, so both scale
+// together at any export resolution.
+export const LISTING_LAYOUT = {
+  scrim: { color: "10, 9, 8", from: 0.52, to: 1, fromOpacity: 0, toOpacity: 0.38 },
+  headline: {
+    // Baseline the two words share; both render at the same font size — the
+    // reference's "listed" only *reads* larger because its italic ascenders
+    // reach higher than "Just"'s cap height (measured cap-heights match).
+    baseline: 0.727,
+    size: 0.169,
+    maxWidth: 0.88,
+    gap: 0.018,
+    minScale: 0.45,
+  },
+  subtitle: {
+    baseline: 0.803,
+    size: 0.062,
+    maxWidth: 0.8,
+    minScale: 0.5,
+  },
+  cta: {
+    width: 0.423,
+    top: 0.8385,
+    height: 0.0659,
+    borderWidth: 0.0019,
+    padX: 0.045,
+    size: 0.037,
+    letterSpacing: 0.16,
+    minScale: 0.5,
+  },
+  logo: { x: 0.4, y: 0.045, w: 0.2, h: 0.055 },
+} as const;
+
+export interface ListingGeometry {
+  headline: { baselineY: number; size: number; maxWidth: number; gap: number };
+  subtitle: { baselineY: number; size: number; maxWidth: number };
+  cta: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    borderWidth: number;
+    padX: number;
+    size: number;
+  };
+  logo: { x: number; y: number; w: number; h: number };
+}
+
+export function listingGeometry(width: number, height: number): ListingGeometry {
+  const L = LISTING_LAYOUT;
+  const ctaW = L.cta.width * width;
+  const ctaH = L.cta.height * height;
+  return {
+    headline: {
+      baselineY: L.headline.baseline * height,
+      size: L.headline.size * width,
+      maxWidth: L.headline.maxWidth * width,
+      gap: L.headline.gap * width,
+    },
+    subtitle: {
+      baselineY: L.subtitle.baseline * height,
+      size: L.subtitle.size * width,
+      maxWidth: L.subtitle.maxWidth * width,
+    },
+    cta: {
+      x: (width - ctaW) / 2,
+      y: L.cta.top * height,
+      w: ctaW,
+      h: ctaH,
+      borderWidth: Math.max(1.5, L.cta.borderWidth * width),
+      padX: L.cta.padX * width,
+      size: L.cta.size * width,
+    },
+    logo: {
+      x: L.logo.x * width,
+      y: L.logo.y * height,
+      w: L.logo.w * width,
+      h: L.logo.h * height,
+    },
+  };
+}
+
+// Splits a headline into the roman first word and the (possibly multi-word)
+// italic remainder — "Just listed" → { word1: "Just", word2: "listed" }; a
+// single word (e.g. "Sold") renders with an empty, hidden word2.
+export function listingHeadlineWords(text: string): { word1: string; word2: string } {
+  const trimmed = text.trim();
+  const spaceIndex = trimmed.indexOf(" ");
+  if (spaceIndex === -1) return { word1: trimmed, word2: "" };
+  return { word1: trimmed.slice(0, spaceIndex), word2: trimmed.slice(spaceIndex + 1).trim() };
+}
+
+export interface ListingHeadlineFit {
+  scale: number;
+  word1Width: number;
+  word2Width: number;
+}
+
+const LISTING_HEADLINE_IDENTITY_FIT: ListingHeadlineFit = {
+  scale: 1,
+  word1Width: 0,
+  word2Width: 0,
+};
+
+// Shrinks the headline (as one unit — both words stay the same size) so it
+// never overflows `maxWidthPx`, mirroring `businessChoiceHeadlineFit`'s
+// measure-then-scale approach. Only gates on the roman face loading: a
+// synthesized italic (the catalog never loads a true italic file — see
+// `editorFontsHref`) shares the roman face's glyph outlines/metrics, so it
+// measures accurately as soon as the roman weight is ready.
+export function listingHeadlineFit(
+  text: string,
+  fontId: string,
+  weight: number,
+  baseSizePx: number,
+  maxWidthPx: number,
+  gapPx: number,
+): ListingHeadlineFit {
+  const ctx = getMeasureCtx();
+  const { word1, word2 } = listingHeadlineWords(text);
+  if (!ctx || !word1 || typeof document === "undefined" || !("fonts" in document)) {
+    return LISTING_HEADLINE_IDENTITY_FIT;
+  }
+  const family = fontById(fontId).family.split(",")[0].trim();
+  const romanFace = `${weight} ${baseSizePx}px ${family}`;
+  if (!document.fonts.check(romanFace)) {
+    return LISTING_HEADLINE_IDENTITY_FIT;
+  }
+  ctx.font = romanFace;
+  const word1Width = ctx.measureText(word1).width;
+  let word2Width = 0;
+  if (word2) {
+    ctx.font = `italic ${weight} ${baseSizePx}px ${family}`;
+    word2Width = ctx.measureText(word2).width;
+  }
+  const totalWidth = word1Width + (word2 ? gapPx + word2Width : 0);
+  if (!totalWidth) return LISTING_HEADLINE_IDENTITY_FIT;
+  const scale = Math.min(1, maxWidthPx / totalWidth);
+  return { scale: Math.max(LISTING_LAYOUT.headline.minScale, scale), word1Width, word2Width };
+}
+
+// Shrinks a single line of text (the CTA label or the caption) so it stays
+// within `maxWidthPx`, sharing one measurement approach for both of
+// "listing"'s non-headline text layers. `text` should already carry whatever
+// case transform (e.g. uppercase) the caller renders.
+export function listingTextFit(
+  text: string,
+  fontId: string,
+  weight: number,
+  letterSpacingEm: number,
+  baseSizePx: number,
+  maxWidthPx: number,
+  minScale: number,
+): number {
+  const ctx = getMeasureCtx();
+  const display = text.trim();
+  if (!ctx || !display || typeof document === "undefined" || !("fonts" in document)) return 1;
+  const family = fontById(fontId).family.split(",")[0].trim();
+  const face = `${weight} ${baseSizePx}px ${family}`;
+  if (!document.fonts.check(face)) return 1;
+  ctx.font = face;
+  ctx.letterSpacing = `${letterSpacingEm}em`;
+  const width = ctx.measureText(display).width;
+  ctx.letterSpacing = "0px";
+  if (!width) return 1;
+  return Math.max(minScale, Math.min(1, maxWidthPx / width));
+}
+
+function matchesListingTextDefault(layer: TextLayer | undefined, fallback: TextLayer): boolean {
+  if (!layer) return false;
+  return (
+    layer.visible === fallback.visible &&
+    layer.text === fallback.text &&
+    layer.color.toLowerCase() === fallback.color.toLowerCase() &&
+    layer.fontId === fallback.fontId &&
+    (layer.weight ?? null) === (fallback.weight ?? null) &&
+    (layer.letterSpacing ?? 0) === (fallback.letterSpacing ?? 0)
+  );
+}
+
+// Whether any editable input (photo, headline, caption, button or logo)
+// differs from the template's defaults — while everything is untouched, the
+// preview/export just show the reference JPG plate instead of re-composing it.
+export function listingUsesLiveLayers(layers: readonly EditorLayer[]): boolean {
+  const layerById = <T extends EditorLayer>(id: string) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+  const fallbackById = <T extends EditorLayer>(id: string) =>
+    JUST_LISTED.layers.find((layer) => layer.id === id) as T | undefined;
+
+  const image = layerById<ImageLayer>("image");
+  const imageFallback = fallbackById<ImageLayer>("image");
+  if (
+    !image ||
+    !imageFallback ||
+    image.visible !== imageFallback.visible ||
+    image.src !== imageFallback.src ||
+    !isIdentityImageTransform(imageTransform(image))
+  ) {
+    return true;
+  }
+
+  const logo = layerById<LogoLayer>("logo");
+  const logoFallback = fallbackById<LogoLayer>("logo");
+  if (
+    !logo ||
+    !logoFallback ||
+    logo.visible !== logoFallback.visible ||
+    logo.src !== logoFallback.src
+  ) {
+    return true;
+  }
+
+  return ["header", "description", "cta"].some((id) => {
+    const fallback = fallbackById<TextLayer>(id);
+    return !fallback || !matchesListingTextDefault(layerById<TextLayer>(id), fallback);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Belong Estate — measured from
+// public/templates/shared/aad6353a5c0eca9816292e4c6708f142.jpg (1080 x 1350).
+// The reference bakes everything into one flat JPG, so (like Breaking News /
+// Just Listed) the untouched editor shows that plate as-is — see
+// `estateUsesLiveLayers`. Sizes are fractions of canvas width, vertical
+// positions fractions of height, so both scale together at any export
+// resolution. The wordmark's two lines carry independent treatments (a
+// tracked all-caps line over a small script subtitle), mirroring how
+// `OPEN_SPACE_LAYOUT.headline` splits a two-line title.
+export const ESTATE_LAYOUT = {
+  splitX: 671.5 / 1080,
+  inset: { x: 281 / 1080, y: 510 / 1350, w: 778 / 1080, h: 492 / 1350 },
+  wordmark: {
+    line1: { baseline: 258 / 1350, cap: 18 / 1350, capRatio: 0.72, letterSpacing: 0.24 },
+    line2: { baseline: 291 / 1350, size: 16.5 / 1080 },
+  },
+  headline: {
+    left: 57 / 1080,
+    firstBaseline: 1103 / 1350,
+    cap: 54 / 1350, // true cap height (measured on "Become"'s "B"), not an ascender
+    capRatio: 0.7, // cap height ÷ em for Playfair Display Regular
+    lineHeight: 75 / 54, // baseline pitch ÷ cap height
+    // Column words wrap within. Measured in-browser at this cap/capRatio (not
+    // estimated from the reference JPEG — Playfair Display's actual advance
+    // widths don't match a hand-measured pixel guess): "Become a" ≈ 307px,
+    // "a smart" ≈ 241px, "investor." ≈ 277px (all at the 1000-canonical
+    // width). 280px sits between them, reproducing the reference's exact
+    // "Become" / "a smart" / "investor." breaks.
+    maxWidth: 280 / 1000,
+  },
+  logo: { x: 895 / 1080, y: 1222 / 1350, w: 157 / 1080, h: 78 / 1350 },
+} as const;
+
+export interface EstateGeometry {
+  photo: { x: number; y: number; w: number; h: number };
+  panel: { x: number; y: number; w: number; h: number };
+  inset: { x: number; y: number; w: number; h: number };
+  wordmark: {
+    centerX: number;
+    line1Baseline: number;
+    line1Size: number;
+    line2Baseline: number;
+    line2Size: number;
+  };
+  headline: { left: number; maxWidth: number; fontSize: number; lines: WovenLine[] };
+  logo: { x: number; y: number; w: number; h: number };
+}
+
+// Resolve the backdrop/panel/inset boxes, the wordmark's two baselines, and
+// the word-wrapped headline lines, in the target canvas units (px, or the
+// preview viewBox units). Mirrors `wovenGeometry`'s canonical-width wrap trick
+// so the DOM preview and the canvas export always agree on line breaks.
+export function estateGeometry(
+  headlineText: string,
+  headlineFontId: string,
+  headlineWeight: number,
+  width: number,
+  height: number,
+): EstateGeometry {
+  const L = ESTATE_LAYOUT;
+  const splitXpx = L.splitX * width;
+  const photo = { x: 0, y: 0, w: splitXpx, h: height };
+  const panel = { x: splitXpx, y: 0, w: width - splitXpx, h: height };
+  const inset = {
+    x: L.inset.x * width,
+    y: L.inset.y * height,
+    w: L.inset.w * width,
+    h: L.inset.h * height,
+  };
+  const wordmark = {
+    centerX: (splitXpx + width) / 2,
+    line1Baseline: L.wordmark.line1.baseline * height,
+    line1Size: (L.wordmark.line1.cap * height) / L.wordmark.line1.capRatio,
+    line2Baseline: L.wordmark.line2.baseline * height,
+    line2Size: L.wordmark.line2.size * width,
+  };
+
+  const fontSize = (L.headline.cap * height) / L.headline.capRatio;
+  const pitch = L.headline.cap * height * L.headline.lineHeight;
+
+  // Wrap at a fixed canonical resolution (not the target one) so the preview
+  // and the export agree on line breaks — see `wovenGeometry` for why.
+  const CANON = 1000;
+  const canonHeight = (CANON * height) / width;
+  const mMaxWidth = L.headline.maxWidth * CANON;
+  const mFontSize = (L.headline.cap * canonHeight) / L.headline.capRatio;
+  const words = wovenWrap(headlineText, headlineFontId, headlineWeight, mFontSize, mMaxWidth);
+  const firstBaseline = L.headline.firstBaseline * height;
+  const lines: WovenLine[] = words.map((text, i) => ({
+    text,
+    baseline: firstBaseline + i * pitch,
+  }));
+
+  return {
+    photo,
+    panel,
+    inset,
+    wordmark,
+    headline: {
+      left: L.headline.left * width,
+      maxWidth: L.headline.maxWidth * width,
+      fontSize,
+      lines,
+    },
+    logo: {
+      x: L.logo.x * width,
+      y: L.logo.y * height,
+      w: L.logo.w * width,
+      h: L.logo.h * height,
+    },
+  };
+}
+
+function matchesEstateTextDefault(layer: TextLayer | undefined, fallback: TextLayer): boolean {
+  if (!layer) return false;
+  return (
+    layer.visible === fallback.visible &&
+    layer.text === fallback.text &&
+    layer.color.toLowerCase() === fallback.color.toLowerCase() &&
+    layer.fontId === fallback.fontId &&
+    (layer.weight ?? null) === (fallback.weight ?? null) &&
+    (layer.letterSpacing ?? 0) === (fallback.letterSpacing ?? 0)
+  );
+}
+
+// Whether any editable input (either photo, the wordmark, the headline or the
+// logo) differs from the template's defaults — while everything is untouched,
+// the preview/export just show the reference JPG plate instead of
+// re-composing it live.
+export function estateUsesLiveLayers(layers: readonly EditorLayer[]): boolean {
+  const layerById = <T extends EditorLayer>(id: string) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+  const fallbackById = <T extends EditorLayer>(id: string) =>
+    BELONG_ESTATE.layers.find((layer) => layer.id === id) as T | undefined;
+
+  for (const id of ["image", "detail"]) {
+    const image = layerById<ImageLayer>(id);
+    const imageFallback = fallbackById<ImageLayer>(id);
+    if (
+      !image ||
+      !imageFallback ||
+      image.visible !== imageFallback.visible ||
+      image.src !== imageFallback.src ||
+      !isIdentityImageTransform(imageTransform(image))
+    ) {
+      return true;
+    }
+  }
+
+  const logo = layerById<LogoLayer>("logo");
+  const logoFallback = fallbackById<LogoLayer>("logo");
+  if (
+    !logo ||
+    !logoFallback ||
+    logo.visible !== logoFallback.visible ||
+    logo.src !== logoFallback.src
+  ) {
+    return true;
+  }
+
+  return ["eyebrow", "header"].some((id) => {
+    const fallback = fallbackById<TextLayer>(id);
+    return !fallback || !matchesEstateTextDefault(layerById<TextLayer>(id), fallback);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Aperture (Skyline Focus) — measured from
+// public/templates/shared/d7e0d71e1c76c423f1bc2e5438c44699.jpg (736 x 1104).
+// Sizes are fractions of canvas width, vertical positions fractions of
+// height, so both scale together at any export resolution. The headline sits
+// flush against the sharp strip's right edge; the subtitle/paragraph share
+// its left edge.
+export const APERTURE_LAYOUT = {
+  backdrop: { blur: 16 / 736, scale: 1.25 },
+  frame: {
+    x: 278 / 736,
+    y: 112 / 1104,
+    w: 102 / 736,
+    h: 792 / 1104,
+    borderWidth: 1.6 / 736,
+    borderColor: "rgba(255,255,255,0.72)",
+  },
+  logo: { x: 114 / 736, y: 113 / 1104, w: 90 / 736, h: 28 / 1104 },
+  headline: {
+    baseline: 596 / 1104,
+    size: 46 / 736,
+    lineHeight: 48 / 46, // baseline pitch ÷ font size
+    rightMargin: 0.018,
+    minScale: 0.6,
+  },
+  subtitle: {
+    baseline: 704 / 1104,
+    size: 28 / 736,
+    rightMargin: 0.05,
+    minScale: 0.55,
+  },
+  handle: {
+    centerX: 258.5 / 736,
+    bottom: 926 / 1104,
+    size: 16 / 736,
+  },
+  paragraph: {
+    left: 280 / 736,
+    baseline: 916 / 1104,
+    size: 18 / 736,
+    lineHeight: 19 / 18, // baseline pitch ÷ font size
+    maxWidth: 360 / 736,
+  },
+} as const;
+
+export interface ApertureGeometry {
+  backdrop: { blur: number; scale: number };
+  frame: { x: number; y: number; w: number; h: number; borderWidth: number; borderColor: string };
+  logo: { x: number; y: number; w: number; h: number };
+  headline: { left: number; baseline: number; size: number; lineHeight: number; maxWidth: number };
+  subtitle: { left: number; baseline: number; size: number; maxWidth: number };
+  handle: { centerX: number; bottom: number; size: number };
+  paragraph: { left: number; baseline: number; size: number; lineHeight: number; maxWidth: number };
+}
+
+// Resolves every box/baseline in target canvas units (px, or the preview
+// viewBox units). The headline/subtitle's left edge and available width are
+// derived from the frame's own box rather than measured independently, so
+// they stay glued to the strip if the frame geometry ever changes.
+export function apertureGeometry(width: number, height: number): ApertureGeometry {
+  const L = APERTURE_LAYOUT;
+  const frame = {
+    x: L.frame.x * width,
+    y: L.frame.y * height,
+    w: L.frame.w * width,
+    h: L.frame.h * height,
+    borderWidth: Math.max(1, L.frame.borderWidth * width),
+    borderColor: L.frame.borderColor,
+  };
+  const textLeft = frame.x + frame.w;
+  return {
+    backdrop: { blur: L.backdrop.blur * width, scale: L.backdrop.scale },
+    frame,
+    logo: {
+      x: L.logo.x * width,
+      y: L.logo.y * height,
+      w: L.logo.w * width,
+      h: L.logo.h * height,
+    },
+    headline: {
+      left: textLeft,
+      baseline: L.headline.baseline * height,
+      size: L.headline.size * width,
+      lineHeight: L.headline.lineHeight,
+      maxWidth: width - textLeft - L.headline.rightMargin * width,
+    },
+    subtitle: {
+      left: textLeft,
+      baseline: L.subtitle.baseline * height,
+      size: L.subtitle.size * width,
+      maxWidth: width - textLeft - L.subtitle.rightMargin * width,
+    },
+    handle: {
+      centerX: L.handle.centerX * width,
+      bottom: L.handle.bottom * height,
+      size: L.handle.size * width,
+    },
+    paragraph: {
+      left: L.paragraph.left * width,
+      baseline: L.paragraph.baseline * height,
+      size: L.paragraph.size * width,
+      lineHeight: L.paragraph.lineHeight,
+      maxWidth: L.paragraph.maxWidth * width,
+    },
+  };
+}
+
+export interface ApertureRun {
+  text: string;
+  bold: boolean;
+}
+
+// Splits "**bold**" spans out of a single line into alternating plain/bold
+// runs, e.g. "A **smarter**" -> [{text:"A ",bold:false},{text:"smarter",bold:true}].
+export function apertureBoldRuns(line: string): ApertureRun[] {
+  const runs: ApertureRun[] = [];
+  const re = /\*\*(.+?)\*\*/g;
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(line))) {
+    if (match.index > cursor) runs.push({ text: line.slice(cursor, match.index), bold: false });
+    runs.push({ text: match[1], bold: true });
+    cursor = match.index + match[0].length;
+  }
+  if (cursor < line.length) runs.push({ text: line.slice(cursor), bold: false });
+  return runs;
+}
+
+// Plain-text rendering of a "**bold**"-marked string (markers stripped) — for
+// contexts that only need the display text, like an `<input>` value.
+export function apertureStripBold(text: string): string {
+  return text.replace(/\*\*(.+?)\*\*/g, "$1");
+}
+
+// The headline's explicit lines (split on "\n", like every other multi-line
+// header in this file), each parsed into bold/plain runs.
+export function apertureHeadlineLines(text: string): ApertureRun[][] {
+  return text.split("\n").map(apertureBoldRuns);
+}
+
+// Shrinks the (multi-line, "**bold**"-spanned) headline as one unit so no
+// line overflows `maxWidthPx` — mirrors `listingHeadlineFit`'s measure-then-
+// scale approach. Bold runs measure with a heavier, italic face (see
+// `apertureBoldWeight`) so a long emphasis word is accounted for correctly.
+// Only gates on the roman face loading — a synthesized/faux bold-italic
+// shares the roman face's glyph outlines closely enough to measure.
+export function apertureHeadlineFit(
+  text: string,
+  fontId: string,
+  weight: number,
+  baseSizePx: number,
+  maxWidthPx: number,
+): number {
+  const ctx = getMeasureCtx();
+  if (!ctx || !text.trim() || typeof document === "undefined" || !("fonts" in document)) return 1;
+  const font = fontById(fontId);
+  const family = fontPrimary(font);
+  const regularFace = `${weight} ${baseSizePx}px ${family}`;
+  if (!document.fonts.check(regularFace)) return 1;
+  const boldFace = `italic ${apertureBoldWeight(font, weight)} ${baseSizePx}px ${family}`;
+  let widest = 0;
+  for (const line of apertureHeadlineLines(text)) {
+    let lineWidth = 0;
+    for (const run of line) {
+      if (!run.text) continue;
+      ctx.font = run.bold ? boldFace : regularFace;
+      lineWidth += ctx.measureText(run.text).width;
+    }
+    widest = Math.max(widest, lineWidth);
+  }
+  if (!widest) return 1;
+  return Math.max(APERTURE_LAYOUT.headline.minScale, Math.min(1, maxWidthPx / widest));
+}
+
+// The weight a "**bold**" run renders at, relative to the layer's own
+// (user-adjustable) regular weight — always one step heavier, snapped to a
+// weight the font actually ships (see `nearestWeight`).
+export function apertureBoldWeight(font: EditorFont, regularWeight: number): number {
+  return nearestWeight(font, regularWeight + 300);
+}
+
+// Merges consecutive same-bold words back into runs, re-inserting the spaces
+// wrapping consumed between them (but not at line edges).
+function apertureMergeRuns(words: ApertureRun[]): ApertureRun[] {
+  const runs: ApertureRun[] = [];
+  for (const word of words) {
+    const last = runs[runs.length - 1];
+    if (last && last.bold === word.bold) last.text += ` ${word.text}`;
+    else runs.push({ text: word.text, bold: word.bold });
+  }
+  return runs;
+}
+
+// Word-wraps "**bold**"-marked `text` (plus optional literal "\n" hard
+// breaks) into lines no wider than `maxWidth`, each split back into
+// plain/bold runs for rendering. Mirrors `wovenWrap`'s greedy wrap, but
+// measures each word with its own (regular or bold) face, since a run of
+// bold words is wider than the same words set in the regular weight.
+export function apertureWrapParagraph(
+  text: string,
+  fontId: string,
+  weight: number,
+  sizePx: number,
+  maxWidth: number,
+): ApertureRun[][] {
+  const clean = (text ?? "").replace(/\r\n?/g, "\n").trim();
+  if (!clean) return [];
+  const paragraphs = clean.split("\n");
+  const ctx = getMeasureCtx();
+  if (!ctx) return paragraphs.filter((p) => p.trim()).map(apertureBoldRuns);
+
+  const font = fontById(fontId);
+  const family = fontPrimary(font);
+  const regularFace = `${weight} ${sizePx}px ${family}`;
+  const boldFace = `${apertureBoldWeight(font, weight)} ${sizePx}px ${family}`;
+  ctx.font = regularFace;
+  const spaceWidth = ctx.measureText(" ").width;
+
+  const lines: ApertureRun[][] = [];
+  for (const paragraph of paragraphs) {
+    const words = apertureBoldRuns(paragraph).flatMap((run) =>
+      run.text
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((word) => ({ text: word, bold: run.bold })),
+    );
+    if (!words.length) continue;
+    let current: ApertureRun[] = [];
+    let currentWidth = 0;
+    for (const word of words) {
+      ctx.font = word.bold ? boldFace : regularFace;
+      const wordWidth = ctx.measureText(word.text).width;
+      const addedWidth = (current.length ? spaceWidth : 0) + wordWidth;
+      if (current.length && currentWidth + addedWidth > maxWidth) {
+        lines.push(apertureMergeRuns(current));
+        current = [word];
+        currentWidth = wordWidth;
+      } else {
+        current.push(word);
+        currentWidth += addedWidth;
+      }
+    }
+    if (current.length) lines.push(apertureMergeRuns(current));
+  }
+  return lines;
+}
+
+// Boosts a translucent colour's opacity for a "**bold**" run set within
+// otherwise-translucent body copy (see Aperture's caption, whose default
+// colour is a soft `rgba(255,255,255,0.72)`). Parses "rgba(r,g,b,a)" and
+// raises alpha; any other format (solid hex, a brand colour picked from the
+// palette, …) is already fully opaque and is returned unchanged — bold still
+// reads as emphasis via weight alone.
+export function apertureBoldColor(color: string): string {
+  const match = color.match(/^rgba?\(([^)]+)\)$/i);
+  if (!match) return color;
+  const parts = match[1].split(",").map((part) => part.trim());
+  if (parts.length < 3) return color;
+  const [r, g, b] = parts;
+  const a = parts[3] !== undefined ? Number(parts[3]) : 1;
+  const boosted = Math.min(1, (Number.isFinite(a) ? a : 1) + 0.25);
+  return `rgba(${r}, ${g}, ${b}, ${boosted})`;
+}
+
+function matchesApertureTextDefault(layer: TextLayer | undefined, fallback: TextLayer): boolean {
+  if (!layer) return false;
+  return (
+    layer.visible === fallback.visible &&
+    layer.text === fallback.text &&
+    layer.color.toLowerCase() === fallback.color.toLowerCase() &&
+    layer.fontId === fallback.fontId &&
+    (layer.weight ?? null) === (fallback.weight ?? null) &&
+    (layer.letterSpacing ?? 0) === (fallback.letterSpacing ?? 0)
+  );
+}
+
+// Whether any editable input (the photo, the logo, or any text layer) differs
+// from the template's defaults — while everything is untouched, the
+// preview/export just show the reference JPG plate instead of re-composing
+// it live (see the other `*UsesLiveLayers` helpers this mirrors).
+export function apertureUsesLiveLayers(layers: readonly EditorLayer[]): boolean {
+  const layerById = <T extends EditorLayer>(id: string) =>
+    layers.find((layer) => layer.id === id) as T | undefined;
+  const fallbackById = <T extends EditorLayer>(id: string) =>
+    APERTURE_DUBAI.layers.find((layer) => layer.id === id) as T | undefined;
+
+  const image = layerById<ImageLayer>("image");
+  const imageFallback = fallbackById<ImageLayer>("image");
+  if (
+    !image ||
+    !imageFallback ||
+    image.visible !== imageFallback.visible ||
+    image.src !== imageFallback.src ||
+    !isIdentityImageTransform(imageTransform(image))
+  ) {
+    return true;
+  }
+
+  const logo = layerById<LogoLayer>("logo");
+  const logoFallback = fallbackById<LogoLayer>("logo");
+  if (
+    !logo ||
+    !logoFallback ||
+    logo.visible !== logoFallback.visible ||
+    logo.src !== logoFallback.src
+  ) {
+    return true;
+  }
+
+  return ["header", "description", "eyebrow", "cta"].some((id) => {
+    const fallback = fallbackById<TextLayer>(id);
+    return !fallback || !matchesApertureTextDefault(layerById<TextLayer>(id), fallback);
+  });
 }
